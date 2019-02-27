@@ -29,6 +29,7 @@ extern PyTypeObject pychronos_arrayiter_type;
 extern PyTypeObject pychronos_arrayview_type;
 extern PyTypeObject pychronos_fpgamap_type;
 extern PyTypeObject pychronos_frame_type;
+extern PyTypeObject pychronos_pwm_type;
 
 /* Methods */
 extern PyObject *pychronos_read_raw(PyObject *self, PyObject *args);

@@ -17,7 +17,8 @@ libpychronos = Extension('libpychronos',
                         sources = [
                             'pychronos/lib/module.c',
                             'pychronos/lib/fpgamap.c',
-                            'pychronos/lib/frame.c'],
+                            'pychronos/lib/frame.c',
+                            'pychronos/lib/pwm.c'],
                         extra_compile_args=extra_cflags,
                         extra_link_args=extra_ldflags)
 

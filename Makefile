@@ -2,7 +2,8 @@
 
 PYTHON ?= python3
 
-all: clean inplace
+all: inplace
+.PHONY: clean inplace
 
 clean:
 	rm -f *.so

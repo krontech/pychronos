@@ -306,6 +306,7 @@ static PyTypeObject *pubtypes[] = {
     &pychronos_arrayview_type,
     &pychronos_fpgamap_type,
     &pychronos_frame_type,
+    &pychronos_pwm_type,
 };
 
 static void
