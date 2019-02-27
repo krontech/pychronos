@@ -356,8 +356,24 @@ PyInit_libpychronos(void)
         Py_INCREF(t);
         PyModule_AddObject(mod, strchr(t->tp_name, '.') + 1,  (PyObject *)t);
     }
-
-    PyType_Ready(&pychronos_arrayiter_type);
-    Py_INCREF(&pychronos_arrayiter_type);
+    PyModule_AddIntMacro(mod, FPGA_MAP_SIZE);
+    PyModule_AddIntMacro(mod, FPGA_TIMEBASE_HZ);
+    PyModule_AddIntMacro(mod, FPGA_SENSOR_BASE);
+    PyModule_AddIntMacro(mod, FPGA_SEQUENCER_BASE);
+    PyModule_AddIntMacro(mod, FPGA_TRIGGER_BASE);
+    PyModule_AddIntMacro(mod, FPGA_SEQPROGRAM_BASE);
+    PyModule_AddIntMacro(mod, FPGA_DISPLAY_BASE);
+    PyModule_AddIntMacro(mod, FPGA_CONFIG_BASE);
+    PyModule_AddIntMacro(mod, FPGA_COL_GAIN_BASE);
+    PyModule_AddIntMacro(mod, FPGA_VRAM_BASE);
+    PyModule_AddIntMacro(mod, FPGA_SCI_BASE);
+    PyModule_AddIntMacro(mod, FPGA_COL_OFFSET_BASE);
+    PyModule_AddIntMacro(mod, FPGA_IO_BASE);
+    PyModule_AddIntMacro(mod, FPGA_TIMING_BASE);
+    PyModule_AddIntMacro(mod, FPGA_PIPELINE_BASE);
+    PyModule_AddIntMacro(mod, FPGA_VIDSRC_BASE);
+    PyModule_AddIntMacro(mod, FPGA_CALSRC_BASE);
+    PyModule_AddIntMacro(mod, FPGA_OVERLAY_BASE);
+    PyModule_AddIntMacro(mod, FPGA_COL_CURVE_BASE);
     return mod;
 }
