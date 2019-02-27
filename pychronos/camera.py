@@ -148,9 +148,6 @@ class camera:
             self.sensor.setExposurePeriod(expPeriod)
 
         ## TODO: Attempt to load calibration files, if present.
-        ## DEBUG: This should go elsewhere.
-        #liveArgs = {"hres": fSize.hRes, "vres": fSize.vRes}
-        #os.system("killall -HUP cam-pipeline")
 
     # Read the serial number - or make it an attribute?
     def getSerialNumber(self):
@@ -207,7 +204,7 @@ class camera:
         xres = display.hRes
         yres = display.vRes
 
-        logging.debug('Starting')
+        logging.debug('Starting Black Calibration')
 
         seq = regmaps.sequencer()
         fAverage = numpy.zeros((yres, xres))
