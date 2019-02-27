@@ -136,10 +136,11 @@ pychronos_arrayiter_next(PyObject *self)
 }
 
 static void
-pychronos_arrayiter_finalize(PyObject *self)
+pychronos_arrayiter_dealloc(PyObject *self)
 {
     struct pychronos_arrayiter *iter = (struct pychronos_arrayiter *)self;
-    Py_DECREF(iter->array);
+    Py_XDECREF(iter->array);
+    Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 PyTypeObject pychronos_arrayiter_type = {
@@ -148,11 +149,11 @@ PyTypeObject pychronos_arrayiter_type = {
     .tp_doc = "Generic Array Iterator",
     .tp_basicsize = sizeof(struct pychronos_arrayiter),
     .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_FINALIZE,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_new = PyType_GenericNew,
+    .tp_dealloc = pychronos_arrayiter_dealloc,
     .tp_init = pychronos_arrayiter_init,
-    .tp_iternext = pychronos_arrayiter_next,
-    .tp_finalize = pychronos_arrayiter_finalize,
+    .tp_iternext = pychronos_arrayiter_next
 };
 
 /*=====================================*
@@ -300,62 +301,41 @@ static PyMethodDef pychronos_methods[] = {
     {NULL, NULL, 0, NULL}
 };
 
-static PyModuleDef libpychronos_module = {
-    PyModuleDef_HEAD_INIT,
-    "libpychronos",     /* name of the module */
-    pychronos__doc__,   /* module documentation */
-    -1,                 /* module uses global state */
-    pychronos_methods,  /* module methods */
+static PyTypeObject *pubtypes[] = {
+    &pychronos_arrayiter_type,
+    &pychronos_arrayview_type,
+    &pychronos_fpgamap_type,
+    &pychronos_frame_type,
 };
 
-PyMODINIT_FUNC
-PyInit_libpychronos(void)
+static void
+pychronos_init_types(PyObject *mod)
 {
     int i;
-    PyObject *mod, *o;
-    PyTypeObject *pubtypes[] = {
-        &pychronos_arrayiter_type,
-        &pychronos_arrayview_type,
-        &pychronos_fpgamap_type,
-        &pychronos_frame_type,
-    };
-
-    /* Initialize the FPGA register mapping and the Python objects. */
-    if (pychronos_init_maps()) {
-        return NULL;
-    }
-
-    /* Load the module. */
-    mod = PyModule_Create(&libpychronos_module);
-    if (mod == NULL) {
-        return NULL;
-    }
-    PyModule_AddIntMacro(mod, FPGA_MAP_SIZE);
+    PyObject *obj;
 
     /* Register the raw memory mapping */
-    o = PyMemoryView_FromBuffer(&fpga_regbuffer);
-    if (o == NULL) {
-        return NULL;
+    obj = PyMemoryView_FromBuffer(&fpga_regbuffer);
+    if (obj != NULL) {
+        Py_INCREF(obj);
+        PyModule_AddObject(mod, "reg",  obj);
     }
-    Py_INCREF(o);
-    PyModule_AddObject(mod, "reg",  o);
-
-    o = PyMemoryView_FromBuffer(&fpga_regbuffer);
-    if (o == NULL) {
-        return NULL;
+    obj = PyMemoryView_FromBuffer(&fpga_rambuffer);
+    if (obj == NULL) {
+        Py_INCREF(obj);
+        PyModule_AddObject(mod, "ram",  obj);
     }
-    Py_INCREF(o);
-    PyModule_AddObject(mod, "ram",  o);
 
     /* Register all public types. */
     for (i = 0; i < sizeof(pubtypes)/sizeof(pubtypes[0]); i++) {
         PyTypeObject *t = pubtypes[i]; 
-        if (PyType_Ready(t) < 0) {
-            return NULL;
+        if (PyType_Ready(t) == 0) {
+            Py_INCREF(t);
+            PyModule_AddObject(mod, strchr(t->tp_name, '.') + 1,  (PyObject *)t);
         }
-        Py_INCREF(t);
-        PyModule_AddObject(mod, strchr(t->tp_name, '.') + 1,  (PyObject *)t);
     }
+
+    /* Register macros. */
     PyModule_AddIntMacro(mod, FPGA_MAP_SIZE);
     PyModule_AddIntMacro(mod, FPGA_TIMEBASE_HZ);
     PyModule_AddIntMacro(mod, FPGA_SENSOR_BASE);
@@ -375,5 +355,58 @@ PyInit_libpychronos(void)
     PyModule_AddIntMacro(mod, FPGA_CALSRC_BASE);
     PyModule_AddIntMacro(mod, FPGA_OVERLAY_BASE);
     PyModule_AddIntMacro(mod, FPGA_COL_CURVE_BASE);
+}
+
+#if PY_MAJOR_VERSION >= 3
+/*=====================================*
+ * Chronos Python Module (python3)
+ *=====================================*/
+static PyModuleDef libpychronos_module = {
+    PyModuleDef_HEAD_INIT,
+    "libpychronos",     /* name of the module */
+    pychronos__doc__,   /* module documentation */
+    -1,                 /* module uses global state */
+    pychronos_methods,  /* module methods */
+};
+
+PyMODINIT_FUNC
+PyInit_libpychronos(void)
+{
+    PyObject *mod;
+
+    /* Initialize the FPGA register mapping and the Python objects. */
+    if (pychronos_init_maps()) {
+        return NULL;
+    }
+
+    /* Load the module. */
+    mod = PyModule_Create(&libpychronos_module);
+    if (mod == NULL) {
+        return NULL;
+    }
+
+    pychronos_init_types(mod);
     return mod;
 }
+#else
+/*=====================================*
+ * Chronos Python Module (python2)
+ *=====================================*/
+PyMODINIT_FUNC
+initlibpychronos(void)
+{
+    PyObject *mod;
+
+    /* Initialize the FPGA register mapping and the Python objects. */
+    if (pychronos_init_maps()) {
+        return;
+    }
+
+    mod = Py_InitModule3("libpychronos", pychronos_methods, pychronos__doc__);
+    if (mod == NULL) {
+        return;
+    }
+
+    pychronos_init_types(mod);
+}
+#endif

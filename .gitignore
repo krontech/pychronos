@@ -1,0 +1,6 @@
+# Compiled objects and binaries.
+*~
+*.so
+*.pyc
+build/
+__pycache__/
