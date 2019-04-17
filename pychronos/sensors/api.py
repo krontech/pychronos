@@ -135,7 +135,7 @@ class api(ABC):
     
     @abstractmethod
     def setFramePeriod(self, fPeriod):
-        """Configure the frame period of the image sensor
+        """Configure the frame minumum period of the image sensor
         
         Parameters
         ----------
@@ -173,10 +173,61 @@ class api(ABC):
         pass
     
     @abstractmethod
-    def setExposurePeriod(self, expPeriod):
-        """Configure the exposure time for the image sensor"""
+    def setStandardExposureProgram(self, expPeriod):
+        """Configure the sensor to operate in normal exposure mode
+
+        When in normal exposure mode, the image sensor is free running
+        and will capture frames continuously  with the desired exposure
+        period. This function may be called to enter the standard
+        exposure program or to update the exposure time.
+
+        This function is mandatory for all image sensors.
+
+        Parameters
+        ----------
+        expPeriod : `float`
+           The exposure time of each frame, in seconds.
+        """
         pass
-    
+
+    #--------------------------------------------
+    # Advanced Exposure and Timing Functions
+    #--------------------------------------------
+    def getSupportedExposurePrograms():
+        """Return a tuple of the supported exposure programs"""
+        return ("standard")
+
+    def setShutterGatingProgram(self):
+        """Configure the sensor to operate in shutter gating mode
+
+        When in shutter gating mode, the image sensor is inactive until
+        the trigger signal is asserted. Once asserted the exposure duration
+        is controlled by the active period of the trigger signal. Frame
+        readout begins on the falling edge of the trigger signal, after
+        which the sensor becomes idle again until the next rising edge
+        of the trigger.
+        """
+        raise NotImplementedError()
+
+    def setFrameTriggerProgram(self, expPeriod, numFrames=1):
+        """Configure the sensor to operate in frame trigger mode
+
+        When in frame trigger mode, the image sensor is inactive until a
+        rising edge of the frame trigger is detected, after which the
+        image sensor will capture a fixed number of frames and then return
+        to an idle state until the next rising edge is detected.
+        
+        Parameters
+        ----------
+        expPeriod : `float`
+            The exposure time of each frame, in seconds.
+        numFrames : `int`, optional
+            The number of frames to acquire after each risng edge (default: 1)
+        """
+        raise NotImplementedError()
+
+    ## TODO: HDR exposure programs should go here.
+
     #--------------------------------------------
     # Sensor Analog Calibration Functions
     #--------------------------------------------

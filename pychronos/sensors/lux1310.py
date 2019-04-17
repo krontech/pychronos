@@ -154,10 +154,10 @@ class lux1310(api):
         self.regs.regSresetB = 0
         rev = self.regs.regChipId
         if (rev != self.LUX1310_CHIP_ID):
-            print("LUX1310 regChipId returned an invalid ID (%s)" % (hex(rev)))
+            logging.error("LUX1310 regChipId returned an invalid ID (%s)", hex(rev))
             return False
         else:
-            print("Initializing LUX1310 silicon revision %s" % (self.regs.revChip))
+            logging.info("Initializing LUX1310 silicon revision %s", self.regs.revChip)
         
         # Setup ADC training.
         self.regs.regCustPat = 0xFC0    # Set custom pattern for ADC training.
@@ -175,7 +175,7 @@ class lux1310(api):
         self.regs.regRdoutDly = 80              # Non-overlapping readout delay
         self.regs.regWavetableSize = 80         # Wavetable size
 
-                # Set internal control registers to fine tune the performance of the sensor
+        # Set internal control registers to fine tune the performance of the sensor
         self.regs.regLvDelay = self.LUX1310_LV_DELAY    # Line valid delay to match internal ADC latency
         self.regs.regHblank = self.LUX1310_MIN_HBLANK   # Set horizontal blanking period
 
@@ -195,7 +195,7 @@ class lux1310(api):
             self.regs.reg[0x7B] = 0x3001 # Internal control register
         else:
             # Unknown version - use silicon rev1 configuration
-            print("Found LUX1310 sensor, unknown silicon revision: %s" % (self.regs.revChip))
+            logging.error("Found LUX1310 sensor, unknown silicon revision: %s", self.regs.revChip)
             self.regs.reg[0x5B] = 0x301F # Internal control register
             self.regs.reg[0x7B] = 0x3001 # Internal control register
 
@@ -226,7 +226,7 @@ class lux1310(api):
         self.regs.clkPhase = 0
         self.regs.clkPhase = 1
         self.regs.clkPhase = 0
-        print("Phase calibration dataCorrect=%s" % (self.regs.dataCorrect))
+        logging.info("Phase calibration dataCorrect=%s", self.regs.dataCorrect)
     
     #--------------------------------------------
     # Frame Geometry Configuration Functions
@@ -382,9 +382,18 @@ class lux1310(api):
     def getCurrentExposure(self):
         return self.timing.integrationTime / self.LUX1310_TIMING_HZ
     
-    def setExposurePeriod(self, expPeriod):
+    def setStandardExposureProgram(self, expPeriod):
         # TODO: Sanity-check the exposure time.
         self.timing.integrationTime = math.ceil(expPeriod * self.LUX1310_TIMING_HZ)
+
+    #--------------------------------------------
+    # Advanced Exposure and Timing Functions 
+    #--------------------------------------------
+    def getSupportedExposurePrograms(self):
+        return ("standard", "shutterGating")
+    
+    def setShutterGatingProgram(self):
+        raise NotImplementedError()
 
     #--------------------------------------------
     # Sensor Analog Calibration Functions

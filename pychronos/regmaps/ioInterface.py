@@ -1,5 +1,6 @@
 # IO system for Chronos high speed cameras
 import pychronos
+import logging
 
 class ioInterface(pychronos.fpgamap):
     SOURCES = ['none', 'io1', 'io2', 'io3', 'comb',
@@ -47,7 +48,7 @@ class ioInterface(pychronos.fpgamap):
     def setPropertyBits(self, offset, size, bitOffset, nBits, value):
         self.regWrite(offset, size, (self.regRead(offset, size) & ~((2**nBits-1)<<bitOffset) |
                                      ((value & (2**nBits-1)) << bitOffset)))
-    
+
     def __regprop(offset, size, docstring):
         return property(fget=lambda self: self.regRead(offset, size),
                         fset=lambda self, value: self.regWrite(offset, size, value),
@@ -190,13 +191,39 @@ class ioInterface(pychronos.fpgamap):
     shutterSource          = __srcprop(0x3C,          'shutter source')
     shutterInvertInput     = __bitprop(0x3C, 2, 8, 1, 'invert flag')
     shutterDebounce        = __bitprop(0x3C, 2, 9, 1, 'debounce flag')
-    
+    _shutterTriggersFrame  = __bitprop(0x3C, 2,12, 1, 'if set, shutter gating can operate')
+    @property
+    def shutterTriggersFrame(self):
+        return self._shutterTriggersFrame
+    @shutterTriggersFrame.setter
+    def shutterTriggersFrame(self, value):
+        if value:
+            self._shutterTriggersFrame = 1
+            self._oldRegExtShutterCtl = 2
+        else:
+            self._shutterTriggersFrame = 0
+            self._oldRegExtShutterCtl = 0
+            
     cpuIntSourceReg        = __regprop(0x3E, 2,       'cpuInt driver source and flags')
     cpuIntSource           = __srcprop(0x3E,          'cpuInt source')
     cpuIntInvertInput      = __bitprop(0x3E, 2, 8, 1, 'invert flag')
     cpuIntDebounce         = __bitprop(0x3E, 2, 9, 1, 'debounce flag')
 
 
+    # because there's a couple old registers still needed
+    def __oldRegProp(offset, size, docstring):
+        return property(fget=lambda self: self.oldControl.regRead(offset, size),
+                        fset=lambda self, value: self.oldControl.regWrite(offset, size, value),
+                        doc = docstring)
+
+    _oldRegTrigEnable    = __oldRegProp(0xA0, 4, "old reg - TRIG_ENABLE")
+    _oldRegTrigInvert    = __oldRegProp(0xA4, 4, "old reg - TRIG_INVERT")
+    _oldRegTrigDebounce  = __oldRegProp(0xA8, 4, "old reg - TRIG_DEBOUNCE")
+    _oldRegIoOutLevel    = __oldRegProp(0xAC, 4, "old reg - IO_OUT_LEVEL")
+    _oldRegIoOutSource   = __oldRegProp(0xB0, 4, "old reg - IO_OUT_SOURCE")
+    _oldRegIoOutInvert   = __oldRegProp(0xB4, 4, "old reg - IO_OUT_INVERT")
+    _oldRegIoInAddress   = __oldRegProp(0xB8, 4, "old reg - IO_IN")
+    _oldRegExtShutterCtl = __oldRegProp(0xBC, 4, "old reg - EXT_SHUTTER_CTL")
 
     #------------------------------------------------------------------------------------------------------
     # Source register controls
@@ -230,8 +257,20 @@ class ioInterface(pychronos.fpgamap):
         raw |= int(structure.get('invert',   0)) << 8
         raw |= int(structure.get('debounce', 0)) << 9
         if name in ['io1', 'io2']:
-            raw |= int(structure.get('driveStrength', 0)) << 12
+            driveStrength = structure.get('driveStrength')
+            if driveStrength is not None:
+                logging.debug('config includes driveStrength: %s', driveStrength)
+                raw |= int(driveStrength) << 12
+        if name == 'shutter':
+            shutterTriggersFrame = structure.get('shutterTriggersFrame')
+            if shutterTriggersFrame is not None:
+                raw |= int(shutterTriggersFrame) << 12
+                self._oldRegExtShutterCtl = 2
+            else:
+                self._oldRegExtShutterCtl = 0
+        logging.debug('configuring IO source %s: 0x%04x', name, raw)
         prop.fset(self, raw)
+
 
     def getSourceConfiguration(self, name):
         '''This returns a dictionary containing the named signal and all parameters
@@ -247,6 +286,7 @@ class ioInterface(pychronos.fpgamap):
         propInvertInput   = self.__class__.__dict__.get('%sDebounce'%(name))
         propDebounce      = self.__class__.__dict__.get('%sInvertInput'%(name))
         propDriveStrength = self.__class__.__dict__.get('%sDriveStrength'%(name))
+        propTriggersFrame = self.__class__.__dict__.get('%sTriggersFrame'%(name))
         if not propSource:
             raise ValueError('name is not valid: %s' % (name))
 
@@ -258,6 +298,8 @@ class ioInterface(pychronos.fpgamap):
         # special case, io
         if name in ['io1', 'io2']:
             if (propDriveStrength): structure['driveStrength'] = propDriveStrength.fget(self)
+        if name == 'shutter':
+            if (propTriggersFrame): structure['shutterTriggersFrame'] = propTriggersFrame.fget(self)
 
         # special case, tack on the delay config
         if name == 'delay':
@@ -271,19 +313,21 @@ class ioInterface(pychronos.fpgamap):
     validInputControls = ['io1In', 'io2In']
 
     def setIoThreshold(self, name, threshold):
-        '''Currently not implemented.
-
-        TODO: add the stuff to change the PWM that generates these thresholds
+        '''Basic implementation
         '''
-        pass
+        thresholdPercent = threshold / 6.838 # calculated using 3.72V = 0.544
+        if thresholdPercent < 0.001: thresholdPercent = 0.001
+        if thresholdPercent > 0.999: thresholdPercent = 0.999
+        if   name == 'io1In': self.io1Pwm.duty = thresholdPercent
+        elif name == 'io2In': pychronos.pwm(2, 10000, thresholdPercent)
+        
     def getIoThreshold(self, name):
-        '''Currently not implemented.
-
-        TODO: add the stuff to change the PWM that generates these thresholds
+        '''Basic implementation
         '''
-        return 2.5
-    
+        if name == 'io1In': return self.io1Pwm.duty * 6.838
+        else:               return self.io2Pwm.duty * 6.838
 
+        
     def getInputConfiguration(self, name):
         '''Currently doesn't do anything but will be the way of getting the
         current IO Input thresholds.
@@ -308,17 +352,11 @@ class ioInterface(pychronos.fpgamap):
     delayDivider      = __regprop(0x84, 4,       'divider portion of clock prescaler')
     delayCount        = __regprop(0x88, 2,       'counter or upper part of fraction in clock prescaler')
 
-    def setDelayConfiguration(self, structure):
-        '''This configures the delay block prescaler and bucket bregade for delaying incoming signals.
-
-        the structure must be a dictionary with the following keys:
-        'delay' - float value in seconds of the total delay.
-
-        Note: due to hardware the value may not exactly match the one given. The implementation uses
-        a power of two divider search rather than a fractional search.
-        '''
-        value = structure.get('delay', 0.0)
-
+    @property
+    def delayTime(self):
+        return (self.delayDivider * self.delayCount) / self.IO_BLOCK_FREQUENCY
+    @delayTime.setter
+    def delayTime(self, value):
         divider = 1
         delay = self.IO_BLOCK_FREQUENCY * value
         while delay > 2**14:
@@ -327,21 +365,34 @@ class ioInterface(pychronos.fpgamap):
 
         self.delayClockEnable  = False
         self.delayOutputEnable = True
-        self.delayFlush        = True
+        #self.delayFlush        = True
         self.delayDivider      = int(divider)
         self.delayCount        = int(delay)
-        self.delayFlush        = False
+        #self.delayFlush        = False
         self.delayClockEnable  = True
 
+    def setDelayConfiguration(self, structure):
+        '''Configures the delay block to delay incoming signals.
+
+        The structure must be a dictionary with the following keys:
+        'delay' - float value in seconds of the total delay.
+
+        Note: due to hardware the value may not exactly match the one given,
+        the implementation uses a power of two divider search rather than a
+        fractional search.
+        '''
+        self.delayTime = float(structure.get('delay', 0.0))
+
+        
     def getDelayConfiguration(self):
-        '''This returns the current structure of the delay function bucket bregade and prescaler.
+        '''This returns the current structure of the delay function bucket brigade and prescaler.
         
         The returned dictionary matches the input required for setDelayConfiguration.
 
         Note: due to being generated by what's in the FPGA, the delay value may not exactly
         match what was set
         '''
-        return {'delay':(self.delayDivider * self.delayCount) / self.IO_BLOCK_FREQUENCY}
+        return {'delay':self.delayTime}
         
                                
     # some counters to help figure out what's going on
@@ -385,16 +436,16 @@ class ioInterface(pychronos.fpgamap):
         This generally itterates through all keys in the dict and calls the set____Configuration
         functions for each of the blocks found.
         '''
-        if type(structure) != dict:
-            raise TypeError('structure needs to be a dict')
+        self.enable = False
         for name, value in structure.items():
             if name in self.validSourceControlNames:
                 self.setSourceConfiguration(name, value)
-            elif name in validInputControls:
+            elif name in self.validInputControls:
                 self.setInputConfiguration(name, value)
 
-            if name in validDelayControls: # this is both a valid source control and it's own thing (so no elif)
-                self.configureDelay(value)
+            if name in self.validDelayControls: # this is both a valid source control and it's own thing (so no elif)
+                self.setDelayConfiguration(value)
+        self.enable = True
 
     def getConfiguration(self):
         '''This returns a dictionary of the current configuration of the IO block.
@@ -413,4 +464,6 @@ class ioInterface(pychronos.fpgamap):
     def __init__(self, offset=0x6000, size=0x100):
         super().__init__(offset, size)
 
-
+        self.io1Pwm = pychronos.pwm(1, 10000, 0.366)
+        self.io2Pwm = pychronos.pwm(2, 10000, 0.366)
+        self.oldControl = pychronos.fpgamap(offset=0x00, size=0x100)

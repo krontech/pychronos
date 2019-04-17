@@ -47,12 +47,12 @@ class camera:
             config = regmaps.config()
             config.sysReset = 1
             time.sleep(0.2)
-            print("Loaded FPGA Version %s.%s" % (config.version, config.subver))
+            logging.info("Loaded FPGA Version %s.%s", config.version, config.subver)
         else:
             config = regmaps.config()
             config.sysReset = 1
             time.sleep(0.2)
-            print("Detected FPGA Version %s.%s" % (config.version, config.subver))
+            logging.info("Detected FPGA Version %s.%s", config.version, config.subver)
 
         # Setup memory
         self.setupMemory()
@@ -444,7 +444,7 @@ class camera:
         # Find the highest channel (probably green)
         maxSum = max(rSum, gSum, bSum)
         whiteBalance = [maxSum / rSum, maxSum / gSum, maxSum / bSum]
-        print("Computed White Balance = %s" % (whiteBalance))
+        logging.info("Computed White Balance = %s", whiteBalance)
 
         # Load it into the display block for immediate use.
         displayRegs = regmaps.display()

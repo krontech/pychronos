@@ -1,4 +1,6 @@
 import pychronos
+import logging
+import time
 
 class sensor(pychronos.fpgamap):
     """Return a new map of the FPGA sensor register space.
@@ -114,6 +116,10 @@ class sensor(pychronos.fpgamap):
         for x in range(0, 1000):
             if not (self.sciControl & self.SCI_RUN):
                 break
+        if (self.sciControl & self.SCI_RUN):
+            logging.error("failed to finish SCI write")
+        time.sleep(0.001)
+        
     
     class sciArrayView:
         """Helper class to create an array view of the SCI register
