@@ -24,7 +24,7 @@ class config(pychronos.fpgamap):
     mmuConfig =     __regprop(0x020, 4, "MMU Configuration")
     sysReset =      __regprop(0x100, 2, "FPGA Soft Reset Control")
     version =       __regprop(0x104, 2, "FPGA Version")
-    subver =        __regprop(0x104, 2, "FPGA Sub Version")
+    subver =        __regprop(0x108, 2, "FPGA Sub Version")
 
     MMU_INVERT_CS       = (1 << 0)  # Invert SODIMM chip select
     MMU_SWITCH_STUFFED  = (1 << 1)  # Stuff 8GB SODIMMs into 16GB space

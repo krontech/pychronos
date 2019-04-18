@@ -105,17 +105,20 @@ class timing(pychronos.fpgamap):
         timeout : `float`, optional
             How long to wait for the page flip to complete, in seconds. (default 0.01)
         """
+        self.inhibitTiming = 0
+
         if (timeout < 0):
             self.requestFlip = 1
             self.reset()
+            return
 
-        else:
-            start = time.time()
-            while time.time() < (start + timeout):
-                if not self.busy:
-                    break
+        start = time.time()
+        while time.time() < (start + timeout):
             if not self.busy:
-                self.requestFlip = 1
-                self.reset()
-            else:
-                self.requestFlip = 1
+                break
+        
+        if self.busy:
+            self.requestFlip = 1
+            self.reset()
+        else:
+            self.requestFlip = 1

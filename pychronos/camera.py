@@ -262,12 +262,13 @@ class camera:
         fpn = numpy.int16(fAverage - colAverage)
         pychronos.writeframe(display.fpnAddr, fpn)
 
-        print("---------------------------------------------")
-        print("fpn details: min = %d, max = %d" % (numpy.min(fAverage), numpy.max(fAverage)))
-        print("fpn standard deviation: %d" % (numpy.std(fAverage)))
-        print("fpn standard deviation horiz: %s" % (numpy.std(fAverage, axis=1)))
-        print("fpn standard deviation vert:  %s" % (numpy.std(fAverage, axis=0)))
-        print("---------------------------------------------")
+        logging.info('finished - getting some statistics')
+        logging.info("---------------------------------------------")
+        logging.info("fpn details: min = %d, max = %d", numpy.min(fAverage), numpy.max(fAverage))
+        logging.info("fpn standard deviation: %d", numpy.std(fAverage))
+        logging.info("fpn standard deviation horiz: %s", numpy.std(fAverage, axis=1))
+        logging.info("fpn standard deviation vert:  %s", numpy.std(fAverage, axis=0))
+        logging.info("---------------------------------------------")
 
     def startZeroTimeBlackCal(self):
         """Begin the black calibration proceedure using a zero-time exposure.
@@ -304,9 +305,11 @@ class camera:
         fSize = self.sensor.getCurrentGeometry()
         expPrev = self.sensor.getCurrentExposure()
         expMin, expMax = self.sensor.getExposureRange(fSize, self.sensor.getCurrentPeriod())
+        logging.info('fSize: %s', fSize)
+        logging.info('expPrev: %f, zeroTime: %f, period: %f', expPrev, expMin, self.sensor.getCurrentPeriod())
 
         # Reconfigure for the minum exposure supported by the sensor.
-        self.sensor.setExposurePeriod(expMin)
+        self.sensor.setStandardExposureProgram(expMin)
 
         # Do a fast black cal from the live display buffer.
         # TODO: We might get better quality out of the zero-time cal by
@@ -316,7 +319,7 @@ class camera:
         yield from self.startBlackCal(numFrames=2, useLiveBuffer=True)
 
         # Restore the previous exposure settings.
-        self.sensor.setExposurePeriod(expPrev)
+        self.sensor.setStandardExposureProgram(expPrev)
 
     def startRecording(self, program):
         """Program the recording sequencer and start recording.

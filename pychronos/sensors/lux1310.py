@@ -6,9 +6,9 @@ import copy
 import numpy
 import logging
 
-from pychronos.regmaps import sequencer, sensorTiming
+from pychronos.regmaps import sequencer, ioInterface
 from pychronos.sensors import api, frameGeometry
-from . import lux1310regs, lux1310wt
+from . import lux1310regs, lux1310wt, lux1310timing
 
 class lux1310(api):
     """Driver for the Luxima LUX1310 image sensor.
@@ -40,7 +40,6 @@ class lux1310(api):
     LUX1310_LV_DELAY = 0x07
     LUX1310_MIN_HBLANK = 2
     LUX1310_SENSOR_HZ = 90000000
-    LUX1310_TIMING_HZ = 100000000
     ADC_CHANNELS = 16
     ADC_FOOTROOM = 32
     ADC_OFFSET_MIN = -1023
@@ -101,11 +100,13 @@ class lux1310(api):
         self.board = board
         self.regs = lux1310regs.lux1310regs()
         self.wavetables = lux1310wt.wavetables
-        self.timing = sensorTiming()
-
+        self.timing = lux1310timing.lux1310timing()
+        self.io     = ioInterface()
+        
         ## ADC Calibration state
         self.adcOffsets = [0] * self.HRES_INCREMENT
 
+        self.__nTrigFrames = 5
         super().__init__()
 
     def writeDAC(self, dac, voltage):
@@ -126,7 +127,7 @@ class lux1310(api):
     #--------------------------------------------
     def reset(self, fSize=None):
         self.timing.enabled = True
-        self.timing.programStandard(100 * 4000 * 0.9, 100 * 3900 * 0.9)
+        self.timing.programStandard(0.001 * self.LUX1310_SENSOR_HZ, 0.00095 * self.LUX1310_SENSOR_HZ)
         # Disable integration while setup is in progress.
         self.timing.stopTiming(waitUntilStopped=True)
         
@@ -215,7 +216,10 @@ class lux1310(api):
 
         # Start the FPGA timing engine.
         self.timing.continueTiming()
-        self.timing.programStandard(100 * 4000 * 0.9, 100 * 3900 * 0.9)
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.framePeriod = int(0.001 * self.LUX1310_SENSOR_HZ)
+        self.integrationTime = int(self.framePeriod * 0.95)
+        self.timing.programStandard(self.framePeriod, self.integrationTime)
         return True
 
     ## TODO: I think this whole function is unnecessary on the LUX1310 FPGA
@@ -318,8 +322,8 @@ class lux1310(api):
         minPeriod, maxPeriod = self.getPeriodRange(size)
         if (not fPeriod):
             fClocks = self.getMinFrameClocks(size)
-        elif ((fPeriod * self.LUX1310_TIMING_HZ) >= minPeriod):
-            fClocks = fPeriod * self.LUX1310_TIMING_HZ
+        elif ((fPeriod * self.LUX1310_SENSOR_HZ) >= minPeriod):
+            fClocks = fPeriod * self.LUX1310_SENSOR_HZ
         else:
             raise ValueError("Frame period too short")
 
@@ -332,7 +336,12 @@ class lux1310(api):
         self.updateWavetable(size, frameClocks=fClocks)
         time.sleep(0.01)
 
-        # Switch to the minimum frame period and 180-degree shutter after changing resolution.
+        # set the minimum frame period in the timing engine (set using wavetable periods or lines)
+        self.timing.minLines = size.vRes
+
+        # Set the frame period and the maximum shutter after changing resolution.
+        self.framePeriod = int(0.001 * self.LUX1310_SENSOR_HZ)
+        self.integrationTime = int(self.framePeriod * 0.95)
         self.timing.programStandard(fClocks, fClocks * 0.95)
     
     #--------------------------------------------
@@ -357,34 +366,34 @@ class lux1310(api):
         tFovb = 41      # Duration between PRSTN falling and TXN falling (I think)
         tFrame = tRow * (size.vRes + size.vDarkRows) + tTx + tFovf + tFovb - self.LUX1310_MIN_HBLANK
 
-        # Convert from LUX1310 sensor clocks to FPGA timing clocks.
-        return (tFrame * self.LUX1310_TIMING_HZ) // self.LUX1310_SENSOR_HZ
+        return tFrame
     
     def getPeriodRange(self, fSize):
         # TODO: Need to validate the frame size.
         # TODO: Probably need to enforce some maximum frame period.
         clocks = self.getMinFrameClocks(fSize)
-        return (clocks / self.LUX1310_TIMING_HZ, 0)
+        return (clocks / self.LUX1310_SENSOR_HZ, 0)
     
     def getCurrentPeriod(self):
-        return self.timing.frameTime / self.LUX1310_TIMING_HZ
+        return self.framePeriod / self.LUX1310_SENSOR_HZ
 
     def setFramePeriod(self, fPeriod):
         # TODO: Sanity-check the frame period.
-        logging.debug('frame time: %f', math.ceil(fPeriod * self.LUX1310_TIMING_HZ))
-        self.timing.frameTime = math.ceil(fPeriod * self.LUX1310_TIMING_HZ)
+        self.framePeriod = math.ceil(fPeriod * self.LUX1310_SENSOR_HZ)
+        self.timing.programStandard(self.framePeriod, self.integrationTime)
     
     def getExposureRange(self, fSize, fPeriod):
         # Defaulting to 1us minimum exposure and infinite maximum exposure.
         # TODO: Need a better handle on the exposure overhead.
-        return (1.0 / 1000000, fPeriod - (500 / self.LUX1310_TIMING_HZ))
+        return (1.0 / 1000000, fPeriod - (500 / self.LUX1310_SENSOR_HZ))
 
     def getCurrentExposure(self):
-        return self.timing.integrationTime / self.LUX1310_TIMING_HZ
+        return self.integrationTime / self.LUX1310_SENSOR_HZ
     
     def setStandardExposureProgram(self, expPeriod):
         # TODO: Sanity-check the exposure time.
-        self.timing.integrationTime = math.ceil(expPeriod * self.LUX1310_TIMING_HZ)
+        self.integrationTime = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
+        self.timing.programStandard(self.framePeriod, self.integrationTime )
 
     #--------------------------------------------
     # Advanced Exposure and Timing Functions 
@@ -452,7 +461,7 @@ class lux1310(api):
             self.regs.regAdcOs[col] = self.adcOffsets[col]
 
     def autoAdcOffsetCal(self, fSize, iterations=16):
-        tRefresh = (self.timing.frameTime * 3) / self.LUX1310_TIMING_HZ
+        tRefresh = (self.timing.frameTime * 3) / self.LUX1310_SENSOR_HZ
         tRefresh += (1/60)
 
         # Clear out the ADC offsets
@@ -469,7 +478,7 @@ class lux1310(api):
     def autoAdcGainCal(self, fSize):
         # Setup some math constants
         numRows = 64
-        tRefresh = (self.timing.frameTime * 10) / self.LUX1310_TIMING_HZ
+        tRefresh = (self.timing.frameTime * 10) / self.LUX1310_SENSOR_HZ
         pixFullScale = (1 << fSize.bitDepth)
 
         seq = sequencer()
@@ -599,7 +608,7 @@ class lux1310(api):
         # Retrieve the current resolution and frame period.
         fSizePrev = self.getCurrentGeometry()
         fSizeCal = copy.deepcopy(fSizePrev)
-        fPeriod = self.timing.frameTime / self.LUX1310_TIMING_HZ
+        fPeriod = self.timing.frameTime / self.LUX1310_SENSOR_HZ
 
         # Enable black bars if not already done.
         if (fSizeCal.vDarkRows == 0):

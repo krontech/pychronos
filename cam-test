@@ -1,0 +1,230 @@
+#!/usr/bin/python3
+from pychronos import camera
+from pychronos.sensors import lux1310
+from pychronos.sensors import frameGeometry
+from pychronos.regmaps import seqcommand
+
+import os
+import time
+import select
+import subprocess
+import json
+import argparse
+import logging
+
+def resolution(value):
+    # Try common names.
+    if (value == "720p"):
+        return (1280, 720)
+    if (value == "1080p"):
+        return (1920, 1080)
+
+    # Otherwise, parse it as HRESxVRES
+    split = value.split('x')
+    return (int(split[0]), int(split[1]))
+
+# Do argument parsing
+parser = argparse.ArgumentParser(description="Camera test program")
+parser.add_argument('--framerate', metavar='FPS', type=int, nargs='?',
+                    help="Video recording framerate")
+parser.add_argument('--resolution', metavar='RES', type=resolution, nargs='?',
+                    help="Video recording resolution")
+parser.add_argument('--offset', metavar='OFFS', type=resolution, nargs='?',
+                    help="Video region of interest offset")
+parser.add_argument('--blackrows', metavar='ROWS', type=int, nargs='?', default=0,
+                    help="Number of black rows to readout")
+parser.add_argument('--reclength', metavar='FRAMES', type=int, nargs='?',
+                    help="Number of frames to record")
+parser.add_argument('--bitstream', metavar='FILE', type=str, nargs=1,
+                    help="FPGA bitstream file", default="/var/camera/FPGA.bit")
+parser.add_argument('--debug', default=False, action='store_true',
+                    help="Enable debug logging")
+args = parser.parse_args()
+
+if args.debug:
+    logging.getLogger().setLevel(logging.DEBUG)
+else:
+    logging.getLogger().setLevel(logging.INFO)
+
+# Some constants that ought to go into a board-specific dict.
+GPIO_ENCA = "/sys/class/gpio/gpio20/value"
+GPIO_ENCB = "/sys/class/gpio/gpio26/value"
+GPIO_ENCSW = "/sys/class/gpio/gpio27/value"
+GPIO_RECSW = "/sys/class/gpio/gpio66/value"
+REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
+REC_LED_BACK = "/sys/class/gpio/gpio25/value"
+
+# Helper to set the record LED
+def setRecLed(enable):
+    f = open(REC_LED_FRONT, "w")
+    f.write("1" if enable else "0")
+    f = open(REC_LED_BACK, "w")
+    f.write("1" if enable else "0")
+
+# Initialize the Camera and image sensor
+cam = camera(lux1310())
+cam.reset(args.bitstream)
+setRecLed(False)
+os.system("cam-json -v flush") # clear out any old recordings.
+
+# Configure the resolution
+fSize = cam.sensor.getMaxGeometry()
+hMaxRes = fSize.hRes
+vMaxRes = fSize.vRes
+fSize.vDarkRows = args.blackrows
+if (args.resolution):
+    fSize.hRes, fSize.vRes = args.resolution
+if (args.offset):
+    fSize.hOffset, fSize.vOffset = args.offset
+else:
+    fSize.hOffset = (hMaxRes - fSize.hRes) // 2
+    fSize.vOffset = (vMaxRes - fSize.vRes) // 2
+
+fMinPeriod, fMaxPeriod = cam.sensor.getPeriodRange(fSize)
+fPeriod = fMinPeriod
+if (args.framerate):
+    fPeriod = 1/args.framerate
+cam.setRecordingConfig(fSize)
+time.sleep(0.1) # FIXME: This needs to go into the sensor class.
+
+# Perform initial calibration
+for delay in cam.sensor.startAnalogCal():
+    time.sleep(delay)
+
+for delay in cam.startZeroTimeBlackCal():
+    time.sleep(delay)
+
+# Switch to live display.
+liveArgs = {
+    "hRes": fSize.hRes,
+    "vRes": fSize.vRes
+}
+subprocess.check_output(["cam-json", "-v", "livedisplay", "-"], input=json.dumps(liveArgs).encode())
+
+# Quick and dirty class to help out with GPIO access
+class gpio:
+    def __init__(self, path):
+        self.fd = os.open(path, os.O_RDWR)
+        self.value = self.__read()
+        self.prev = self.value
+    
+    def __read(self):
+        os.lseek(self.fd, 0, os.SEEK_SET)
+        buf = os.read(self.fd, 2)
+        return (buf[0] == b"1"[0])
+    
+    def update(self):
+        self.prev = self.value
+        self.value = self.__read()
+        return self.value
+    
+    def changed(self):
+        return self.prev != self.value
+
+    def rising(self):
+        return self.value and not self.prev
+    
+    def falling(self):
+        return self.prev and not self.value
+
+# Setup GPIO pins to read the encoder wheel
+enca = gpio(GPIO_ENCA)
+encb = gpio(GPIO_ENCB)
+encsw = gpio(GPIO_ENCSW)
+recsw = gpio(GPIO_RECSW)
+
+## Read the encoder wheel for instructions.
+p = select.epoll()
+p.register(enca.fd, select.EPOLLIN | select.EPOLLET | select.EPOLLPRI)
+p.register(encb.fd, select.EPOLLIN | select.EPOLLET | select.EPOLLPRI)
+p.register(encsw.fd, select.EPOLLIN | select.EPOLLET | select.EPOLLPRI)
+p.register(recsw.fd, select.EPOLLIN | select.EPOLLET | select.EPOLLPRI)
+while True:
+    p.poll(0.01)
+
+    delta = 0
+    enca.update()
+    encb.update()
+    encsw.update()
+    recsw.update()
+
+    # On encoder motion, change the exposure timing.
+    if (encb.changed() and not enca.value):
+        fPeriod = cam.sensor.getCurrentPeriod()
+        exposure = cam.sensor.getCurrentExposure()
+        expMin, expMax = cam.sensor.getExposureRange(fSize, fPeriod)
+        
+        # Encoder decrease
+        if encb.rising():
+            exposure -= (expMax - expMin) / 10
+            if (exposure < expMin):
+                exposure = expMin
+        # Encoder increase
+        if encb.falling():
+            exposure += (expMax - expMin) / 10
+            if (exposure > expMax):
+                exposure = expMax
+        
+        # Apply the exposure change.
+        try:
+            print("Setting exposure to %s" % (exposure))
+            cam.sensor.setStandardExposureProgram(exposure)
+        except:
+            print("Unable to set exposure")
+    
+    # Start recording on button press.
+    if (recsw.falling()):
+        break
+
+    # TODO: Something useful on encoder switch press?
+    if (encsw.rising()):
+        break
+
+# Start recording
+print("Starting recording")
+os.system("cam-json -v flush")
+setRecLed(True)
+
+cmd = seqcommand(blockSize=cam.getRecordingMaxFrames(fSize), blkTermRising=True)
+if (args.reclength):
+    cmd.blockSize = args.reclength
+    cmd.blkTermFull = True
+    cmd.recTermBlockEnd = True
+
+# Launch the recording proceedure.
+for delay in cam.startRecording([cmd]):
+    recsw.update()
+    if (recsw.falling()):
+        cam.stopRecording()
+    time.sleep(delay)
+
+# End recording and begin filesave on encoder switch release.
+print("Terminating recording")
+setRecLed(False)
+
+# Get some info on how much was recorded.
+status = json.loads(subprocess.check_output(["cam-json", "-v", "status"]).decode("utf-8"))
+if (status['totalFrames'] == 0):
+    print("No frames recorded - aborting")
+    print("Status = %s" % (status))
+print(json.dumps(status, indent=3))
+
+# Save the resulting recording to a file.
+filesaveArgs = {
+    "filename": os.path.join(os.getcwd(), "test.mp4"),
+    "format": "x264",
+    "start": 0,
+    "length": status['totalFrames'],
+    "framerate": 60,
+    "bitrate": int(fSize.pixels() * 60 * 0.5)
+}
+subprocess.check_output(["cam-json", "-v", "recordfile", "-"], input=json.dumps(filesaveArgs).encode())
+
+# Poll the status API until recording is completed.
+while True:
+    status = json.loads(subprocess.check_output(["cam-json", "-v", "status"]).decode("utf-8"))
+    if ("filename" in status):
+        print("Writing frame %s of %s at %s fps" % (status['position'], status['totalFrames'], status['framerate']))
+        time.sleep(1)
+    else:
+        break

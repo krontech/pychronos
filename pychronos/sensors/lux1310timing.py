@@ -1,9 +1,8 @@
 import pychronos
 import time
 import logging
-from lux1310regs import lux1310regs
-from pychronos.regmaps import timing
-from pychronos.regmaps import ioInterface
+from . import lux1310regs
+from pychronos.regmaps import timing, ioInterface
 
 class lux1310timing(timing):
     TIMING_HZ = 90000000
