@@ -60,6 +60,16 @@ class api(ABC):
     def cfaPattern(self):
         """The color filter array pattern or None for monochrome sensors"""
         return None
+    
+    @property
+    def baseISO(self):
+        """The base ISO of the image sensor at normal gain"""
+        return 100
+
+    @property
+    def maxGain(self):
+        """The maximum gain supported by the sensor"""
+        return 1
 
     #--------------------------------------------
     # Frame Geometry Configuration Functions
@@ -289,3 +299,8 @@ class api(ABC):
     def setGain(self, gain):
         """Configure the analog gain of the image sensor"""
         pass
+    
+    @abstractmethod
+    def getCurrentGain(self, gain):
+        """Return the current analog gain of the image sensor"""
+        pass 

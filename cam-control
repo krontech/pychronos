@@ -282,7 +282,7 @@ class controlApi(dbus.service.Object):
 
         returnData = dict()
         returnData['framePeriod'] = self.camera.sensor.getCurrentPeriod()
-        returnData['frameRate']   = 1.0 / returnGeom['framePeriod']
+        returnData['frameRate']   = 1.0 / returnData['framePeriod']
         returnData['exposure']    = self.camera.sensor.getCurrentExposure()
         return returnData
 
@@ -463,5 +463,5 @@ if __name__ == "__main__":
     obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam)
 
     # Run the mainloop.
-    print("Running control service...")
+    logging.info("Running control service...")
     mainloop.run()

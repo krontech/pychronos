@@ -49,7 +49,7 @@ class lux1310timing(timing):
 
     @property
     def frameTime(self):
-        logging.info("frameTime: %d", self.__frameTime)
+        logging.debug("frameTime: %d", self.__frameTime)
         return self.__frameTime
     @frameTime.setter
     def frameTime(self, value):
@@ -64,7 +64,7 @@ class lux1310timing(timing):
             
     @property
     def integrationTime(self):
-        logging.info("integrationTime: %d", self.__integrationTime)
+        logging.debug("integrationTime: %d", self.__integrationTime)
         return self.__integrationTime
     @integrationTime.setter
     def integrationTime(self, value):
@@ -83,10 +83,8 @@ class lux1310timing(timing):
         new timing program.
         This has all IO disabled including the one driving the io block...
         """
-        self.program[0] = self.NONE + readoutTime
-        self.program[1] = self.NONE | self.TIMING_RESTART
-        logging.info('programInterm - flip')
-        self.flip(timeout)
+        logging.debug('programInterm - flip')
+        self.runProgram(prog=[self.NONE + readoutTime, self.NONE | self.TIMING_RESTART], timeout=timeout)
 
     def programLast(self):
         if self.__program == self.PROGRAM_STANDARD:
@@ -105,12 +103,12 @@ class lux1310timing(timing):
         self.__t2Time           = t2Time
         self.__disableFrameTrig = False
 
-        logging.info('programShutterGating')
+        logging.debug('programShutterGating')
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         self.io.shutterTriggersFrame = False
         
-        self.program[0]   = self.NONE + t2Time
+        self.program[0] = self.NONE + t2Time
         self.program[1] = self.ABN                 | self.TIMING_WAIT_FOR_ACTIVE
         self.program[2] = self.IODRIVE | self.NONE | self.TIMING_WAIT_FOR_INACTIVE
         self.program[3] = self.TXN  | 0x31
@@ -120,7 +118,7 @@ class lux1310timing(timing):
         else:
             self.program[4] = self.NONE | self.TIMING_RESTART
         
-        logging.info('programShutterGating - flip')
+        logging.debug('programShutterGating - flip')
         self.flip(timeout)
         self.io.shutterTriggersFrame = True
         
@@ -133,7 +131,7 @@ class lux1310timing(timing):
             logging.error("frameTime (%d) must be longer than integrationTime (%d)", frameTime, integrationTime)
             integrationTime = int(frameTime * 0.95)
 
-        logging.info('TriggerFrames: %d, %d', frameTime, integrationTime)
+        logging.debug('TriggerFrames: %d, %d', frameTime, integrationTime)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         self.io.shutterTriggersFrame = False
@@ -158,7 +156,7 @@ class lux1310timing(timing):
         self.program[4] = ioDrive + self.TXN + 0x31               # TXN falls
         self.program[5] = self.TIMING_RESTART                     # TXN raises and cycle restarts
 
-        logging.info('programTriggerFrames - flip')
+        logging.debug('programTriggerFrames - flip')
         self.flip(timeout)
         self.io.shutterTriggersFrame = True
         
@@ -170,7 +168,7 @@ class lux1310timing(timing):
             logging.error("frameTime (%d) must be longer than integrationTime (%d)", frameTime, integrationTime)
             integrationTime = int(frameTime * 0.95)
 
-        logging.info('ProgramStandard: %d, %d', frameTime, integrationTime)
+        logging.debug('ProgramStandard: %d, %d', frameTime, integrationTime)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame
@@ -188,7 +186,6 @@ class lux1310timing(timing):
         
         # Program preamble: delay before ABN falling (t2 time)
         prog = [ self.NONE + t2Time ]
-
         if (disableFrameTrig):                                      # ABN Falls here
             prog.append(self.ABN | self.TIMING_WAIT_FOR_INACTIVE)   # Timing for the pulsed mode is reset on the falling edge
             prog.append(self.ABN | self.TIMING_WAIT_FOR_ACTIVE)     # (hence why the hold happens after the first command)
@@ -199,9 +196,8 @@ class lux1310timing(timing):
         prog.append(ioDrive + self.TXN + 0x31)                  # TXN falls
         prog.append(self.TIMING_RESTART)                        # TXN raises and cycle restarts
 
-        logging.info('programStandard - flip')
-        self.program = prog
-        self.flip(timeout)
+        logging.debug('programStandard - flip')
+        self.runProgram(prog, timeout)
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
                 
@@ -212,7 +208,7 @@ class lux1310timing(timing):
         preFrameTime *= (wavetableTime+2)
         preFrameTime -= 16
         
-        logging.info('ProgramSpecial: %d, %d', frameTime, integrationTime)
+        logging.debug('ProgramSpecial: %d, %d', frameTime, integrationTime)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame
@@ -227,7 +223,7 @@ class lux1310timing(timing):
         self.program[6] = self.IODRIVE + self.TXN + 6
         self.program[7] = self.NONE + self.TIMING_RESTART
 
-        logging.info('programSpecial - flip')
+        logging.debug('programSpecial - flip')
         self.flip(timeout)
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
@@ -236,7 +232,7 @@ class lux1310timing(timing):
             logging.error("frameTime (%d) must be longer than integrationTime (%d)", frameTime, integrationTime)
             integrationTime = frameTime * 0.95
 
-        logging.info('ProgramHDR_2slope: %d, %d, %d', frameTime, integrationTime1, integrationTime2)
+        logging.debug('ProgramHDR_2slope: %d, %d, %d', frameTime, integrationTime1, integrationTime2)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame
@@ -268,7 +264,7 @@ class lux1310timing(timing):
         self.program[6] = self.PRSTN + self.TXN + 45           # TXN ___
         self.program[7] = self.PRSTN + 60                      # TXN __/ to TXN \__
         self.program[8] = self.TXN   + (integration2 - 15)
-        logging.info('programHDR-2slope - flip')
+        logging.debug('programHDR-2slope - flip')
         self.flip(timeout)
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
@@ -276,7 +272,7 @@ class lux1310timing(timing):
         if (integration1 + integration2 + integration3 + t2Time + 50) > frameTime:
             raise ValueError("frameTime (%d) must be longer than total integrationTime (%d)" % (frameTime, integrationTime))
 
-        logging.info('ProgramHDR_3slope: %d, %d, %d', frameTime, integrationTime1, integrationTime2, integrationTime3)
+        logging.debug('ProgramHDR_3slope: %d, %d, %d', frameTime, integrationTime1, integrationTime2, integrationTime3)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame
@@ -303,7 +299,7 @@ class lux1310timing(timing):
         self.program[6] = self.PRSTN + self.TXN + (integration2 - 60)
         self.program[7] = self.PRSTN + 15
         self.program[8] = self.TXN   + (integration3 - 15)
-        logging.info('programHDR-3slope - flip')
+        logging.debug('programHDR-3slope - flip')
         self.flip(timeout)
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
@@ -316,7 +312,7 @@ class lux1310timing(timing):
             logging.error("frameTime (%d) must be longer than integrationTime (%d)", frameTime, integrationTime)
             integrationTime = frameTime * 0.95
 
-        logging.info('ProgramTriggerNFrames: %d, %d', frameTime, integrationTime)
+        logging.debug('ProgramTriggerNFrames: %d, %d', frameTime, integrationTime)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame
@@ -346,9 +342,8 @@ class lux1310timing(timing):
         # Terminate the program
         prog.append(self.TIMING_RESTART)
         
-        logging.info('programTriggerNFrames - flip')
-        self.program = prog
-        self.flip(timeout)
+        logging.debug('programTriggerNFrames - flip')
+        self.runProgram(prog, timeout)
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
 

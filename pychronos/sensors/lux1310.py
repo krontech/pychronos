@@ -84,11 +84,18 @@ class lux1310(api):
         try:
             fp = open(self.board["lux1310-color"])
             if int(fp.read()) == 1:
-                return ['R', 'G', 'G', 'B']
+                return 'GRBG'
             else:
                 return None
         except:
             return None
+    
+    @property
+    def baseISO(self):
+        if self.cfaPattern:
+            return 320
+        else:
+            return 740
 
     def __init__(self, board={
             "lux1310-spidev":  "/dev/spidev3.0",
@@ -437,6 +444,34 @@ class lux1310(api):
         self.regs.regGainSelSamp = samp
         self.regs.regGainSelFb = feedback
         self.regs.regGainBit = sgain
+    
+    def getCurrentGain(self):
+        gsMap = {
+            0: 2.0,
+            1: 1.456,
+            2: 1.0,
+            3: 0.763
+        }
+        sampnbits = 4
+        fbacknbits = 1
+        gsernbits = 0
+
+        x = self.regs.regGainSelSamp
+        while (x != 0):
+            sampnbits += (x & 1)
+            x >>= 1
+        
+        x = self.regs.regGainSelFb
+        while (x != 0):
+            fbacknbits += (x & 1)
+            x >>= 1
+
+        x = self.regs.regGainBit
+        while (x != 0):
+            gsernbits += (x & 1)
+            x >>= 1
+        
+        return (sampnbits / fbacknbits) * gsMap[gsernbits]
     
     def autoAdcOffsetIteration(self, fSize, numFrames=4):
         # Read out the calibration frames.

@@ -84,14 +84,21 @@ class timing(pychronos.fpgamap):
     @property
     def busy(self):
         """The state of the timing program page swap engine"""
-        return self.pageSwapState == 0
+        return self.pageSwapState != 0x1
     
     def reset(self):
         """Perform a reset of the timing engine"""
         self.resetSignal = 1
         # Reset is edge-sensitive, so best to disable reset when done.
         self.resetSignal = 0
-    
+
+    def waitForIdle(self, timeout=0.01):
+        """Wait for the page flip engine to become idle"""
+        start = time.time()
+        while time.time() < (start + timeout):
+            if not self.busy:
+                break
+
     def flip(self, timeout=0.01, force=False):
         """Activate the timing program by performing a page flip
         
@@ -112,13 +119,29 @@ class timing(pychronos.fpgamap):
             self.reset()
             return
 
-        start = time.time()
-        while time.time() < (start + timeout):
-            if not self.busy:
-                break
-        
+        self.waitForIdle(timeout)
         if self.busy:
             self.requestFlip = 1
             self.reset()
         else:
             self.requestFlip = 1
+
+    def runProgram(self, prog, timeout=0.01):
+        """Load a program into the timing engine and run it.
+        
+        The timing program is double buffered so that the user can edit the current program
+        in memory without affecting the currently executing program. When the user has finished
+        editing, the program can be activated by requesting a page flip to swap their program
+        with the one being executed by the FPGA.
+
+        Parameters
+        ----------
+        prog : `list` of `int`
+            The timing program to run, as a list of instructions.
+        timeout : `float`, optional
+            How long to wait for the page flip to complete, in seconds. (default 0.01)
+        """
+        self.waitForIdle(timeout)
+        for pc in range(0, len(prog)):
+            self.program[pc] = prog[pc]
+        self.flip(timeout)

@@ -9,6 +9,8 @@ import pychronos
 import pychronos.regmaps as regmaps
 import pychronos.spd as spd
 
+API_VERISON_STRING = '0.1'
+
 class camera:
     BYTES_PER_WORD = 32
     FRAME_ALIGN_WORDS = 64
@@ -21,15 +23,34 @@ class camera:
     REC_REGION_START = (LIVE_REGION_START + MAX_FRAME_WORDS * LIVE_REGION_FRAMES)
     FPN_ADDRESS = CAL_REGION_START
 
-    def __init__(self, sensor):
+    def __init__(self, sensor, onChange=None):
         self.sensor = sensor
-        self.dimms = [0, 0]
+        self.configFile = None
+        self.dimmSize = [0, 0]
 
         # Probe the SODIMMs
-        for slot in range(0, len(self.dimms)):
+        for slot in range(0, len(self.dimmSize)):
             spdData = spd.spdRead(slot)
             if (spdData):
-                self.dimms[slot] = spdData.size
+                self.dimmSize[slot] = spdData.size
+        
+        # Make sure the onChange handler is callable, even if omitted.
+        if callable(onChange):
+            self.onChange = onChange
+        else:
+            self.onChange = lambda *args: None
+
+        self.currentState = 'idle'
+        self.description = "Chronos SN:%s" % (self.cameraSerial)
+        self.idNumber = 0
+    
+    def setOnChange(self, handler):
+        if not handler:
+            self.onChange = lambda *args: None
+        elif callable(handler):
+            self.onChange = handler
+        else:
+            raise TypeError("handler function is not callable")
 
     def reset(self, bitstream=None):
         """Reset the camera and initialize the FPGA and image sensor.
@@ -94,13 +115,13 @@ class camera:
         configRegs = regmaps.config()
 
         # We require at least one DIMM to be present.
-        if ((self.dimms[0] + self.dimms[1]) == 0):
+        if ((self.dimmSize[0] + self.dimmSize[1]) == 0):
             raise RuntimeError("Memory configuration failed, no DIMMs detected")
 
-        if (self.dimms[1] > self.dimms[0]):
+        if (self.dimmSize[1] > self.dimmSize[0]):
             # Swap DIMMs to put the largest one first.
             configRegs.mmuConfig = configRegs.MMU_INVERT_CS
-        elif (self.dimms[0] < (16 << 30)):
+        elif (self.dimmSize[0] < (16 << 30)):
             # Stuff DIMMs together if less than 16GB
             configRegs.mmuConfig = configRegs.MMU_SWITCH_STUFFED
 
@@ -119,15 +140,12 @@ class camera:
             seq.regionStop = startAddr + (frameCount * fSizeWords)
         else:
             # Otherwise, setup the maximum available memory.
-            ramSizeWords = self.getMemorySize() // self.BYTES_PER_WORD
+            ramSizeWords = (self.dimmSize[0] + self.dimmSize[1]) // self.BYTES_PER_WORD
             seq.regionStop = (ramSizeWords // fSizeWords) * fSizeWords
-
-    def getMemorySize(self):
-        return self.dimms[0] + self.dimms[1]
     
     # Return the length of memory (in frames) minus calibration overhead.
     def getRecordingMaxFrames(self, fSize):
-        ramSizeWords = self.getMemorySize() // self.BYTES_PER_WORD - self.REC_REGION_START
+        ramSizeWords = (self.dimmSize[0] + self.dimmSize[1]) // self.BYTES_PER_WORD - self.REC_REGION_START
         fSizeWords = (fSize.size() + self.BYTES_PER_WORD - 1) // self.BYTES_PER_WORD
         fSizeWords //= self.FRAME_ALIGN_WORDS
         fSizeWords *= self.FRAME_ALIGN_WORDS
@@ -148,24 +166,6 @@ class camera:
             self.sensor.setExposurePeriod(expPeriod)
 
         ## TODO: Attempt to load calibration files, if present.
-
-    # Read the serial number - or make it an attribute?
-    def getSerialNumber(self):
-        I2C_SLAVE = 0x0703 # From linux/i2c-dev.h
-        EEPROM_ADDR = 0x54 # From the C++ app
-
-        # Open the I2C bus and set the EEPROM address.
-        fd = os.open("/dev/i2c-1", os.O_RDWR)
-        fcntl.ioctl(fd, I2C_SLAVE, EEPROM_ADDR)
-
-        # Set readout offset and read the serial number.
-        os.write(fd, bytearray([0, 0]))
-        serial = os.read(fd, 12)
-        os.close(fd)
-        try:
-            return serial.decode("utf-8").strip('\0')
-        except:
-            return ""
 
     def startBlackCal(self, numFrames=16, useLiveBuffer=True):
         """Begin the black calibration proceedure at the current settings.
@@ -308,7 +308,7 @@ class camera:
         logging.info('fSize: %s', fSize)
         logging.info('expPrev: %f, zeroTime: %f, period: %f', expPrev, expMin, self.sensor.getCurrentPeriod())
 
-        # Reconfigure for the minum exposure supported by the sensor.
+        # Reconfigure for the minimum exposure supported by the sensor.
         self.sensor.setStandardExposureProgram(expMin)
 
         # Do a fast black cal from the live display buffer.
@@ -454,3 +454,205 @@ class camera:
         displayRegs.whiteBalance[0] = whiteBalance[0] * displayRegs.WHITE_BALANCE_DIV
         displayRegs.whiteBalance[1] = whiteBalance[1] * displayRegs.WHITE_BALANCE_DIV
         displayRegs.whiteBalance[2] = whiteBalance[2] * displayRegs.WHITE_BALANCE_DIV
+
+    #===============================================================================================
+    # API Parameters: Camera Info Group
+    @property
+    def cameraApiVersion(self):
+        return API_VERISON_STRING
+    
+    @property
+    def cameraFpgaVersion(self):
+        config = regmaps.config()
+        return "%d.%d" % (config.version, config.subver)
+    
+    @property
+    def cameraMemoryGB(self):
+        return (self.dimmSize[0] + self.dimmSize[1]) / (1 << 30)
+    
+    @property
+    def cameraModel(self):
+        ## HACK: This needs to be updated from somewhere.
+        return "CR14-1.0"
+    
+    @property
+    def cameraSerial(self):
+        I2C_SLAVE = 0x0703 # From linux/i2c-dev.h
+        EEPROM_ADDR = 0x54 # From the C++ app
+
+        # Open the I2C bus and set the EEPROM address.
+        fd = os.open("/dev/i2c-1", os.O_RDWR)
+        fcntl.ioctl(fd, I2C_SLAVE, EEPROM_ADDR)
+
+        # Set readout offset and read the serial number.
+        os.write(fd, bytearray([0, 0]))
+        serial = os.read(fd, 12)
+        os.close(fd)
+        try:
+            return serial.decode("utf-8").strip('\0')
+        except:
+            return ""
+    
+    @property
+    def cameraDescription(self):
+        return self.description
+    @cameraDescription.setter
+    def cameraDescription(self, value):
+        if not isinstance(value, str):
+            raise TypeError("Description must be a string")
+        self.description = value
+        self.onChange("cameraDescription", value)
+
+    @property
+    def cameraIDNumber(self):
+        return self.idNumber
+    @cameraIDNumber.setter
+    def cameraIDNumber(self, value):
+        if not isinstance(value, int):
+            raise TypeError("IDNumber must be an integer")
+        self.idNumber = value
+        self.onChange("cameraIDNumber", value)
+    
+    #===============================================================================================
+    # API Parameters: Sensor Info Group
+    @property
+    def sensorName(self):
+        return self.sensor.name
+    
+    @property
+    def sensorColorPattern(self):
+        if self.sensor.cfaPattern:
+            return self.sensor.cfaPattern
+        else:
+            return "mono"
+
+    @property
+    def sensorBitDepth(self):
+        fSize = self.sensor.getMaxGeometry()
+        return fSize.bitDepth
+    
+    @property
+    def sensorISO(self):
+        return self.sensor.baseISO
+    
+    @property
+    def sensorMaxGain(self):
+        return self.sensor.maxGain
+    
+    @property
+    def sensorVMax(self):
+        fSize = self.sensor.getMaxGeometry()
+        return fSize.vRes
+
+    def sensorVMax(self):
+        fSize = self.sensor.getMaxGeometry()
+        return fSize.hRes
+    
+    @property
+    def sensorVDark(self):
+        fSize = self.sensor.getMaxGeometry()
+        return fSize.vDark
+    
+    #===============================================================================================
+    # API Parameters: Exposure Group
+    @property
+    def exposurePeriod(self):
+        return int(self.sensor.getCurrentExposure() * 1000000000)
+    @exposurePeriod.setter
+    def exposurePeriod(self, value):
+        self.sensor.setStandardExposureProgram(value / 1000000000)
+        self.onChange("exposurePeriod", self.exposurePeriod)
+
+    @property
+    def exposurePercent(self):
+        fSize = self.sensor.getCurrentGeometry()
+        fPeriod = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        return (self.sensor.getCurrentExposure() - expMin) * 100 / (expMax - expMin)
+    @exposurePercent.setter
+    def exposurePercent(self, value):
+        fSize = self.sensor.getCurrentGeometry()
+        fPeriod = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+
+        self.sensor.setStandardExposureProgram((value * (expMax - expMin) / 100) + expMin)
+        self.onChange("exposurePeriod", self.exposurePeriod)
+
+    @property
+    def shutterAngle(self):
+        fPeriod = self.sensor.getCurrentPeriod()
+        return self.sensor.getCurrentExposure() * 360 / fPeriod
+    @shutterAngle.setter
+    def shutterAngle(self, value):
+        fPeriod = self.sensor.getCurrentPeriod()
+
+        self.sensor.setStandardExposureProgram(value * fPeriod / 360)
+        self.onChange("exposurePeriod", self.exposurePeriod)
+
+    @property
+    def exposureMin(self):
+        fSize = self.sensor.getCurrentGeometry()
+        fPeriod = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        return expMin
+    
+    @property
+    def exposureMax(self):
+        fSize = self.sensor.getCurrentGeometry()
+        fPeriod = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        return expMax
+    
+    #===============================================================================================
+    # API Parameters: Gain Group
+    @property
+    def currentGain(self):
+        return self.sensor.getCurrentGain()
+    
+    @property
+    def currentISO(self):
+        return self.sensor.getCurrentGain() * self.sensor.baseISO
+
+    #===============================================================================================
+    # API Parameters: Recording Group
+    @property
+    def recMaxFrames(self):
+        fSize = self.sensor.getCurrentGeometry()
+        return self.getRecordingMaxFrames(fSize)
+    
+    @property
+    def resolution(self):
+        fSize = self.sensor.getCurrentGeometry()
+        return {
+            "hRes": fSize.hRes,
+            "vRes": fSize.vRes,
+            "hOffset": fSize.hOffset,
+            "vOffset": fSize.vOffset,
+            "vDarkRows": fSize.vDarkRows,
+            "bitDepth": fSize.bitDepth
+        }
+
+    @property
+    def framePeriod(self):
+        return int(self.sensor.getCurrentPeriod() * 1000000000)
+    
+    @property
+    def frameRate(self):
+        return 1 / self.sensor.getCurrentPeriod()
+    
+    #===============================================================================================
+    # API Parameters: Color Space Group
+    @property
+    def wbRed(self):
+        display = regmaps.display()
+        return display.whiteBalance[0] / display.WHITE_BALANCE_DIV
+    
+    @property
+    def wbGreen(self):
+        display = regmaps.display()
+        return display.whiteBalance[1] / display.WHITE_BALANCE_DIV
+    
+    @property
+    def wbBlue(self):
+        display = regmaps.display()
+        return display.whiteBalance[2] / display.WHITE_BALANCE_DIV
