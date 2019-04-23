@@ -1,0 +1,237 @@
+PyChronos
+=========
+
+This project includes the python bindings and camera control software for the
+Chronos High Speed Cameras. The camera uses an FPGA to handle the recording of
+high-speed video, storage of the video data and playback of video to the CPU.
+This project mainly deals with the task of operating the FPGA, image sensor,
+and the recording of video into video data. Reading video data out of the FPGA
+and rendering it to the various display interfaces is managed by the 
+[chronos-cli](https://github.com/krontech/chronos-cli) project.
+
+This project includes several major components:
+ * `libpychronos`: C-to-Python bindings that provide an abstraction for the FPGA
+   and other hardware assets on the Camera. This is an internal module that you
+   shouldn't need to access directly.
+ * `pychronos`: A python module which provides a collection of classes and sub-
+   modules for the various parts of the camera. Notable groups include:
+   * `regmaps`: Classes which represent various register groups in the FPGA.
+   * `sensors`: Classes which represent the image sensors supported on the camera.
+   * `camera`: A class which represents the state machine of the camera.
+ * `cam-control`: A D-Bus binding program which exports an API to manipulate
+   the `camera` class.
+
+Building and Installing
+-----------------------
+To build the `pychronos` module, you will need the `python3-dev` package for you
+operating system. Once installed, you can use the `setup.py` script to build and
+install the module on your system, using the following commands:
+ * `python3 setup.py build` to build the pychronos package from your checkout.
+ * `python3 setup.py install` to install the pychronos package into your system.
+
+For quick development, you can also use `make inplace` to generate an in-place
+version of the `pychronos` package that can be imported from the root of the
+project checkout without installing to the system.
+
+As much as we love backwards compatibility, the `pychronos` module required Python
+version 3.4 and newer. This is due to extensive use of generator functions to handle
+cooperative multithreading for long-running tasks.
+
+Chronos Control Interface
+=========================
+The D-Bus API to the `cam-control` program is expressed as a set of parameters most
+of which can be queried via a `get` command, updated via a `set` command. Or, when
+updated internally by the camera, may emit a `notify` signal. For each parameter
+listed, the `G`, `S`, and `N` columns indicate which of these operations a parameter
+supports.
+
+Some settings can be expressed in mutiple encodings, in which case there are multiple
+parameters which all set the same underlying value. Each of these encodings support
+the `get` and `set` methods but typically only one will emit a `notify` signal on change.
+As an example, the exposure can be expressed either as a unit of time via the `exposurePeriod`
+parameter, as a ratio between minimum and maximum via the `exposurePercent` parameter,
+or as a fraction of the frame period via the `shutterAngle`. Setting exposure via any
+of these parameters is allowed, but only the `exposurePeriod` will be reported in a
+`notify` signal.
+
+The parameters are further divided into the following subgroups:
+ * Lens Control Group
+ * Exposure Control Group
+ * Gain Control Group
+ * Display Group
+ * Camera Information Group
+ * Sensor Information Group
+ * Camera Status Group
+ * Color Space Group
+ * Recording Group
+
+Each parameter is marked with the following flags:
+
+ * `G`: The parameter's current value can be queried via the `get` command.
+ * `S`: The parameter's value can be updated via the `set` command.
+ * `N`: Changes to the parameter's value will be reported via the `notify` signal.
+ * `x`: The parameter is planned, but not yet implemented.
+
+Each parameter also defines a type as follows:
+
+| API Type | D-Bus Signatures   | Python Types | Description
+|:---------|:-------------------|:-------------|:-----------
+| `bool`   | `b`                | `boolean`    | Either `true` or `false`
+| `float`  | `t`                | `float`      | Floating-point number.
+| `int`    | `i`                | `int`        | Integer type, supporting up to 32-bit precision.
+| `enum`   | `i`                | `int`        | The description of each type must specify the allowed values.
+| `array`  | `ad`               | `list`       | An array of floating point values.
+| `string` | `s`                | `str`        | A character string, which should support UTF-8 encoding.
+| `dict`   | `a{sv}`            | `dict`       | An array of name/value pairs. Values may contain any type (including another `dict`).
+
+### Focus Control Parameters
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
+| `focusPercent`    | x | x | x | float  | 0.0   | 100.0 | 0.0 for the nearest possible focus and 100.0 for furthest focus (infinity)
+| `focusDistnace`   | x | x |   | float  |       |       | Distance to the focus subject in meters
+| `apertureFStop`   | x | x | x | float  |       |       | Aperture value where Fnumber = sqrt(2^AV)
+| `aperturePercent` | x | x |   | float  | 0.0   | 100.0 | Aperture size as a percentage from 0 (smallest), to 100 (widest)
+
+### Exposure Control Parameters
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
+| `exposurePeriod`  |`G`|`S`|`N`| int    |       |       | Exposure time in nanoseconds.
+| `exposuerPercent` |`G`|`S`|   | float  |       |       |
+| `shutterAngle`    |`G`|`S`|   | int    | 0     | 36000 | Exposure time relative to frame period in hundredths of degrees.
+| `exposureMin`     |`G`|   |`x`| int    |       |       | Minimum exposure time at the current resolution and frame period.
+| `exposureMax`     |`G`|   |`x`| int    |       |       | Maximum exposure time at the current resolution and frame period.
+| `exposureMode`    |`x`|`x`|`x`| enum   |       |       | Auto-exposure mode as a combination of exposure time, gain and aperture.
+
+### Gain Control Parameters
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
+| `currentISO`      |`G`|`x`|   | int    |       |       | ISO number of the sensor at the current gain setting.
+| `currentGain`     |`G`|`x`|`x`| int    |       |       | The gain as a multiplier of the `sensorISO` parameter.
+
+### Display Parameters
+These API parameters are proxy values for the equivalent parameters in the D-Bus
+API to the `chronos-cli` program.
+
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
+| `overlayEnable`   |`x`|`x`|`x`| bool   |       |       |
+| `overlayFormat`   |`x`|`x`|`x`| string |       |       | A `printf`-style format string to set the overlay text.
+| `zebraLevel`      |`x`|`x`|`x`| float  | 0.0   | 1.0   | Fraction of the pixel's full scale value at which to apply zebra stripes.
+| `focusPeakLevel`  |`x`|`x`|`x`| float  | 0.0   | 1.0   | Focus peaking edge detection sensitivity (0 to disable, or 1.0 for maximum sensitivity)
+| `focusPeakColor`  |`x`|`x`|`x`| enum   |       |       | One of Red, Green, Blue, Cyan, Magenta, Yellow, White and Black.
+| `videoState`      |`x`|   |`x`| enum   |       |       | One of `paused`, `live`, `playback` or `filesave`
+| `playbackRate`    |`x`|`x`|`x`| int    |       |       | Framerate at which live video will be played back when `videoState` is in `playback`
+
+### Camera Info Parameters
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
+|`cameraApiVersion` |`G`|   |   | string |       |       | The string "0.9" for this release of the API specification.
+|`cameraFpgaVersion`|`G`|   |   | string |       |       | The major and minor version numbers of the FPGA image.
+|`cameraMemoryGB`   |`G`|   |   | float  |       |       | Amount of RAM installed, in units of `GiB`
+|`cameraModel`      |`G`|   |   | string |       |       | Camera model number (eg: "CR14-1.0")
+|`cameraSerial`     |`G`|   |   | string |       |       | Camera unique serial number.
+|`cameraDescription`|`G`|`S`|`N`| string |       |       | User description of camera.
+|`cameraIDNumber`   |`G`|`S`|`N`| int    |       |       | User-assigned camera number for ordering and identification.
+|`cameraTallyMode`  |`x`|`x`|`x`| enum   |       |       | Control of the recording LEDs as one of `auto`, `off`, `top`, `back` or `on`
+
+### Sensor Info Parameters
+| Parameter           | G | S | N | Type   | Min   | Max   | Description
+|:--------------------|:--|:--|:--|:-------|:------|:------|:-----------
+|`sensorName`         |`G`|   |   | string |       |       | Descriptive string of the image sensor.
+|`sensorColorPattern` |`G`|   |   | string |       |       | String of ‘R’ ‘G’ and ‘B’ that defines the color filter pattern in left-to-right and top-to-bottom order or ‘mono’ for monochrome sensors.
+|`sensorBitDepth`     |`G`|   |   | int    |       |       | Number of bits per pixel as recorded by the image sensor.
+|`sensorISO`          |`G`|   |   | int    |       |       | Base ISO of the image sensor at a gain of 1x (or 0 dB)
+|`sensorMaxGain`      |`G`|   |   | int    |       |       | Maximum gain of the image sensor as a multiple of `sensorISO`
+|`sensorPixelRate`    |`x`|   |   | int    |       |       | Approximate pixel rate of the image sensor in pixels per second.
+|`sensorVMax`         |`G`|   |   | int    |       |       | Maximum vertical resolution of the image sensor.
+|`sensorVMin`         |`x`|   |   | int    |       |       | Minimum vertical resolution of the image sensor.
+|`sensorVIncrement`   |`x`|   |   | int    |       |       | Minimum quantization of vertical resolutions.
+|`sensorHMax`         |`G`|   |   | int    |       |       | Maximum horizontal resolution of the image sensor.
+|`sensorHMin`         |`x`|   |   | int    |       |       | Minimum horizontal resolution of the image sensor.
+|`sensorHIncrement`   |`x`|   |   | int    |       |       | Minimum quantization of horizontal resolutions.
+|`sensorVDark`        |`G`|   |   | int    |       |       | Number of vertical dark rows (not included in sensorVMax)
+
+### Camera Status Parameters
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
+|`cameraStatus`     |`x`|   |`x`| enum   |       |       | One of `idle`, `recording`, `reset` and others???? TBD.
+|`error`            |   |   |`x`| string |       |       | Included in a notification dictionary if, and only if, an operation fails due to an error.
+|`networkInterfaces`|`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the network interfaces.
+|`externalStorage`  |`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the external storage devices.
+|`dateTime`         |`x`|   |   | string |       |       | ISO-8601 formatted date and time string.
+|`externalPower`    |`x`|   |`x`| bool   |       |       | True when the AC adaptor is present, and False when on battery power.
+|`batteryCharge`    |`x`|   |   | float  | 0.0   | 1.0   | Estimated battery charge, with 0.0 being fully depleted and 1.0 for fully charged.
+|`batteryVoltage`   |`x`|   |   | float  |       |       | Mesured battery voltage in `V`
+
+### Color Space
+TODO: As a longer term plan, these parameters should be moved into the display
+group and made more a part of the video display system.
+
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
+|`wbMatrix`         |`x`|`x`|`x`| array  |       |       | Array of Red, Green, and Blue gain coefficients to achieve white balance.
+|`wbCustom`         |`x`|`x`|`x`| array  |       |       | Automatically-generated white balance gain coefficients.
+|`wbTemperature`    |`x`|`x`|`x`| int    | 1800  | 10000 | Estimated lighting temperature in degrees Kelvin.
+|`colorMatrix`      |`x`|`x`|`x`| array  |       |       | Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order.
+
+### Recording Group
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
+|`recMode`          |`x`|`x`|`x`| enum   |       |       | One of `normal`, `segmented` or `burst`
+|`recMaxFrames`     |`x`|`x`|`x`| int    |       |       | Maximum number of frames available for the recording buffer.
+|`recSegments`      |`x`|`x`|`x`| int    | 1     |       | Number of memory segments supported when in segmented recording mode.
+|`burstPreRecord`   |`x`|`x`|`x`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
+|`resolution`       |`G`|`x`|`x`| dict   |       |       | Dict describing the resolution settings.
+|`minFramePeriod`   |`G`|   |`x`| int    |       |       | Minimum frame period at the current resolution settings.
+|`cameraMaxFrames`  |`x`|`x`|`x`| int    |       |       | Maximum number of frames the camera's memory can save at the current resolution.
+|`framePeriod`      |`G`|`x`|`x`| int    |       |       | Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating).
+|`frameRate`        |`G`|`x`|   | float  |       |       | Estimated frame rate in frames per second (reciprocal of `framePeriod`)
+|`totalFrames`      |`x`|   |   | int    |       |       | Total number of frames in memory recorded by the camera.
+|`totalSegments`    |`x`|   |   | int    |       |       | Total number of segments in memory recorded by the camera.
+
+Control Methods
+---------------
+In addition to the parameters which can be manipulated to setup the camera,
+the API also includes a set of methods which perform state changes. A list
+of the supported methods are as follows:
+
+| Method                   | Arguments        | State Change | Description
+|:-------------------------|:-----------------|:-------------|:-----------
+| `get`                    | array of names   |              | Retrieve one or more parameters from the control API.
+| `set`                    | dict(parameters) |              | Modify one or more parameters in the control API.
+| `startAutoWhiteBalance`  | none             | `whitebal`   | Take a reference image from the live display and compute the white balance.
+| `revertAutoWhiteBalance` | none             |              | This copies the contents of `wbCustom` into `wbMatrix`.
+| `startAutoFocus`         | dict(location)   |              | Attempt to automatically focus the camera on a subject.
+| `startBlackCalibration`  | none             | `blackcal`   | Perform full black calibration, assuming the user has covered the sensor.
+| `startZeroTimeBlackCal`  | none             | `blackcal`   | Perform black calibration by reducing the exposure and aperture to zero.
+| `startRecording`         | none             | `recording`  | Begin recording video data to memory.
+| `stopRecording`          | none             | `idle`       | Terimnate recording of video data to memory.
+| `flushRecording`         | none             |              | Flush recoreded video data from memory.
+| `startFilesave`          | dict             |              | TBD: A proxy for the `filesave` method in the Video API.
+| `softTrigger`            | none             |              | Generate a software trigger event.
+| `revertToDefaults`       | none             |              | Revert all settings to their default values (with optional parameter overrides).
+| `startAnalogCalibration` | none             | `analogcal`  | Perform automated image sensor calibration.
+| `softReset`              | none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
+| `testResolution`         | dict(resolution) |              | Test if a resolution is valid and return the timing limits at that resolution.
+
+All methods return a dictionary of parameters, normally this will just include the
+status dictionary, which is minimally includes `cameraState`, but may also include
+the `error` parameter in the event that the operation failed due an error.
+
+TODO: A weird exception is the `testResolution` method, which queries the camera if
+the requested resolution is valid. If the resolution settings are valid, then the
+dict will return the following values as though the resolution and minimum frame
+period had been applied:
+ * `minFramePeriod`
+ * `exposureMin`
+ * `exposureMax`
+
+Otherwise, the `testResolution` method will return a status dictionary with a
+parameter of `error` set to "Invalid Resolution"
+
+Control Signals
+---------------
+When parameter values are changed, either explicity via the `set` method, or
+autonomously during the camera's operation, a D-Bus `notify` signal is generated.
+The modified parameters are included in a dictionary as the argumenets of the
+signal.

@@ -631,7 +631,16 @@ class camera:
             "vDarkRows": fSize.vDarkRows,
             "bitDepth": fSize.bitDepth
         }
-
+    @resolution.setter
+    def resolution(self, value):
+        self.sensor.setResolution(value)
+        self.onChange("resolution", self.resolution)
+        # Changing resolution affects frame timing.
+        self.onChange("framePeriod", self.framePeriod)
+        self.onChange("exposureMin", self.exposureMin)
+        self.onChange("exposureMax", self.exposureMax)
+        self.onChange("exposurePeriod", self.exposurePeriod)
+    
     @property
     def framePeriod(self):
         return int(self.sensor.getCurrentPeriod() * 1000000000)
