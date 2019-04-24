@@ -6,7 +6,7 @@ import copy
 import numpy
 import logging
 
-from pychronos.regmaps import sequencer, sensorTiming
+from pychronos.regmaps import sequencer
 from pychronos.sensors import api, frameGeometry
 
 class lux2100(api):
