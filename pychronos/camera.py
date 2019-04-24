@@ -11,6 +11,9 @@ import pychronos.spd as spd
 
 API_VERISON_STRING = '0.1'
 
+class CameraError(RuntimeError):
+    pass
+
 class camera:
     BYTES_PER_WORD = 32
     FRAME_ALIGN_WORDS = 64
@@ -23,6 +26,35 @@ class camera:
     REC_REGION_START = (LIVE_REGION_START + MAX_FRAME_WORDS * LIVE_REGION_FRAMES)
     FPN_ADDRESS = CAL_REGION_START
 
+    # Camera states
+    STATE_IDLE = 0
+    STATE_RESET = 1
+    STATE_RECORDING = 2
+    STATE_BLACK_CAL = 3
+    STATE_WHITE_BAL = 4
+    STATE_ANALOG_CAL = 5
+
+    ### Frame Capture Programs
+    """Standard Exposure Program: Generate a free-running frame timer with a constant period and exposure time for each frame"""
+    FRAME_PROGRAM_STANDARD = 0
+
+    """Frame Trigger Program: Generate a single frame on each rising edge of the triger signal with a constant exposure time."""
+    FRAME_PROGRAM_FRAME_TRIGGER = 1
+
+    """Shutter Gating Program: Generate a single frame on each rising edge of the trigger signal, with an exposure time equal to the trigger active duration."""
+    FRAME_PROGRAM_SHUTTER_GATING = 2
+
+    """2-Point HDR Program: Generate a free-running frame timer, with a two-slope exposure time for each frame"""
+    FRAME_PROGRAM_2POINT_HDR = 3
+
+    """3-Point HDR Program: Generate a free-running frame timer, with a three-slope exposure time for each frame"""
+    FRAME_PROGRAM_3POINT_HDR = 4
+
+    ### Recording Modes
+    REC_MODE_NORMAL = 0
+    REC_MODE_SEGMENTED = 1
+    REC_MODE_BURST = 2
+
     def __init__(self, sensor, onChange=None):
         self.sensor = sensor
         self.configFile = None
@@ -34,25 +66,42 @@ class camera:
             if (spdData):
                 self.dimmSize[slot] = spdData.size
         
-        # Make sure the onChange handler is callable, even if omitted.
-        if callable(onChange):
-            self.onChange = onChange
-        else:
-            self.onChange = lambda *args: None
-
-        self.currentState = 'idle'
+        self.onChange = onChange
+        self.__state = self.STATE_IDLE
+        self.frameProgram = self.FRAME_PROGRAM_STANDARD
         self.description = "Chronos SN:%s" % (self.cameraSerial)
         self.idNumber = 0
 
         self.ioInterface = regmaps.ioInterface()
     
-    def setOnChange(self, handler):
-        if not handler:
-            self.onChange = lambda *args: None
-        elif callable(handler):
-            self.onChange = handler
+    def __propChange(self, name):
+        """Quick and dirty wrapper to throw an on-change event by name"""
+        try:
+            self.onChange(name, getattr(self, name))
+        except Exception as e:
+            logging.debug("onChange handler failed: %s", e)
+            pass
+    
+    def __setState(self, newState):
+        """Internal helper to perform state transitions, or throw exceptions if busy"""
+        if (self.__state == self.STATE_IDLE):
+            # Any transition from IDLE is valid.
+            self.__state = newState
+            self.__propChange('state')
+        elif (newState == self.STATE_IDLE):
+            # Any transition to IDLE is valid.
+            self.__state = newState
+            self.__propChange('state')
+        elif (newState == self.STATE_RESET):
+            # A transition to RESET should abort any ongoing operations.
+            self.__state = newState
+            self.__propChange('state')
         else:
-            raise TypeError("handler function is not callable")
+            # Otherwise, the state change can't happen because the camera is busy.
+            raise CameraError("State change failed, camera is busy")
+
+    def setOnChange(self, handler):
+        self.onChange = handler
 
     def reset(self, bitstream=None):
         """Reset the camera and initialize the FPGA and image sensor.
@@ -206,6 +255,7 @@ class camera:
         xres = display.hRes
         yres = display.vRes
 
+        self.__setState(self.STATE_BLACK_CAL)
         logging.debug('Starting Black Calibration')
 
         seq = regmaps.sequencer()
@@ -213,7 +263,7 @@ class camera:
         if (useLiveBuffer):
             # Readout and average the frames from the live buffer.
             for i in range(0, numFrames):
-                logging.debug('waiting for frame')
+                logging.debug('waiting for frame %d of %d', i+1, numFrames)
                 yield from seq.startLiveReadout(xres, yres)
                 fAverage += numpy.asarray(seq.liveResult)
         else:
@@ -264,6 +314,7 @@ class camera:
         fpn = numpy.int16(fAverage - colAverage)
         pychronos.writeframe(display.fpnAddr, fpn)
 
+        self.__setState(self.STATE_IDLE)
         logging.info('finished - getting some statistics')
         logging.info("---------------------------------------------")
         logging.info("fpn details: min = %d, max = %d", numpy.min(fAverage), numpy.max(fAverage))
@@ -302,7 +353,6 @@ class camera:
         for delay in state:
             time.sleep(delay)
         """
-
         # Grab the current frame size and exposure.
         fSize = self.sensor.getCurrentGeometry()
         expPrev = self.sensor.getCurrentExposure()
@@ -322,9 +372,13 @@ class camera:
 
         # Restore the previous exposure settings.
         self.sensor.setStandardExposureProgram(expPrev)
-
-    def startRecording(self, program):
+    
+    def startCustomRecording(self, program):
         """Program the recording sequencer and start recording.
+
+        This variant of startRecording takes a recording program as a list of
+        `seqprogram` classes describing the steps for the recording sequencer
+        to takes as frames are acquired from the image sensor.
 
         Parameters
         ----------
@@ -354,6 +408,7 @@ class camera:
             seq.program[i] = program[i]
         
         # Begin recording.
+        self.__setState(self.STATE_RECORDING)
         seq.control |= seq.START_REC
         seq.control &= ~seq.START_REC
 
@@ -361,6 +416,36 @@ class camera:
         yield 0.1
         while (seq.status & seq.ACTIVE_REC) != 0:
             yield 0.1
+        self.__setState(self.STATE_IDLE)
+
+    def startRecording(self, mode=None):
+        """Program the recording sequencer and start recording.
+
+        Parameters
+        ----------
+        mode : `int`, optional
+            One of REC_MODE_NORMAL, REC_MODE_SEGMENTED or REC_MODE_BURST.
+            (default: REC_MODE_NORMAL)
+
+        Yields
+        ------
+        float :
+            The sleep time, in seconds, between steps of the recording.
+        
+        Examples
+        --------
+        This function returns a generator iterator with the sleep time between the
+        steps of the recording proceedure. The caller may use this for cooperative
+        multithreading, or can complete the calibration sychronously as follows:
+        
+        state = camera.startRecording()
+        for delay in state:
+            time.sleep(delay)
+        """
+        geometry = self.sensor.getCurrentGeometry()
+        nFrames = args.get('nFrames', self.getRecordingMaxFrames(geometry))
+        program = [ seqcommand(blockSize=nFrames, blkTermFull=True, recTermMemory=True, recTermBlockEnd=True) ]
+        yield from self.startCustomRecording(program)
     
     def softTrigger(self):
         """Signal a soft trigger event to the recording sequencer."""
@@ -413,6 +498,7 @@ class camera:
         # Grab a frame from the live buffer.
         # TODO: We only really need to read out a subset of the frame, but
         # dealing with the word alignment is sucky.
+        self.__setState(self.STATE_WHITE_BAL)
         seq = regmaps.sequencer()
         yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
         frame = numpy.asarray(seq.liveResult)
@@ -453,9 +539,9 @@ class camera:
 
         # Load it into the display block for immediate use.
         displayRegs = regmaps.display()
-        displayRegs.whiteBalance[0] = whiteBalance[0] * displayRegs.WHITE_BALANCE_DIV
-        displayRegs.whiteBalance[1] = whiteBalance[1] * displayRegs.WHITE_BALANCE_DIV
-        displayRegs.whiteBalance[2] = whiteBalance[2] * displayRegs.WHITE_BALANCE_DIV
+        self.wbCustom = whiteBalance
+        self.wbMatrix = whiteBalance
+        self.__setState(self.STATE_IDLE)
 
     #===============================================================================================
     # API Parameters: Camera Info Group
@@ -503,7 +589,7 @@ class camera:
         if not isinstance(value, str):
             raise TypeError("Description must be a string")
         self.description = value
-        self.onChange("cameraDescription", value)
+        self.__propChange("cameraDescription")
 
     @property
     def cameraIDNumber(self):
@@ -513,7 +599,7 @@ class camera:
         if not isinstance(value, int):
             raise TypeError("IDNumber must be an integer")
         self.idNumber = value
-        self.onChange("cameraIDNumber", value)
+        self.__propChange("cameraIDNumber")
     
     #===============================================================================================
     # API Parameters: Sensor Info Group
@@ -546,7 +632,8 @@ class camera:
         fSize = self.sensor.getMaxGeometry()
         return fSize.vRes
 
-    def sensorVMax(self):
+    @property
+    def sensorHMax(self):
         fSize = self.sensor.getMaxGeometry()
         return fSize.hRes
     
@@ -563,7 +650,7 @@ class camera:
     @exposurePeriod.setter
     def exposurePeriod(self, value):
         self.sensor.setStandardExposureProgram(value / 1000000000)
-        self.onChange("exposurePeriod", self.exposurePeriod)
+        self.__propChange("exposurePeriod")
 
     @property
     def exposurePercent(self):
@@ -578,7 +665,7 @@ class camera:
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
 
         self.sensor.setStandardExposureProgram((value * (expMax - expMin) / 100) + expMin)
-        self.onChange("exposurePeriod", self.exposurePeriod)
+        self.__propChange("exposurePeriod")
 
     @property
     def shutterAngle(self):
@@ -589,7 +676,7 @@ class camera:
         fPeriod = self.sensor.getCurrentPeriod()
 
         self.sensor.setStandardExposureProgram(value * fPeriod / 360)
-        self.onChange("exposurePeriod", self.exposurePeriod)
+        self.__propChange("exposurePeriod")
 
     @property
     def exposureMin(self):
@@ -616,14 +703,22 @@ class camera:
         return self.sensor.getCurrentGain() * self.sensor.baseISO
 
     #===============================================================================================
+    # API Parameters: Camera Status Group
+    @property
+    def state(self):
+        return self.__state
+
+    #===============================================================================================
     # API Parameters: Recording Group
     @property
-    def recMaxFrames(self):
+    def cameraMaxFrames(self):
+        """Maximum number of frames the camera's memory can save at the current resolution."""
         fSize = self.sensor.getCurrentGeometry()
         return self.getRecordingMaxFrames(fSize)
     
     @property
     def resolution(self):
+        """Dictionary describing the current resolution settings."""
         fSize = self.sensor.getCurrentGeometry()
         return {
             "hRes": fSize.hRes,
@@ -636,37 +731,98 @@ class camera:
     @resolution.setter
     def resolution(self, value):
         self.sensor.setResolution(value)
-        self.onChange("resolution", self.resolution)
+        self.__propChange("resolution")
         # Changing resolution affects frame timing.
-        self.onChange("framePeriod", self.framePeriod)
-        self.onChange("exposureMin", self.exposureMin)
-        self.onChange("exposureMax", self.exposureMax)
-        self.onChange("exposurePeriod", self.exposurePeriod)
+        self.__propChange("minFramePeriod")
+        self.__propChange("framePeriod")
+        self.__propChange("exposureMin")
+        self.__propChange("exposureMax")
+        self.__propChange("exposurePeriod")
+        # Changing resolution affects recording length.
+        self.__propChange("cameraMaxFrames")
     
+    @property
+    def minFramePeriod(self):
+        """Minimum frame period at the current resolution settings."""
+        fSize = self.sensor.getCurrentGeometry()
+        fpMin, fpMax = self.sensor.getPeriodRange(fSize)
+        return int(fpMin * 1000000000)
+
     @property
     def framePeriod(self):
+        """Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating)."""
         return int(self.sensor.getCurrentPeriod() * 1000000000)
-    
+    @framePeriod.setter
+    def framePeriod(self, value):
+        self.sensor.setFramePeriod(value / 1000000000)
+        # Changing frame period affects exposure timing.
+        self.__propChange("exposureMin")
+        self.__propChange("exposureMax")
+        self.__propChange("exposurePeriod")
+
     @property
     def frameRate(self):
+        """Estimated recording frame rate in frames per second (reciprocal of framePeriod)."""
         return 1 / self.sensor.getCurrentPeriod()
+    @frameRate.setter
+    def frameRate(self, value):
+        self.sensor.setFramePeriod(1 / value)
+        # Changing frame period affects exposure timing.
+        self.__propChange("exposureMin")
+        self.__propChange("exposureMax")
+        self.__propChange("exposurePeriod")
     
+    @property
+    def frameCapture(self):
+        return self.__frameProgram
+
     #===============================================================================================
     # API Parameters: Color Space Group
     @property
-    def wbRed(self):
+    def wbMatrix(self):
+        """Array of Red, Green, and Blue gain coefficients to achieve white balance."""
         display = regmaps.display()
-        return display.whiteBalance[0] / display.WHITE_BALANCE_DIV
-    
+        return [
+            display.whiteBalance[0] / display.WHITE_BALANCE_DIV,
+            display.whiteBalance[1] / display.WHITE_BALANCE_DIV,
+            display.whiteBalance[2] / display.WHITE_BALANCE_DIV
+        ]
+    @wbMatrix.setter
+    def wbMatrix(self, value):
+        display = regmaps.display()
+        display.whiteBalance[0] = int(value[0] * display.WHITE_BALANCE_DIV)
+        display.whiteBalance[1] = int(value[1] * display.WHITE_BALANCE_DIV)
+        display.whiteBalance[2] = int(value[2] * display.WHITE_BALANCE_DIV)
+        self.__propChange("wbMatrix")
+
     @property
-    def wbGreen(self):
+    def colorMatrix(self):
+        """Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order."""
         display = regmaps.display()
-        return display.whiteBalance[1] / display.WHITE_BALANCE_DIV
-    
-    @property
-    def wbBlue(self):
-        display = regmaps.display()
-        return display.whiteBalance[2] / display.WHITE_BALANCE_DIV
+        return [
+            display.colorMatrix[0] / display.COLOR_MATRIX_DIV,
+            display.colorMatrix[1] / display.COLOR_MATRIX_DIV,
+            display.colorMatrix[2] / display.COLOR_MATRIX_DIV,
+            display.colorMatrix[3] / display.COLOR_MATRIX_DIV,
+            display.colorMatrix[4] / display.COLOR_MATRIX_DIV,
+            display.colorMatrix[5] / display.COLOR_MATRIX_DIV,
+            display.colorMatrix[6] / display.COLOR_MATRIX_DIV,
+            display.colorMatrix[7] / display.COLOR_MATRIX_DIV,
+            display.colorMatrix[8] / display.COLOR_MATRIX_DIV
+        ]
+    @colorMatrix.setter
+    def colorMatrix(self, value):
+        display = regmaps.colorMatrix()
+        display.colorMatrix[0] = int(value[0] * display.COLOR_MATRIX_DIV)
+        display.colorMatrix[1] = int(value[1] * display.COLOR_MATRIX_DIV)
+        display.colorMatrix[2] = int(value[2] * display.COLOR_MATRIX_DIV)
+        display.colorMatrix[3] = int(value[3] * display.COLOR_MATRIX_DIV)
+        display.colorMatrix[4] = int(value[4] * display.COLOR_MATRIX_DIV)
+        display.colorMatrix[5] = int(value[5] * display.COLOR_MATRIX_DIV)
+        display.colorMatrix[6] = int(value[6] * display.COLOR_MATRIX_DIV)
+        display.colorMatrix[7] = int(value[7] * display.COLOR_MATRIX_DIV)
+        display.colorMatrix[8] = int(value[8] * display.COLOR_MATRIX_DIV)
+        self.__propChange("colorMatrix")
 
     #===============================================================================================
     # API Parameters: IO Configuration Group
@@ -676,5 +832,3 @@ class camera:
     @ioMapping.setter
     def ioMapping(self, value):
         self.ioInterface.setConfiguration(value)
-
-    

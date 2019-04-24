@@ -24,12 +24,11 @@ This project includes several major components:
 
 Building and Installing
 -----------------------
-To build the `pychronos` module, you will need the `python3-dev` and
-`python3-dbus` packages for your camera's operating system. Once installed,
-you can use the `setup.py` script to  build and install the module on your
-camera, using the following commands: 
- * `python3 setup.py build` to build the pychronos package from your checkout. 
- * `python3 setup.py install` to install the pychronos package onto your camera.
+To build the `pychronos` module, you will need the `python3-dev` and `python3-dbus`
+packages for your camera's operating sytem. Once installed, you can use the `setup.py`
+script to build and install the module on your camera, using the following commands:
+ * `python3 setup.py build` to build the pychronos package from your checkout.
+ * `python3 setup.py install` to install the pychronos package on your camera.
 
 For quick development, you can also use `make inplace` to generate an in-place
 version of the `pychronos` package that can be imported from the root of the
@@ -89,6 +88,9 @@ Each parameter also defines a type as follows:
 | `dict`   | `a{sv}`            | `dict`       | An array of name/value pairs. Values may contain any type (including another `dict`).
 
 ### Focus Control Parameters
+This is pure speculation - nothing is really implemented here until we get
+electronic lens control up and running.
+
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
 | `focusPercent`    | x | x | x | float  | 0.0   | 100.0 | 0.0 for the nearest possible focus and 100.0 for furthest focus (infinity)
@@ -102,8 +104,8 @@ Each parameter also defines a type as follows:
 | `exposurePeriod`  |`G`|`S`|`N`| int    |       |       | Exposure time in nanoseconds.
 | `exposuerPercent` |`G`|`S`|   | float  |       |       |
 | `shutterAngle`    |`G`|`S`|   | int    | 0     | 36000 | Exposure time relative to frame period in hundredths of degrees.
-| `exposureMin`     |`G`|   |`x`| int    |       |       | Minimum exposure time at the current resolution and frame period.
-| `exposureMax`     |`G`|   |`x`| int    |       |       | Maximum exposure time at the current resolution and frame period.
+| `exposureMin`     |`G`|   |`N`| int    |       |       | Minimum exposure time at the current resolution and frame period.
+| `exposureMax`     |`G`|   |`N`| int    |       |       | Maximum exposure time at the current resolution and frame period.
 | `exposureMode`    |`x`|`x`|`x`| enum   |       |       | Auto-exposure mode as a combination of exposure time, gain and aperture.
 
 ### Gain Control Parameters
@@ -158,7 +160,7 @@ API to the `chronos-cli` program.
 ### Camera Status Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
-|`cameraStatus`     |`x`|   |`x`| enum   |       |       | One of `idle`, `recording`, `reset` and others???? TBD.
+|`state`            |`G`|   |`N`| enum   |       |       | One of `idle`, `recording`, `reset` and others???? TBD.
 |`error`            |   |   |`x`| string |       |       | Included in a notification dictionary if, and only if, an operation fails due to an error.
 |`networkInterfaces`|`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the network interfaces.
 |`externalStorage`  |`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the external storage devices.
@@ -173,10 +175,10 @@ group and made more a part of the video display system.
 
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
-|`wbMatrix`         |`x`|`x`|`x`| array  |       |       | Array of Red, Green, and Blue gain coefficients to achieve white balance.
-|`wbCustom`         |`x`|`x`|`x`| array  |       |       | Automatically-generated white balance gain coefficients.
+|`wbMatrix`         |`G`|`S`|`N`| array  |       |       | Array of Red, Green, and Blue gain coefficients to achieve white balance.
+|`wbCustom`         |`G`|`S`|`N`| array  |       |       | Automatically-generated white balance gain coefficients.
 |`wbTemperature`    |`x`|`x`|`x`| int    | 1800  | 10000 | Estimated lighting temperature in degrees Kelvin.
-|`colorMatrix`      |`x`|`x`|`x`| array  |       |       | Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order.
+|`colorMatrix`      |`G`|`S`|`N`| array  |       |       | Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order.
 
 ### Recording Group
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
@@ -185,11 +187,12 @@ group and made more a part of the video display system.
 |`recMaxFrames`     |`x`|`x`|`x`| int    |       |       | Maximum number of frames available for the recording buffer.
 |`recSegments`      |`x`|`x`|`x`| int    | 1     |       | Number of memory segments supported when in segmented recording mode.
 |`burstPreRecord`   |`x`|`x`|`x`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
-|`resolution`       |`G`|`x`|`x`| dict   |       |       | Dict describing the resolution settings.
+|`resolution`       |`G`|`S`|`N`| dict   |       |       | Dict describing the resolution settings.
 |`minFramePeriod`   |`G`|   |`x`| int    |       |       | Minimum frame period at the current resolution settings.
 |`cameraMaxFrames`  |`x`|`x`|`x`| int    |       |       | Maximum number of frames the camera's memory can save at the current resolution.
 |`framePeriod`      |`G`|`x`|`x`| int    |       |       | Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating).
 |`frameRate`        |`G`|`x`|   | float  |       |       | Estimated frame rate in frames per second (reciprocal of `framePeriod`)
+|`frameCapture`     |`x`|`x`|`x`| enum   |       |       | Select the frame timing generator program as one of `normal`, `frameTrigger`, `shutterGating`, `hdr2slope`, `hdr3slope`.
 |`totalFrames`      |`x`|   |   | int    |       |       | Total number of frames in memory recorded by the camera.
 |`totalSegments`    |`x`|   |   | int    |       |       | Total number of segments in memory recorded by the camera.
 
@@ -200,33 +203,34 @@ In addition to the parameters which can be manipulated to setup the camera,
 the API also includes a set of methods which perform state changes. A list
 of the supported methods are as follows:
 
-| Method                   | Arguments        | State Change | Description
-|:-------------------------|:-----------------|:-------------|:-----------
-| `get`                    | array of names   |              | Retrieve one or more parameters from the control API.
-| `set`                    | dict(parameters) |              | Modify one or more parameters in the control API.
-| `startAutoWhiteBalance`  | none             | `whitebal`   | Take a reference image from the live display and compute the white balance.
-| `revertAutoWhiteBalance` | none             |              | This copies the contents of `wbCustom` into `wbMatrix`.
-| `startAutoFocus`         | dict(location)   |              | Attempt to automatically focus the camera on a subject.
-| `startBlackCalibration`  | none             | `blackcal`   | Perform full black calibration, assuming the user has covered the sensor.
-| `startZeroTimeBlackCal`  | none             | `blackcal`   | Perform black calibration by reducing the exposure and aperture to zero.
-| `startRecording`         | none             | `recording`  | Begin recording video data to memory.
-| `stopRecording`          | none             | `idle`       | Terimnate recording of video data to memory.
-| `flushRecording`         | none             |              | Flush recoreded video data from memory.
-| `startFilesave`          | dict             |              | TBD: A proxy for the `filesave` method in the Video API.
-| `softTrigger`            | none             |              | Generate a software trigger event.
-| `revertToDefaults`       | none             |              | Revert all settings to their default values (with optional parameter overrides).
-| `startAnalogCalibration` | none             | `analogcal`  | Perform automated image sensor calibration.
-| `softReset`              | none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
-| `testResolution`         | dict(resolution) |              | Test if a resolution is valid and return the timing limits at that resolution.
+| Method                   | S | Arguments        | State Change | Description
+|:-------------------------|:--|:-----------------|:-------------|:-----------
+| `get`                    |`G`| array of names   |              | Retrieve one or more parameters from the control API.
+| `set`                    |`S`| dict(parameters) |              | Modify one or more parameters in the control API.
+| `startAutoWhiteBalance`  |`S`| none             | `whitebal`   | Take a reference image from the live display and compute the white balance.
+| `revertAutoWhiteBalance` |`S`| none             |              | This copies the contents of `wbCustom` into `wbMatrix`.
+| `startAutoFocus`         |   | dict(location)   |              | Attempt to automatically focus the camera on a subject.
+| `startBlackCalibration`  |`S`| none             | `blackcal`   | Perform full black calibration, assuming the user has covered the sensor.
+| `startZeroTimeBlackCal`  |`S`| none             | `blackcal`   | Perform black calibration by reducing the exposure and aperture to zero.
+| `startAnalogCalibration` |`S`| none             | `analogcal`  | Perform automated image sensor calibration.
+| `startRecording`         |   | none             | `recording`  | Begin recording video data to memory.
+| `stopRecording`          |   | none             | `idle`       | Terimnate recording of video data to memory.
+| `flushRecording`         |   | none             |              | Flush recoreded video data from memory.
+| `startFilesave`          |   | dict             |              | TBD: A proxy for the `filesave` method in the Video API.
+| `softTrigger`            |   | none             |              | Generate a software trigger event.
+| `revertToDefaults`       |   | none             |              | Revert all settings to their default values (with optional parameter overrides).
+| `softReset`              |   | none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
+| `testResolution`         |`S`| dict(resolution) |              | Test if a resolution is valid and return the timing limits at that resolution.
 
-All methods return a dictionary of parameters, normally this will just include the
-status dictionary, which is minimally includes `cameraState`, but may also include
-the `error` parameter in the event that the operation failed due an error.
+All methods return a dictionary of parameters, normally this will just include
+the status dictionary, which minimally includes `state`, but may also include an
+`error` parameter in the event that the operation failed due an error.
 
 TODO: A weird exception is the `testResolution` method, which queries the camera if
 the requested resolution is valid. If the resolution settings are valid, then the
 dict will return the following values as though the resolution and minimum frame
 period had been applied:
+ * `cameraMaxFrames`
  * `minFramePeriod`
  * `exposureMin`
  * `exposureMax`

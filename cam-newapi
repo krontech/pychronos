@@ -177,6 +177,108 @@ class controlApi(dbus.service.Object):
         else:
             self.currentState = 'idle'
 
+    #===============================================================================================
+    #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
+    #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
+    #Method('startBlackCalibration', arguments='a{sv}', regutns='a{sv}'),
+    #Method('startZeroTimeBlackCal', arguments='a{sv}', regutns='a{sv}'),
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startAutoWhiteBalance(self, args):
+        logging.info('starting white balance')
+        try:
+            self.runGenerator(self.camera.startWhiteBalance(args))
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": e.message
+            }
+
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def revertAutoWhiteBalance(self, args):
+        self.camera.wbMatrix = self.camera.wbCustom
+        return {
+            "state": self.camera.state
+        }
+    
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startBlackCalibration(self, args):
+        logging.info('starting standard black calibration')
+        try:
+            self.runGenerator(self.camera.startBlackCal())
+            return {
+                "state": self.camera.state
+            }
+        except Exception as e:
+            return {
+                "state": self.camera.state,
+                "error": e.message
+            }
+    
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startZeroTimeBlackCal(self, args):
+        logging.info('starting zero-time black calibration')
+        try:
+            self.runGenerator(self.camera.startZeroTimeBlackCal())
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": e.message
+            }
+
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startAnalogCalibration(self, args):
+        logging.info('starting analog calibration')
+        try:
+            self.runGenerator(self.camera.sensor.startAnalogCal())
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": e.message
+            }
+    
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startRecording(self, args):
+        logging.info('starting analog calibration')
+        try:
+            self.runGenerator(self.camera.startRecording())
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": e.message
+            }
+
+
+
+    #===============================================================================================
+    #Method('testResolution', arguments='a{sv}', returns='a{sv}'),
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def testResolution(self, args):
+        if (self.camera.sensor.isValidResolution(args)):
+            fpMin, fpMax = self.camera.sensor.getPeriodRange(args)
+            expMin, expMax = self.camera.sensor.getExposureRange(args, fpMin)
+            return {
+                "cameraMaxFrames": self.camera.getRecordingMaxFrames(args),
+                "minFramePeriod": int(fpMin * 1000000000),
+                "exposureMin": int(expMin * 1000000000),
+                "exposureMax": int(expMax * 1000000000)
+            }
+        else:
+            return {
+                "error": "Invalid Resolution"
+            }
+
 # Run the control API
 if __name__ == "__main__":
     # Enable logging.

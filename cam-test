@@ -192,7 +192,7 @@ if (args.reclength):
     cmd.recTermBlockEnd = True
 
 # Launch the recording proceedure.
-for delay in cam.startRecording([cmd]):
+for delay in cam.startCustomRecording([cmd]):
     recsw.update()
     if (recsw.falling()):
         cam.stopRecording()
