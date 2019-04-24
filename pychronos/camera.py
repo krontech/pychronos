@@ -43,6 +43,8 @@ class camera:
         self.currentState = 'idle'
         self.description = "Chronos SN:%s" % (self.cameraSerial)
         self.idNumber = 0
+
+        self.ioInterface = regmaps.ioInterface()
     
     def setOnChange(self, handler):
         if not handler:
@@ -665,3 +667,14 @@ class camera:
     def wbBlue(self):
         display = regmaps.display()
         return display.whiteBalance[2] / display.WHITE_BALANCE_DIV
+
+    #===============================================================================================
+    # API Parameters: IO Configuration Group
+    @property
+    def ioMapping(self):
+        self.ioInterface.getConfiguration()
+    @ioMapping.setter
+    def ioMapping(self, value):
+        self.ioInterface.setConfiguration(value)
+
+    
