@@ -21,13 +21,15 @@ This project includes several major components:
  * `cam-control`: A D-Bus binding program which exports an API to manipulate
    the `camera` class.
 
+
 Building and Installing
 -----------------------
-To build the `pychronos` module, you will need the `python3-dev` package for you
-operating system. Once installed, you can use the `setup.py` script to build and
-install the module on your system, using the following commands:
- * `python3 setup.py build` to build the pychronos package from your checkout.
- * `python3 setup.py install` to install the pychronos package into your system.
+To build the `pychronos` module, you will need the `python3-dev` and
+`python3-dbus` packages for your camera's operating system. Once installed,
+you can use the `setup.py` script to  build and install the module on your
+camera, using the following commands: 
+ * `python3 setup.py build` to build the pychronos package from your checkout. 
+ * `python3 setup.py install` to install the pychronos package onto your camera.
 
 For quick development, you can also use `make inplace` to generate an in-place
 version of the `pychronos` package that can be imported from the root of the
@@ -36,6 +38,8 @@ project checkout without installing to the system.
 As much as we love backwards compatibility, the `pychronos` module required Python
 version 3.4 and newer. This is due to extensive use of generator functions to handle
 cooperative multithreading for long-running tasks.
+
+
 
 Chronos Control Interface
 =========================
@@ -189,6 +193,7 @@ group and made more a part of the video display system.
 |`totalFrames`      |`x`|   |   | int    |       |       | Total number of frames in memory recorded by the camera.
 |`totalSegments`    |`x`|   |   | int    |       |       | Total number of segments in memory recorded by the camera.
 
+
 Control Methods
 ---------------
 In addition to the parameters which can be manipulated to setup the camera,
@@ -228,6 +233,7 @@ period had been applied:
 
 Otherwise, the `testResolution` method will return a status dictionary with a
 parameter of `error` set to "Invalid Resolution"
+
 
 Control Signals
 ---------------
