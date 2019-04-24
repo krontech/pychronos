@@ -4,3 +4,14 @@
 *.pyc
 build/
 __pycache__/
+
+# Ignore common temporary files.
+.DS_Store
+*\~
+.directory
+
+# Ignore mypy's temporary files.
+.mypy_cache/
+
+# Ignore git version description file, uploaded to the camera for display in the about panel, UI Version string.
+git_description
