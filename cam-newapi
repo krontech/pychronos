@@ -13,6 +13,10 @@ from pychronos.sensors import lux1310, frameGeometry
 import pychronos.regmaps as regmaps
 
 interface = 'com.krontech.chronos.control'
+dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+bus = dbus.SystemBus()
+video = bus.get_object('com.krontech.chronos.video',
+                       '/com/krontech/chronos/video')
 
 #-----------------------------------------------------------------
 # Some constants that ought to go into a board-specific dict.
@@ -24,10 +28,14 @@ REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 #-----------------------------------------------------------------
 
+
+
+
 class controlApi(dbus.service.Object):
     ## This feels like a duplication of the Python exceptions.
     ERROR_NOT_IMPLEMENTED_YET = 9999
     VALUE_ERROR               = 1
+    
 
     def __init__(self, bus, path, mainloop, camera):
         # FIXME: This seems hacky, just calling the class method directly.
@@ -126,7 +134,21 @@ class controlApi(dbus.service.Object):
         data = {}
         for name in args:
             if hasattr(self.camera, name):
+                #Check for the value in this API.
                 data[name] = self.dbusifyTypes(getattr(self.camera, name))
+            else:
+                #We didn't have the value. Maybe it's in the video API?
+                try:
+                    print('video api call', name)
+                    return video.get([name]) #TODO: This should be a list of everything we missed.
+                except dbus.exceptions.DBusException as e:
+                    #OK, video didn't have it. Let the caller know.
+                    print('ve', e, type(e)) #Do a sanity check here?
+                    raise dbus.exceptions.DBusException(
+                        'com.krontech.chronos.UnknownAttribute',
+                        #TODO: Include video attributes here, since we proxy to that as a fallback.
+                        '\'%s\' is not a known attribute. Known attributes are: %s' % (name, dir(self.camera)))
+                
         return data
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
@@ -288,12 +310,12 @@ if __name__ == "__main__":
     ## TODO: This needs to go into an init script somewhere.
 
     # Use the GLib mainloop.
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    
     mainloop = GLib.MainLoop()
 
     # Setup resources.
     cam  = camera(lux1310())
-    bus  = dbus.SystemBus()
+   
     name = dbus.service.BusName('com.krontech.chronos.control', bus=bus)
     obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam)
 
