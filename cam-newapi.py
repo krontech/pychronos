@@ -1,5 +1,8 @@
 #!/usr/bin/python3
 
+from sys import stderr
+from functools import lru_cache
+
 import inspect
 import logging
 import dbus
@@ -102,7 +105,7 @@ class controlApi(dbus.service.Object):
             elif isinstance(value, float):
                 result[key] = dbus.types.Double(value, variant_level=1)
             elif isinstance(value, dict):
-                result[key] = dbusifyTypes(value, variant_level=1)
+                result[key] = self.dbusifyTypes(value, variant_level=1)
             else:
                 result[key] = dbus.types.String(value, variant_level=1)
         return result
@@ -130,33 +133,114 @@ class controlApi(dbus.service.Object):
     #Method('get', arguments='as', returns='a{sv}')
     #Method('set', arguments='a{sv}', returns='a{sv}')
     @dbus.service.method(interface, in_signature='as', out_signature='a{sv}')
-    def get(self, args):
-        data = {}
-        for name in args:
-            if hasattr(self.camera, name):
-                #Check for the value in this API.
+    def get(self, attrs): #Use "attrs", not "args", because too close to "*args".
+        """Retrieve named values from the control API and the video API."""
+        
+        try:
+            controlAttrs = [
+                name
+                for name in attrs 
+                if name in self.availableKeys()
+            ]
+            videoAttrs = [
+                name
+                for name in attrs 
+                if name not in controlAttrs
+            ]
+            
+            data = video.get(videoAttrs) if videoAttrs else {}
+            for name in controlAttrs:
                 data[name] = self.dbusifyTypes(getattr(self.camera, name))
+            return data
+        
+        except dbus.exceptions.DBusException as e:
+            if e.get_dbus_name() != 'com.krontech.chronos.UnknownAttribute':
+                raise e
             else:
-                #We didn't have the value. Maybe it's in the video API?
-                try:
-                    print('video api call', name)
-                    return video.get([name]) #TODO: This should be a list of everything we missed.
-                except dbus.exceptions.DBusException as e:
-                    #OK, video didn't have it. Let the caller know.
-                    print('ve', e, type(e)) #Do a sanity check here?
-                    raise dbus.exceptions.DBusException(
-                        'com.krontech.chronos.UnknownAttribute',
-                        #TODO: Include video attributes here, since we proxy to that as a fallback.
-                        '\'%s\' is not a known attribute. Known attributes are: %s' % (name, dir(self.camera)))
+                #Video didn't have the attr, we don't have the attr, return a nice error message saying _which_ attr is causing issues and why.
+                raise dbus.exceptions.DBusException(
+                    'com.krontech.chronos.UnknownAttribute',
+                    "'%s' is not a known attribute. Known attributes are: %s" % (
+                        e.get_dbus_message().split()[0], #attribute name
+                        sorted(set(self.availableKeys()) | set(video.availableKeys())) #all attribute names
+                    )
+                )
                 
-        return data
+            
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def set(self, args):
-        for name in args:
-            if hasattr(self.camera, name):
-                setattr(self.camera, name, args[name])
-        return self.status()
+    def set(self, newValues):
+        """Set named values in the control API and the video API."""
+        
+        knownAttributes = set(self.availableKeys()) | set(video.availableKeys())
+        unknownAttributes = [attr for attr in newValues if attr not in knownAttributes]
+        controlAttributes = {
+            name: attr
+            for name, attr in newValues.items()
+            if name in self.availableKeys()
+        }
+        videoAttributes = {
+            name: attr
+            for name, attr in newValues.items()
+            if name not in controlAttributes
+        }
+        
+        if unknownAttributes:
+            raise dbus.exceptions.DBusException(
+                'com.krontech.chronos.UnknownAttribute',
+                "'%s' is not a known attribute. Known attributes are: %s" % (
+                    unknownAttributes[0],
+                    sorted(knownAttributes)
+                )
+            )
+        
+        #Set control attributes first, then video attributes, so the video system has everything ready for it.
+        for name, attr in controlAttributes.items():
+            setattr(self.camera, name, attr)
+        
+        videoAttributes and video.set(videoAttributes)
+        
+        return self.status() #¯\_(ツ)_/¯
+    
+    
+    #===============================================================================================
+    #Method('availableKeys', arguments='', returns='as')
+    #Method('availableCalls', arguments='', returns='as')
+    @lru_cache(maxsize=1)
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def availableKeys(self):
+        """Get a list of the properties we can get/set/subscribe.
+            
+            For a list of functions, see org.freedesktop.DBus.Properties.GetAll."""
+        
+        #Return a map, vs a list with a name key, because everything else is a{sv}.
+        return self.dbusifyTypes({
+            elem: {
+                'get': True,
+                'set': True,
+                'notify': True, #mock, will need to be decorated with this data
+            }
+            for elem in dir(self.camera)
+            if elem[0] != '_'
+            and isinstance(getattr(type(self.camera), elem, None), property) #is a getter, maybe a setter
+        })
+    
+    @lru_cache(maxsize=1)
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def availableCalls(self):
+        """Get a list of the properties we can get/set/subscribe.
+            
+            For a list of functions, see org.freedesktop.DBus.Properties.GetAll."""
+        
+        return self.dbusifyTypes({
+            elem: {
+                'constant': False,
+                'action': 'set', #or 'get'.
+            }
+            for elem in dir(self)
+            if elem[0] != '_'
+            and callable(getattr(type(self), elem, None))
+        })
     
     #===============================================================================================
     #Method('status', arguments='', returns='a{sv}')
