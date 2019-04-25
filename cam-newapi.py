@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-from sys import stderr
 from functools import lru_cache
 
 import inspect
@@ -14,6 +13,7 @@ import pychronos
 from pychronos import camera
 from pychronos.sensors import lux1310, frameGeometry
 import pychronos.regmaps as regmaps
+import settings
 
 interface = 'com.krontech.chronos.control'
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
@@ -56,6 +56,8 @@ class controlApi(dbus.service.Object):
         self.changeset = None
 
         self.callLater(0.5, self.doReset, {'reset':True, 'sensor':True})
+        
+        self.currentState = 'starting'
     
     ## Internal helper to iterate over a generator from the GLib mainloop.
     ## TODO: Do we need a callback for exception handling?
@@ -172,7 +174,11 @@ class controlApi(dbus.service.Object):
     def set(self, newValues):
         """Set named values in the control API and the video API."""
         
-        knownAttributes = set(self.availableKeys()) | set(video.availableKeys())
+        try:
+            knownAttributes = set(self.availableKeys()) | set(video.availableKeys())
+        except dbus.exceptions.DBusException:
+            logging.error('could not load video available keys')
+            knownAttributes = set(self.availableKeys())
         unknownAttributes = [attr for attr in newValues if attr not in knownAttributes]
         controlAttributes = {
             name: attr
@@ -199,6 +205,10 @@ class controlApi(dbus.service.Object):
             setattr(self.camera, name, attr)
         
         videoAttributes and video.set(videoAttributes)
+        
+        #Now that everything's set successfully, save the changes for restoration on startup.
+        for name, value in newValues.items():
+            settings.set(name, value)
         
         return self.status() #¯\_(ツ)_/¯
     
@@ -402,6 +412,14 @@ if __name__ == "__main__":
    
     name = dbus.service.BusName('com.krontech.chronos.control', bus=bus)
     obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam)
+    
+    #Load previously set values.
+    obj.set({
+        key: settings.get(key)
+        for key, attrs in obj.availableKeys().items()
+        if attrs['set']
+        and settings.get(key) is not None
+    })
 
     # Run the mainloop.
     logging.info("Running control service...")

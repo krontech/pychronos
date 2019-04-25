@@ -112,6 +112,7 @@ class lux1310(api):
         
         ## ADC Calibration state
         self.adcOffsets = [0] * self.HRES_INCREMENT
+        self.integrationTime = 1
 
         self.__nTrigFrames = 5
         super().__init__()
