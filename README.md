@@ -102,7 +102,7 @@ electronic lens control up and running.
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
 | `exposurePeriod`  |`G`|`S`|`N`| int    |       |       | Exposure time in nanoseconds.
-| `exposuerPercent` |`G`|`S`|   | float  |       |       |
+| `exposurePercent` |`G`|`S`|   | float  |       |       |
 | `shutterAngle`    |`G`|`S`|   | int    | 0     | 36000 | Exposure time relative to frame period in hundredths of degrees.
 | `exposureMin`     |`G`|   |`N`| int    |       |       | Minimum exposure time at the current resolution and frame period.
 | `exposureMax`     |`G`|   |`N`| int    |       |       | Maximum exposure time at the current resolution and frame period.
