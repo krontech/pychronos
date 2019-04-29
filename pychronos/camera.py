@@ -118,6 +118,8 @@ class camera:
         self.idNumber = 0
 
         self.ioInterface = regmaps.ioInterface()
+        
+        self.__frameProgram = 0 #TODO: What is this?
     
     def __propChange(self, name):
         """Quick and dirty wrapper to throw an on-change event by name"""
@@ -685,7 +687,7 @@ class camera:
     @camProperty()
     def sensorVDark(self):
         fSize = self.sensor.getMaxGeometry()
-        return fSize.vDark
+        return fSize.vDarkRows
     
     #===============================================================================================
     # API Parameters: Exposure Group
@@ -873,7 +875,7 @@ class camera:
     # API Parameters: IO Configuration Group
     @camProperty()
     def ioMapping(self):
-        self.ioInterface.getConfiguration()
+        return self.ioInterface.getConfiguration()
     @ioMapping.setter
     def ioMapping(self, value):
         self.ioInterface.setConfiguration(value)
