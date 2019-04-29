@@ -114,6 +114,8 @@ class lux1310(api):
         self.adcOffsets = [0] * self.HRES_INCREMENT
 
         self.__nTrigFrames = 5
+        self.integrationTime = 0
+        
         super().__init__()
 
     def writeDAC(self, dac, voltage):

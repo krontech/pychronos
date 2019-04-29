@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 
-from sys import stderr
+import os, sys, pdb
+import json
 from functools import lru_cache
+from pathlib import Path
 
 import inspect
 import logging
@@ -32,6 +34,69 @@ REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 #-----------------------------------------------------------------
 
 
+# Drop into a debugger when an error happens.
+def excepthook(t,v,tb):
+    pdb.traceback.print_exception(t, v, tb)
+    pdb.post_mortem(t=tb)
+sys.excepthook = excepthook
+dbg, brk = pdb.set_trace, pdb.set_trace #convenience debugging
+
+#Fix system not echoing keystrokes in debugger, after restart.
+try:
+    os.system('stty sane')
+except Exception:
+    pass
+
+
+
+class store():
+    """A persistant key/value store which survives reboots.
+        
+        Example:
+            Store.set('foo', 5)
+            assert Store.get('foo') == 5 #passes
+            #«reboot camera»
+            assert Store.get('foo') == 5 #passes
+        """
+    
+    _basepath = Path(os.path.expanduser('~/.config/Krontech/dbus control api'))
+    try:
+        _basepath.mkdir(parents=True)
+    except FileExistsError:
+        pass
+    
+    @staticmethod
+    def get(name: str, *args):
+        """get(name[, default]): Retrieve a set value.
+            
+            If a default is supplied, use it if the stored
+            value cannot be loaded. (ie, is corrupt or dne)"""
+        
+        try:
+            with (store._basepath/name).open(mode='r') as file:
+                return json.load(file)
+        except Exception as e:
+            if args:
+                return args[0]
+            else:
+                #This merges the errors "we can't find the data" and "we can't find all the data".
+                raise ValueError("No valid saved data named '%s' found and no default provided." % name)
+    
+    @staticmethod
+    def set(name: str, value: any):
+        """set(name, value): Persist a value to disk.
+            
+            Can be got() later."""
+        
+        with (store._basepath/name).open(mode='w') as file:
+            json.dump(
+                value,
+                file,
+                ensure_ascii = False,
+                check_circular = False,
+                indent = 4,
+            )
+
 
 
 class controlApi(dbus.service.Object):
@@ -56,6 +121,8 @@ class controlApi(dbus.service.Object):
         self.changeset = None
 
         self.callLater(0.5, self.doReset, {'reset':True, 'sensor':True})
+        
+        self.currentState = 'starting'
     
     ## Internal helper to iterate over a generator from the GLib mainloop.
     ## TODO: Do we need a callback for exception handling?
@@ -122,6 +189,7 @@ class controlApi(dbus.service.Object):
 
     def notifyChanges(self):
         self.notify(self.changeset)
+        
         self.changeset = None
         return False
     
@@ -172,7 +240,12 @@ class controlApi(dbus.service.Object):
     def set(self, newValues):
         """Set named values in the control API and the video API."""
         
-        knownAttributes = set(self.availableKeys()) | set(video.availableKeys())
+        try:
+            knownAttributes = set(self.availableKeys()) | set(video.availableKeys())
+        except dbus.exceptions.DBusException:
+            logging.error('could not load video available keys')
+            knownAttributes = set(self.availableKeys())
+        
         unknownAttributes = [attr for attr in newValues if attr not in knownAttributes]
         controlAttributes = {
             name: attr
@@ -200,6 +273,10 @@ class controlApi(dbus.service.Object):
         
         videoAttributes and video.set(videoAttributes)
         
+        for key, value in controlAttributes.items():
+            if getattr(getattr(type(self.camera), key).fget, 'savable', False):
+                store.set(key, value)
+        
         return self.status() #¯\_(ツ)_/¯
     
     
@@ -214,11 +291,12 @@ class controlApi(dbus.service.Object):
             For a list of functions, see org.freedesktop.DBus.Properties.GetAll."""
         
         #Return a map, vs a list with a name key, because everything else is a{sv}.
+        #dbg() #x = getattr(type(self.camera), 'sensorHMax')
         return self.dbusifyTypes({
             elem: {
-                'get': True,
-                'set': True,
-                'notify': True, #mock, will need to be decorated with this data
+                'get': getattr(type(self.camera), elem).fget is not None,
+                'set': getattr(type(self.camera), elem).fset is not None,
+                'notifies': getattr(getattr(type(self.camera), elem).fget, 'notifies', False), #set with camProperty
             }
             for elem in dir(self.camera)
             if elem[0] != '_'
@@ -402,7 +480,15 @@ if __name__ == "__main__":
    
     name = dbus.service.BusName('com.krontech.chronos.control', bus=bus)
     obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam)
-
+    
+    #Load previously set values.
+    obj.set({
+        key: store.get(key)
+        for key, attrs in obj.availableKeys().items()
+        if attrs['set']
+        and store.get(key, None) is not None
+    })
+    
     # Run the mainloop.
     logging.info("Running control service...")
     mainloop.run()

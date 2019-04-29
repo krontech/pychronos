@@ -11,6 +11,51 @@ import pychronos.spd as spd
 
 API_VERISON_STRING = '0.1'
 
+
+
+__propertiesACameraPropertyCanHave = {'notify', 'save'}
+def camProperty(*props):
+    """@camProperty: Like @property, but include metadata.
+        
+        The camera properties, themselves, have certain
+        properties we care about. They are all gettable,
+        which we specify with a getter using @property,
+        and can be settable. However, they can also emit a
+        notification signal when they change, which is not
+        a decorated feature. Some properties are derived
+        from other properties, and we don't want to save
+        those to disk. This decorator notes these last two
+        properties for use later.
+        
+        'notify': The property emits update events when it
+                  is changed.
+        'save':   The property can be saved to disk. (That
+                  is, it is not derived from another
+                  property, which would be saved to disk.)
+        
+        Examples:
+            set:
+                @camProperty('notify', 'save')
+                def exposurePeriod(self):
+                    return ...
+            get:
+                type(self.camera).exposurePeriod
+                    .fget.isNotifiable
+        """
+    
+    for prop in props:
+        assert prop in __propertiesACameraPropertyCanHave, "Arg '%s' not known; known properties a camera property can have are %s." % (prop, __propertiesACameraPropertyCanHave)
+    
+    def camPropertyAnnotate(fn, *args, **kwargs):
+        """Helper function for camProperty decorator."""
+        setattr(fn, 'notifies', 'notify' in props)
+        setattr(fn, 'savable', 'save' in props)
+        return property(fn, *args, **kwargs)
+    
+    return camPropertyAnnotate
+
+        
+
 class CameraError(RuntimeError):
     pass
 
@@ -545,25 +590,25 @@ class camera:
 
     #===============================================================================================
     # API Parameters: Camera Info Group
-    @property
+    @camProperty()
     def cameraApiVersion(self):
         return API_VERISON_STRING
     
-    @property
+    @camProperty()
     def cameraFpgaVersion(self):
         config = regmaps.config()
         return "%d.%d" % (config.version, config.subver)
     
-    @property
+    @camProperty()
     def cameraMemoryGB(self):
         return (self.dimmSize[0] + self.dimmSize[1]) / (1 << 30)
     
-    @property
+    @camProperty()
     def cameraModel(self):
         ## HACK: This needs to be updated from somewhere.
         return "CR14-1.0"
     
-    @property
+    @camProperty()
     def cameraSerial(self):
         I2C_SLAVE = 0x0703 # From linux/i2c-dev.h
         EEPROM_ADDR = 0x54 # From the C++ app
@@ -581,7 +626,7 @@ class camera:
         except:
             return ""
     
-    @property
+    @camProperty('notify', 'save')
     def cameraDescription(self):
         return self.description
     @cameraDescription.setter
@@ -591,7 +636,7 @@ class camera:
         self.description = value
         self.__propChange("cameraDescription")
 
-    @property
+    @camProperty('notify', 'save')
     def cameraIDNumber(self):
         return self.idNumber
     @cameraIDNumber.setter
@@ -603,48 +648,48 @@ class camera:
     
     #===============================================================================================
     # API Parameters: Sensor Info Group
-    @property
+    @camProperty()
     def sensorName(self):
         return self.sensor.name
     
-    @property
+    @camProperty()
     def sensorColorPattern(self):
         if self.sensor.cfaPattern:
             return self.sensor.cfaPattern
         else:
             return "mono"
 
-    @property
+    @camProperty()
     def sensorBitDepth(self):
         fSize = self.sensor.getMaxGeometry()
         return fSize.bitDepth
     
-    @property
+    @camProperty()
     def sensorISO(self):
         return self.sensor.baseISO
     
-    @property
+    @camProperty()
     def sensorMaxGain(self):
         return self.sensor.maxGain
     
-    @property
+    @camProperty()
     def sensorVMax(self):
         fSize = self.sensor.getMaxGeometry()
         return fSize.vRes
-
-    @property
+    
+    @camProperty()
     def sensorHMax(self):
         fSize = self.sensor.getMaxGeometry()
         return fSize.hRes
     
-    @property
+    @camProperty()
     def sensorVDark(self):
         fSize = self.sensor.getMaxGeometry()
         return fSize.vDark
     
     #===============================================================================================
     # API Parameters: Exposure Group
-    @property
+    @camProperty('notify', 'save')
     def exposurePeriod(self):
         return int(self.sensor.getCurrentExposure() * 1000000000)
     @exposurePeriod.setter
@@ -652,7 +697,7 @@ class camera:
         self.sensor.setStandardExposureProgram(value / 1000000000)
         self.__propChange("exposurePeriod")
 
-    @property
+    @camProperty()
     def exposurePercent(self):
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
@@ -667,7 +712,7 @@ class camera:
         self.sensor.setStandardExposureProgram((value * (expMax - expMin) / 100) + expMin)
         self.__propChange("exposurePeriod")
 
-    @property
+    @camProperty()
     def shutterAngle(self):
         fPeriod = self.sensor.getCurrentPeriod()
         return self.sensor.getCurrentExposure() * 360 / fPeriod
@@ -678,14 +723,14 @@ class camera:
         self.sensor.setStandardExposureProgram(value * fPeriod / 360)
         self.__propChange("exposurePeriod")
 
-    @property
+    @camProperty('notify')
     def exposureMin(self):
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
         return expMin
     
-    @property
+    @camProperty('notify')
     def exposureMax(self):
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
@@ -694,29 +739,29 @@ class camera:
     
     #===============================================================================================
     # API Parameters: Gain Group
-    @property
+    @camProperty('notify')
     def currentGain(self):
         return self.sensor.getCurrentGain()
     
-    @property
+    @camProperty()
     def currentISO(self):
         return self.sensor.getCurrentGain() * self.sensor.baseISO
 
     #===============================================================================================
     # API Parameters: Camera Status Group
-    @property
+    @camProperty('notify')
     def state(self):
         return self.__state
 
     #===============================================================================================
     # API Parameters: Recording Group
-    @property
+    @camProperty('notify')
     def cameraMaxFrames(self):
         """Maximum number of frames the camera's memory can save at the current resolution."""
         fSize = self.sensor.getCurrentGeometry()
         return self.getRecordingMaxFrames(fSize)
     
-    @property
+    @camProperty('save', 'notify')
     def resolution(self):
         """Dictionary describing the current resolution settings."""
         fSize = self.sensor.getCurrentGeometry()
@@ -741,14 +786,14 @@ class camera:
         # Changing resolution affects recording length.
         self.__propChange("cameraMaxFrames")
     
-    @property
+    @camProperty('notify')
     def minFramePeriod(self):
         """Minimum frame period at the current resolution settings."""
         fSize = self.sensor.getCurrentGeometry()
         fpMin, fpMax = self.sensor.getPeriodRange(fSize)
         return int(fpMin * 1000000000)
 
-    @property
+    @camProperty('notify', 'save')
     def framePeriod(self):
         """Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating)."""
         return int(self.sensor.getCurrentPeriod() * 1000000000)
@@ -760,7 +805,7 @@ class camera:
         self.__propChange("exposureMax")
         self.__propChange("exposurePeriod")
 
-    @property
+    @camProperty()
     def frameRate(self):
         """Estimated recording frame rate in frames per second (reciprocal of framePeriod)."""
         return 1 / self.sensor.getCurrentPeriod()
@@ -772,13 +817,13 @@ class camera:
         self.__propChange("exposureMax")
         self.__propChange("exposurePeriod")
     
-    @property
+    @camProperty('notify', 'save')
     def frameCapture(self):
         return self.__frameProgram
 
     #===============================================================================================
     # API Parameters: Color Space Group
-    @property
+    @camProperty('save', 'notify')
     def wbMatrix(self):
         """Array of Red, Green, and Blue gain coefficients to achieve white balance."""
         display = regmaps.display()
@@ -795,7 +840,7 @@ class camera:
         display.whiteBalance[2] = int(value[2] * display.WHITE_BALANCE_DIV)
         self.__propChange("wbMatrix")
 
-    @property
+    @camProperty('save', 'notify')
     def colorMatrix(self):
         """Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order."""
         display = regmaps.display()
@@ -826,7 +871,7 @@ class camera:
 
     #===============================================================================================
     # API Parameters: IO Configuration Group
-    @property
+    @camProperty()
     def ioMapping(self):
         self.ioInterface.getConfiguration()
     @ioMapping.setter
