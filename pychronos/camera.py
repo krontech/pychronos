@@ -11,10 +11,8 @@ import pychronos.spd as spd
 
 API_VERISON_STRING = '0.1'
 
-
-
 __propertiesACameraPropertyCanHave = {'notify', 'save'}
-def camProperty(*props):
+def camProperty(notify=False, save=False, prio=0):
     """@camProperty: Like @property, but include metadata.
         
         The camera properties, themselves, have certain
@@ -28,28 +26,28 @@ def camProperty(*props):
         properties for use later.
         
         'notify': The property emits update events when it
-                  is changed.
-        'save':   The property can be saved to disk. (That
-                  is, it is not derived from another
-                  property, which would be saved to disk.)
+                  is changed (default: False)
+        'save':   The property can be saved to disk to
+                  preserve the configuration of the camera
+                  class (default: False)
+        'prio':   The sort order to apply when setting multiple
+                  properties at once. High numbers should be
+                  set first (default: 0)
         
         Examples:
             set:
-                @camProperty('notify', 'save')
+                @camProperty(notify=True, save=True)
                 def exposurePeriod(self):
                     return ...
             get:
                 type(self.camera).exposurePeriod
                     .fget.isNotifiable
         """
-    
-    for prop in props:
-        assert prop in __propertiesACameraPropertyCanHave, "Arg '%s' not known; known properties a camera property can have are %s." % (prop, __propertiesACameraPropertyCanHave)
-    
     def camPropertyAnnotate(fn, *args, **kwargs):
         """Helper function for camProperty decorator."""
-        setattr(fn, 'notifies', 'notify' in props)
-        setattr(fn, 'savable', 'save' in props)
+        setattr(fn, 'notifies', notify)
+        setattr(fn, 'savable', save)
+        setattr(fn, 'prio', prio)
         return property(fn, *args, **kwargs)
     
     return camPropertyAnnotate
@@ -70,14 +68,6 @@ class camera:
     LIVE_REGION_FRAMES = 3
     REC_REGION_START = (LIVE_REGION_START + MAX_FRAME_WORDS * LIVE_REGION_FRAMES)
     FPN_ADDRESS = CAL_REGION_START
-
-    # Camera states
-    STATE_IDLE = 0
-    STATE_RESET = 1
-    STATE_RECORDING = 2
-    STATE_BLACK_CAL = 3
-    STATE_WHITE_BAL = 4
-    STATE_ANALOG_CAL = 5
 
     ### Frame Capture Programs
     """Standard Exposure Program: Generate a free-running frame timer with a constant period and exposure time for each frame"""
@@ -105,6 +95,9 @@ class camera:
         self.configFile = None
         self.dimmSize = [0, 0]
 
+        self.__state = 'idle'
+        self.__wbCustom = [1.0, 1.0, 1.0]
+
         # Probe the SODIMMs
         for slot in range(0, len(self.dimmSize)):
             spdData = spd.spdRead(slot)
@@ -112,7 +105,6 @@ class camera:
                 self.dimmSize[slot] = spdData.size
         
         self.onChange = onChange
-        self.__state = self.STATE_IDLE
         self.frameProgram = self.FRAME_PROGRAM_STANDARD
         self.description = "Chronos SN:%s" % (self.cameraSerial)
         self.idNumber = 0
@@ -131,21 +123,25 @@ class camera:
     
     def __setState(self, newState):
         """Internal helper to perform state transitions, or throw exceptions if busy"""
-        if (self.__state == self.STATE_IDLE):
+        if (self.__state == 'idle'):
             # Any transition from IDLE is valid.
             self.__state = newState
             self.__propChange('state')
-        elif (newState == self.STATE_IDLE):
+        elif (newState == 'idle'):
             # Any transition to IDLE is valid.
             self.__state = newState
             self.__propChange('state')
-        elif (newState == self.STATE_RESET):
+        elif (newState == 'reset'):
             # A transition to RESET should abort any ongoing operations.
             self.__state = newState
             self.__propChange('state')
         else:
             # Otherwise, the state change can't happen because the camera is busy.
             raise CameraError("State change failed, camera is busy")
+    
+    def __checkState(self, *args):
+        if not self.__state in args:
+            raise CameraError("Camera busy in state '%s'" % (self.__state))
 
     def setOnChange(self, handler):
         self.onChange = handler
@@ -302,7 +298,7 @@ class camera:
         xres = display.hRes
         yres = display.vRes
 
-        self.__setState(self.STATE_BLACK_CAL)
+        self.__setState('blackcal')
         logging.debug('Starting Black Calibration')
 
         seq = regmaps.sequencer()
@@ -361,7 +357,7 @@ class camera:
         fpn = numpy.int16(fAverage - colAverage)
         pychronos.writeframe(display.fpnAddr, fpn)
 
-        self.__setState(self.STATE_IDLE)
+        self.__setState('idle')
         logging.info('finished - getting some statistics')
         logging.info("---------------------------------------------")
         logging.info("fpn details: min = %d, max = %d", numpy.min(fAverage), numpy.max(fAverage))
@@ -455,7 +451,7 @@ class camera:
             seq.program[i] = program[i]
         
         # Begin recording.
-        self.__setState(self.STATE_RECORDING)
+        self.__setState('recording')
         seq.control |= seq.START_REC
         seq.control &= ~seq.START_REC
 
@@ -463,7 +459,7 @@ class camera:
         yield 0.1
         while (seq.status & seq.ACTIVE_REC) != 0:
             yield 0.1
-        self.__setState(self.STATE_IDLE)
+        self.__setState('idle')
 
     def startRecording(self, mode=None):
         """Program the recording sequencer and start recording.
@@ -545,7 +541,7 @@ class camera:
         # Grab a frame from the live buffer.
         # TODO: We only really need to read out a subset of the frame, but
         # dealing with the word alignment is sucky.
-        self.__setState(self.STATE_WHITE_BAL)
+        self.__setState('whitebal')
         seq = regmaps.sequencer()
         yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
         frame = numpy.asarray(seq.liveResult)
@@ -588,7 +584,7 @@ class camera:
         displayRegs = regmaps.display()
         self.wbCustom = whiteBalance
         self.wbMatrix = whiteBalance
-        self.__setState(self.STATE_IDLE)
+        self.__setState('idle')
 
     #===============================================================================================
     # API Parameters: Camera Info Group
@@ -628,7 +624,7 @@ class camera:
         except:
             return ""
     
-    @camProperty('notify', 'save')
+    @camProperty(notify=True, save=True)
     def cameraDescription(self):
         return self.description
     @cameraDescription.setter
@@ -638,7 +634,7 @@ class camera:
         self.description = value
         self.__propChange("cameraDescription")
 
-    @camProperty('notify', 'save')
+    @camProperty(notify=True, save=True)
     def cameraIDNumber(self):
         return self.idNumber
     @cameraIDNumber.setter
@@ -691,15 +687,16 @@ class camera:
     
     #===============================================================================================
     # API Parameters: Exposure Group
-    @camProperty('notify', 'save')
+    @camProperty(notify=True, save=True, prio=1)
     def exposurePeriod(self):
         return int(self.sensor.getCurrentExposure() * 1000000000)
     @exposurePeriod.setter
     def exposurePeriod(self, value):
+        self.__checkState('idle', 'recording')
         self.sensor.setStandardExposureProgram(value / 1000000000)
         self.__propChange("exposurePeriod")
 
-    @camProperty()
+    @camProperty(prio=1)
     def exposurePercent(self):
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
@@ -707,6 +704,7 @@ class camera:
         return (self.sensor.getCurrentExposure() - expMin) * 100 / (expMax - expMin)
     @exposurePercent.setter
     def exposurePercent(self, value):
+        self.__checkState('idle', 'recording')
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
@@ -714,25 +712,26 @@ class camera:
         self.sensor.setStandardExposureProgram((value * (expMax - expMin) / 100) + expMin)
         self.__propChange("exposurePeriod")
 
-    @camProperty()
+    @camProperty(prio=1)
     def shutterAngle(self):
         fPeriod = self.sensor.getCurrentPeriod()
         return self.sensor.getCurrentExposure() * 360 / fPeriod
     @shutterAngle.setter
     def shutterAngle(self, value):
+        self.__checkState('idle', 'recording')
         fPeriod = self.sensor.getCurrentPeriod()
 
         self.sensor.setStandardExposureProgram(value * fPeriod / 360)
         self.__propChange("exposurePeriod")
 
-    @camProperty('notify')
+    @camProperty(notify=True)
     def exposureMin(self):
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
         return expMin
     
-    @camProperty('notify')
+    @camProperty(notify=True)
     def exposureMax(self):
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
@@ -741,7 +740,7 @@ class camera:
     
     #===============================================================================================
     # API Parameters: Gain Group
-    @camProperty('notify')
+    @camProperty(notify=True)
     def currentGain(self):
         return self.sensor.getCurrentGain()
     
@@ -751,19 +750,19 @@ class camera:
 
     #===============================================================================================
     # API Parameters: Camera Status Group
-    @camProperty('notify')
+    @camProperty(notify=True)
     def state(self):
         return self.__state
 
     #===============================================================================================
     # API Parameters: Recording Group
-    @camProperty('notify')
+    @camProperty(notify=True)
     def cameraMaxFrames(self):
         """Maximum number of frames the camera's memory can save at the current resolution."""
         fSize = self.sensor.getCurrentGeometry()
         return self.getRecordingMaxFrames(fSize)
     
-    @camProperty('save', 'notify')
+    @camProperty(notify=True, save=True, prio=3)
     def resolution(self):
         """Dictionary describing the current resolution settings."""
         fSize = self.sensor.getCurrentGeometry()
@@ -777,7 +776,7 @@ class camera:
         }
     @resolution.setter
     def resolution(self, value):
-        self.sensor.setResolution(value)
+        self.sensor.setResolution(pychronos.sensors.frameGeometry(**value))
         self.__propChange("resolution")
         # Changing resolution affects frame timing.
         self.__propChange("minFramePeriod")
@@ -788,14 +787,14 @@ class camera:
         # Changing resolution affects recording length.
         self.__propChange("cameraMaxFrames")
     
-    @camProperty('notify')
+    @camProperty(notify=True)
     def minFramePeriod(self):
         """Minimum frame period at the current resolution settings."""
         fSize = self.sensor.getCurrentGeometry()
         fpMin, fpMax = self.sensor.getPeriodRange(fSize)
         return int(fpMin * 1000000000)
 
-    @camProperty('notify', 'save')
+    @camProperty(notify=True, save=True, prio=2)
     def framePeriod(self):
         """Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating)."""
         return int(self.sensor.getCurrentPeriod() * 1000000000)
@@ -807,7 +806,7 @@ class camera:
         self.__propChange("exposureMax")
         self.__propChange("exposurePeriod")
 
-    @camProperty()
+    @camProperty(prio=2)
     def frameRate(self):
         """Estimated recording frame rate in frames per second (reciprocal of framePeriod)."""
         return 1 / self.sensor.getCurrentPeriod()
@@ -819,13 +818,13 @@ class camera:
         self.__propChange("exposureMax")
         self.__propChange("exposurePeriod")
     
-    @camProperty('notify', 'save')
+    @camProperty(notify=True, save=True)
     def frameCapture(self):
         return self.__frameProgram
 
     #===============================================================================================
     # API Parameters: Color Space Group
-    @camProperty('save', 'notify')
+    @camProperty(notify=True, save=True)
     def wbMatrix(self):
         """Array of Red, Green, and Blue gain coefficients to achieve white balance."""
         display = regmaps.display()
@@ -841,8 +840,19 @@ class camera:
         display.whiteBalance[1] = int(value[1] * display.WHITE_BALANCE_DIV)
         display.whiteBalance[2] = int(value[2] * display.WHITE_BALANCE_DIV)
         self.__propChange("wbMatrix")
+    
+    @camProperty(notify=True, save=True)
+    def wbCustom(self):
+        """Array of Red, Green, and Blue gain coefficients to achieve white balance."""
+        return self.__wbCustom
+    @wbMatrix.setter
+    def wbMatrix(self, value):
+        self.__wbCustom[0] = value[0]
+        self.__wbCustom[1] = value[1]
+        self.__wbCustom[2] = value[2]
+        self.__propChange("wbCustom")
 
-    @camProperty('save', 'notify')
+    @camProperty(notify=True, save=True)
     def colorMatrix(self):
         """Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order."""
         display = regmaps.display()

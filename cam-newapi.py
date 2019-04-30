@@ -104,7 +104,6 @@ class controlApi(dbus.service.Object):
     ERROR_NOT_IMPLEMENTED_YET = 9999
     VALUE_ERROR               = 1
     
-
     def __init__(self, bus, path, mainloop, camera):
         # FIXME: This seems hacky, just calling the class method directly.
         # Shouldn't we be using a super() call somehow?
@@ -122,8 +121,6 @@ class controlApi(dbus.service.Object):
 
         self.callLater(0.5, self.doReset, {'reset':True, 'sensor':True})
         
-        self.currentState = 'starting'
-    
     ## Internal helper to iterate over a generator from the GLib mainloop.
     ## TODO: Do we need a callback for exception handling?
     def stepGenerator(self, generator, onError=None):
@@ -233,49 +230,47 @@ class controlApi(dbus.service.Object):
                         sorted(set(self.availableKeys()) | set(video.availableKeys())) #all attribute names
                     )
                 )
-                
-            
+    
+    def paramsorter(self, name):
+        """Internal helper function to sort a parameter by priority"""
+        try:
+            camprop = getattr(getattr(type(self.camera), name), 'prio', 0)
+            return camprop.fget.prio
+        except:
+            return 0
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def set(self, newValues):
         """Set named values in the control API and the video API."""
         
-        try:
-            knownAttributes = set(self.availableKeys()) | set(video.availableKeys())
-        except dbus.exceptions.DBusException:
-            logging.error('could not load video available keys')
-            knownAttributes = set(self.availableKeys())
+        keys = sorted(newValues.keys(), key=self.paramsorter, reverse=True)
+        videoAttributes = {}
+        for name in keys:
+            # If the property exists in the camera class, set it.
+            value = newValues[name]
+            camprop = getattr(type(self.camera), name)
+            if camprop.fset is not None:
+                setattr(self.camera, name, value)
+                if (getattr(camprop.fget, 'savable', False)):
+                    store.set(name, value)
         
-        unknownAttributes = [attr for attr in newValues if attr not in knownAttributes]
-        controlAttributes = {
-            name: attr
-            for name, attr in newValues.items()
-            if name in self.availableKeys()
-        }
-        videoAttributes = {
-            name: attr
-            for name, attr in newValues.items()
-            if name not in controlAttributes
-        }
+            # Otherwise, try setting the property in the video interface.
+            videoAttributes[name] = value
         
-        if unknownAttributes:
-            raise dbus.exceptions.DBusException(
-                'com.krontech.chronos.UnknownAttribute',
-                "'%s' is not a known attribute. Known attributes are: %s" % (
-                    unknownAttributes[0],
-                    sorted(knownAttributes)
-                )
-            )
+        # For any keys that don't exist - try setting them in the video API.
+        if videoAttributes:
+            video.set(self.dbusifyTypes(videoAttributes))
         
-        #Set control attributes first, then video attributes, so the video system has everything ready for it.
-        for name, attr in controlAttributes.items():
-            setattr(self.camera, name, attr)
-        
-        videoAttributes and video.set(videoAttributes)
-        
-        for key, value in controlAttributes.items():
-            if getattr(getattr(type(self.camera), key).fget, 'savable', False):
-                store.set(key, value)
+        #HACK: Manually poke the video pipeline back into live display after changing
+        # the display resolution. This should eventually go away by making the video
+        # system more autonomous with regards to the live display res.
+        if ('resolution' in newValues):
+            res = self.camera.resolution
+            logging.info('Notifying cam-pipeline to reconfigure display')
+            video.livedisplay({
+                'hres':dbus.types.Int32(res['hRes'], variant_level=1),
+                'vres':dbus.types.Int32(res['vRes'], variant_level=1)
+            })
         
         return self.status() #¯\_(ツ)_/¯
     
@@ -324,14 +319,13 @@ class controlApi(dbus.service.Object):
     #Method('status', arguments='', returns='a{sv}')
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def status(self):
-        return {'state':self.currentState}
+        return {'state':self.camera.state}
 
     #===============================================================================================
     #Method('doReset', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def doReset(self, args):
         self.callLater(0.0, self.runReset, args)
-        self.currentState = 'reinitializing'
         return self.status()
 
     def runReset(self, args):
@@ -354,12 +348,7 @@ class controlApi(dbus.service.Object):
             self.display.whiteBalance[0] = int(1.5226 * 4096)
             self.display.whiteBalance[1] = int(1.0723 * 4096)
             self.display.whiteBalance[2] = int(1.5655 * 4096)
-            
-            #self.currentState = 'calibrating'
             #self.runGenerator(self.startCalibration({'analog':True, 'zeroTimeBlackCal':True}))
-            self.currentState = 'idle'
-        else:
-            self.currentState = 'idle'
 
     #===============================================================================================
     #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
