@@ -1,18 +1,23 @@
 from abc import ABC, abstractmethod
 
 class frameGeometry:
-    def __init__(self, hRes, vRes, hOffset=0, vOffset=0, vDarkRows=0, bitDepth=12):
+    def __init__(self, hRes, vRes, hOffset=0, vOffset=0, vDarkRows=0, bitDepth=12, minFrameTime=None):
         self.hRes = hRes
         self.vRes = vRes
         self.hOffset = hOffset
         self.vOffset = vOffset
         self.vDarkRows = vDarkRows
         self.bitDepth = bitDepth
+        self.minFrameTime = minFrameTime
     
     def __repr__(self):
-        args = (self.hRes, self.vRes, self.hOffset, self.vOffset, self.vDarkRows, self.bitDepth)
-        return "frameGeometry(hRes=%s, vRes=%s, hOffset=%s, vOffset=%s, vDarkRows=%s, bitDepth=%s)" % args
-    
+        rstr = "frameGeometry(hRes=%s, vRes=%s" % (self.hRes, self.vRes)
+        rstr += ", hOffset=%s, vOffset=%s" % (self.hOffset, self.vOffset)
+        rstr += ", vDarkRows=%s, bitDepth=%s" % (self.vDarkRows, self.bitDepth)
+        if (self.minFrameTime):
+            rstr += ", minFrameTime=%s" % (self.minFrameTime)
+        return rstr + ")"
+
     def pixels(self):
         return self.hRes * (self.vRes + self.vDarkRows)
     
@@ -110,7 +115,7 @@ class api(ABC):
         return True
 
     @abstractmethod
-    def setResolution(self, size, fPeriod=None):
+    def setResolution(self, size):
         """Configure the resolution and frame geometry of the image sensor"""
         pass
 
@@ -183,7 +188,7 @@ class api(ABC):
         pass
     
     @abstractmethod
-    def setStandardExposureProgram(self, expPeriod):
+    def setExposureProgram(self, expPeriod):
         """Configure the sensor to operate in normal exposure mode
 
         When in normal exposure mode, the image sensor is free running
@@ -205,7 +210,7 @@ class api(ABC):
     #--------------------------------------------
     def getSupportedExposurePrograms():
         """Return a tuple of the supported exposure programs"""
-        return ("standard")
+        return ("normal")
 
     def setShutterGatingProgram(self):
         """Configure the sensor to operate in shutter gating mode

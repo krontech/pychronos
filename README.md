@@ -82,7 +82,7 @@ Each parameter also defines a type as follows:
 | `bool`   | `b`                | `boolean`    | Either `true` or `false`
 | `float`  | `t`                | `float`      | Floating-point number.
 | `int`    | `i`                | `int`        | Integer type, supporting up to 32-bit precision.
-| `enum`   | `i`                | `int`        | The description of each type must specify the allowed values.
+| `enum`   | `s`                | `str`        | The description of each type must specify the allowed values.
 | `array`  | `ad`               | `list`       | An array of floating point values.
 | `string` | `s`                | `str`        | A character string, which should support UTF-8 encoding.
 | `dict`   | `a{sv}`            | `dict`       | An array of name/value pairs. Values may contain any type (including another `dict`).
@@ -94,7 +94,7 @@ electronic lens control up and running.
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
 | `focusPercent`    | x | x | x | float  | 0.0   | 100.0 | 0.0 for the nearest possible focus and 100.0 for furthest focus (infinity)
-| `focusDistnace`   | x | x |   | float  |       |       | Distance to the focus subject in meters
+| `focusDistance`   | x | x |   | float  |       |       | Distance to the focus subject in meters
 | `apertureFStop`   | x | x | x | float  |       |       | Aperture value where Fnumber = sqrt(2^AV)
 | `aperturePercent` | x | x |   | float  | 0.0   | 100.0 | Aperture size as a percentage from 0 (smallest), to 100 (widest)
 
@@ -106,7 +106,7 @@ electronic lens control up and running.
 | `shutterAngle`    |`G`|`S`|   | int    | 0     | 36000 | Exposure time relative to frame period in hundredths of degrees.
 | `exposureMin`     |`G`|   |`N`| int    |       |       | Minimum exposure time at the current resolution and frame period.
 | `exposureMax`     |`G`|   |`N`| int    |       |       | Maximum exposure time at the current resolution and frame period.
-| `exposureMode`    |`x`|`x`|`x`| enum   |       |       | Auto-exposure mode as a combination of exposure time, gain and aperture.
+| `exposureMode`    |`G`|`G`|`G`| enum   |       |       | Frame exposure mode as one of `normal`, `frameTrigger`, `shutterGating`, `hdr2slope`, `hdr3slope`.
 
 ### Gain Control Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
@@ -120,13 +120,16 @@ API to the `chronos-cli` program.
 
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
-| `overlayEnable`   |`x`|`x`|`x`| bool   |       |       |
-| `overlayFormat`   |`x`|`x`|`x`| string |       |       | A `printf`-style format string to set the overlay text.
+| `overlayEnable`   |`G`|`x`|`x`| bool   |       |       |
+| `overlayFormat`   |`G`|`x`|`x`| string |       |       | A `printf`-style format string to set the overlay text.
 | `zebraLevel`      |`x`|`x`|`x`| float  | 0.0   | 1.0   | Fraction of the pixel's full scale value at which to apply zebra stripes.
-| `focusPeakLevel`  |`x`|`x`|`x`| float  | 0.0   | 1.0   | Focus peaking edge detection sensitivity (0 to disable, or 1.0 for maximum sensitivity)
-| `focusPeakColor`  |`x`|`x`|`x`| enum   |       |       | One of Red, Green, Blue, Cyan, Magenta, Yellow, White and Black.
-| `videoState`      |`x`|   |`x`| enum   |       |       | One of `paused`, `live`, `playback` or `filesave`
-| `playbackRate`    |`x`|`x`|`x`| int    |       |       | Framerate at which live video will be played back when `videoState` is in `playback`
+| `focusPeakLevel`  |`x`|`x`|`x`| float  | 0.0   | 1.0   | Focus peaking edge detection sensitivity (0 to disable, or 1.0 for maximum).
+| `focusPeakColor`  |`G`|`x`|`x`| enum   |       |       | One of Red, Green, Blue, Cyan, Magenta, Yellow, White and Black.
+| `videoState`      |`G`|   |`x`| enum   |       |       | One of `paused`, `live`, `playback` or `filesave`
+| `playbackRate`    |`G`|`x`|`x`| int    |       |       | Framerate for plabyack when `videoState` is in `playback`
+| `playbackPosition`|`G`|`S`|   | int    |       |       | Current frame number being displayed.
+| `playbackStart`   |`G`|`S`|`N`| int    |       |       | Initial frame to display when `videoStart` enters `playback`
+| `playbackLength`  |`G`|`S`|`N`| int    |       |       | Number of frames to play back before returning to `playbackStart`
 
 ### Camera Info Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
@@ -148,7 +151,7 @@ API to the `chronos-cli` program.
 |`sensorBitDepth`     |`G`|   |   | int    |       |       | Number of bits per pixel as recorded by the image sensor.
 |`sensorISO`          |`G`|   |   | int    |       |       | Base ISO of the image sensor at a gain of 1x (or 0 dB)
 |`sensorMaxGain`      |`G`|   |   | int    |       |       | Maximum gain of the image sensor as a multiple of `sensorISO`
-|`sensorPixelRate`    |`x`|   |   | int    |       |       | Approximate pixel rate of the image sensor in pixels per second.
+|`sensorPixelRate`    |`G`|   |   | int    |       |       | Approximate pixel rate of the image sensor in pixels per second.
 |`sensorVMax`         |`G`|   |   | int    |       |       | Maximum vertical resolution of the image sensor.
 |`sensorVMin`         |`x`|   |   | int    |       |       | Minimum vertical resolution of the image sensor.
 |`sensorVIncrement`   |`x`|   |   | int    |       |       | Minimum quantization of vertical resolutions.
@@ -183,19 +186,32 @@ group and made more a part of the video display system.
 ### Recording Group
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
-|`recMode`          |`x`|`x`|`x`| enum   |       |       | One of `normal`, `segmented` or `burst`
-|`recMaxFrames`     |`x`|`x`|`x`| int    |       |       | Maximum number of frames available for the recording buffer.
+|`recMode`          |`G`|`S`|`N`| enum   |       |       | One of `normal`, `segmented` or `burst`
+|`recMaxFrames`     |`G`|`S`|`N`| int    |       |       | Maximum number of frames available for the recording buffer.
 |`recSegments`      |`x`|`x`|`x`| int    | 1     |       | Number of memory segments supported when in segmented recording mode.
 |`burstPreRecord`   |`x`|`x`|`x`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
 |`resolution`       |`G`|`S`|`N`| dict   |       |       | Dict describing the resolution settings.
-|`minFramePeriod`   |`G`|   |`x`| int    |       |       | Minimum frame period at the current resolution settings.
+|`minFramePeriod`   |`G`|   |`N`| int    |       |       | Minimum frame period at the current resolution settings.
 |`cameraMaxFrames`  |`x`|`x`|`x`| int    |       |       | Maximum number of frames the camera's memory can save at the current resolution.
-|`framePeriod`      |`G`|`x`|`x`| int    |       |       | Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating).
-|`frameRate`        |`G`|`x`|   | float  |       |       | Estimated frame rate in frames per second (reciprocal of `framePeriod`)
-|`frameCapture`     |`x`|`x`|`x`| enum   |       |       | Select the frame timing generator program as one of `normal`, `frameTrigger`, `shutterGating`, `hdr2slope`, `hdr3slope`.
+|`framePeriod`      |`G`|`S`|`N`| int    |       |       | Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating).
+|`frameRate`        |`G`|`S`|   | float  |       |       | Estimated frame rate in frames per second (reciprocal of `framePeriod`)
 |`totalFrames`      |`x`|   |   | int    |       |       | Total number of frames in memory recorded by the camera.
 |`totalSegments`    |`x`|   |   | int    |       |       | Total number of segments in memory recorded by the camera.
 
+The `resolution` dictionary contains the following members:
+| Parameter         | Type  | Description
+|:------------------|:------|:-----------
+| `hRes`            | int   | Number of active horizontal pixels in each row.
+| `vRes`            | int   | Number of active vertical pixels in each column.
+| `hOffset`         | int   | Horizontal offset to the left of the sensor to the start of active pixels.
+| `vOffset`         | int   | Vertical offset from the top of the sensor to the start of active pixels.
+| `vDarkRows`       | int   | Number of optical black rows to read out at the top of the frame.
+| `bitDepth`        | int   | Bit depth to sample the image at.
+| `minFrameTime`    | float | Minimum frame time at this resolution.
+
+When setting resolution, the `hRes` and `vRes` members are required to be specified. All
+other members of the dictionary are optional and may be used to further tune the sensor's
+operation if desired.
 
 Control Methods
 ---------------
@@ -213,11 +229,11 @@ of the supported methods are as follows:
 | `startBlackCalibration`  |`S`| none             | `blackcal`   | Perform full black calibration, assuming the user has covered the sensor.
 | `startZeroTimeBlackCal`  |`S`| none             | `blackcal`   | Perform black calibration by reducing the exposure and aperture to zero.
 | `startAnalogCalibration` |`S`| none             | `analogcal`  | Perform automated image sensor calibration.
-| `startRecording`         |   | none             | `recording`  | Begin recording video data to memory.
-| `stopRecording`          |   | none             | `idle`       | Terimnate recording of video data to memory.
+| `startRecording`         |`S`| none             | `recording`  | Begin recording video data to memory.
+| `stopRecording`          |`S`| none             | `idle`       | Terimnate recording of video data to memory.
 | `flushRecording`         |   | none             |              | Flush recoreded video data from memory.
 | `startFilesave`          |   | dict             |              | TBD: A proxy for the `filesave` method in the Video API.
-| `softTrigger`            |   | none             |              | Generate a software trigger event.
+| `softTrigger`            |`S`| none             |              | Generate a software trigger event.
 | `revertToDefaults`       |   | none             |              | Revert all settings to their default values (with optional parameter overrides).
 | `softReset`              |   | none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
 | `testResolution`         |`S`| dict(resolution) |              | Test if a resolution is valid and return the timing limits at that resolution.
@@ -237,7 +253,6 @@ period had been applied:
 
 Otherwise, the `testResolution` method will return a status dictionary with a
 parameter of `error` set to "Invalid Resolution"
-
 
 Control Signals
 ---------------

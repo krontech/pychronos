@@ -245,11 +245,13 @@ class lux1310(api):
     # Frame Geometry Configuration Functions
     #--------------------------------------------
     def getMaxGeometry(self):
-        return frameGeometry(
+        size = frameGeometry(
             hRes=self.MAX_HRES, vRes=self.MAX_VRES,
             hOffset=0, vOffset=0,
             vDarkRows=self.MAX_VDARK,
             bitDepth=self.BITS_PER_PIXEL)
+        size.minFrameTime = self.getMinFrameClocks(size) / self.LUX1310_SENSOR_HZ
+        return size
     
     def getCurrentGeometry(self):
         fSize = self.getMaxGeometry()
@@ -259,6 +261,7 @@ class lux1310(api):
         fSize.vOffset = self.regs.regYstart
         fSize.vRes = self.regs.regYend - fSize.vOffset + 1
         fSize.vDarkRows = self.regs.regNbDrkRows
+        fSize.minFrameTime = self.getMinFrameClocks(fSize) / self.LUX1310_SENSOR_HZ
         return fSize
 
     def isValidResolution(self, size):
@@ -293,7 +296,9 @@ class lux1310(api):
             if (frameClocks >= self.getMinFrameClocks(size, x.clocks)):
                 break
         
-        # If a suitable wavetabl exists, then load it.
+        logging.debug("Selecting WT%d for %dx%d", wavetab.clocks, size.hRes, size.vRes)
+
+        # If a suitable wavetable exists, then load it.
         if (wavetab):
             self.regs.regTimingEn = False
             self.regs.regRdoutDly = wavetab.clocks
@@ -323,18 +328,18 @@ class lux1310(api):
         self.regs.regDrkRowsStAddr = self.MAX_VRES + self.MAX_VDARK - size.vDarkRows + 4
         self.regs.regNbDrkRows = size.vDarkRows
 
-    def setResolution(self, size, fPeriod=None):
+    def setResolution(self, size):
         if (not self.isValidResolution(size)):
             raise ValueError("Invalid frame resolution")
         
         # Select the minimum frame period if not specified.
         minPeriod, maxPeriod = self.getPeriodRange(size)
-        if (not fPeriod):
+        if not size.minFrameTime:
             fClocks = self.getMinFrameClocks(size)
-        elif ((fPeriod * self.LUX1310_SENSOR_HZ) >= minPeriod):
-            fClocks = fPeriod * self.LUX1310_SENSOR_HZ
+        elif ((size.minFrameTime * self.LUX1310_SENSOR_HZ) >= minPeriod):
+            fClocks = size.minFrameTime * self.LUX1310_SENSOR_HZ
         else:
-            raise ValueError("Frame period too short")
+            fClocks = self.getMinFrameClocks(size)
 
         # Disable the FPGA timing engine and wait for the current readout to end.
         self.timing.stopTiming(waitUntilStopped=True)
@@ -380,8 +385,8 @@ class lux1310(api):
     def getPeriodRange(self, fSize):
         # TODO: Need to validate the frame size.
         # TODO: Probably need to enforce some maximum frame period.
-        clocks = self.getMinFrameClocks(fSize)
-        return (clocks / self.LUX1310_SENSOR_HZ, 0)
+        fClocks = self.getMinFrameClocks(fSize, wtSize=self.regs.reg[0x7A])
+        return (fClocks / self.LUX1310_SENSOR_HZ, 0)
     
     def getCurrentPeriod(self):
         return self.framePeriod / self.LUX1310_SENSOR_HZ
@@ -399,10 +404,10 @@ class lux1310(api):
     def getCurrentExposure(self):
         return self.integrationTime / self.LUX1310_SENSOR_HZ
     
-    def setStandardExposureProgram(self, expPeriod):
+    def setExposureProgram(self, expPeriod):
         # TODO: Sanity-check the exposure time.
         self.integrationTime = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
-        self.timing.programStandard(self.framePeriod, self.integrationTime )
+        self.timing.programStandard(self.framePeriod, self.integrationTime)
 
     #--------------------------------------------
     # Advanced Exposure and Timing Functions 
@@ -411,7 +416,7 @@ class lux1310(api):
         return ("standard", "shutterGating")
     
     def setShutterGatingProgram(self):
-        raise NotImplementedError()
+        self.timing.programShutterGating()
 
     #--------------------------------------------
     # Sensor Analog Calibration Functions

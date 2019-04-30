@@ -122,7 +122,7 @@ class controlApi(dbus.service.Object):
     
     ## Internal helper to run a generator. This ought to be the preferred way to
     ## invoke a generator from within GLib's mainloop.
-    def runGenerator(self, generator, onError=None):
+    def runGenerator(self, generator, onError=lambda e: logging.debug("Generator failed: %s", e)):
         GLib.idle_add(self.stepGenerator, generator, onError)
 
     ## Internal helper to call something in the future. Should function identically
@@ -219,7 +219,7 @@ class controlApi(dbus.service.Object):
     def paramsorter(self, name):
         """Internal helper function to sort a parameter by priority"""
         try:
-            camprop = getattr(getattr(type(self.camera), name), 'prio', 0)
+            camprop = getattr(type(self.camera), name)
             return camprop.fget.prio
         except:
             return 0
@@ -453,8 +453,8 @@ if __name__ == "__main__":
     else:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    # Install exception handlers for interactive debug on exception.
     if args.pdb:
-        # Drop into a debugger when an error happens.
         def excepthook(t,v,tb):
             pdb.traceback.print_exception(t, v, tb)
             pdb.post_mortem(t=tb)

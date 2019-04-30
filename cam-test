@@ -168,7 +168,7 @@ while True:
         # Apply the exposure change.
         try:
             print("Setting exposure to %s" % (exposure))
-            cam.sensor.setStandardExposureProgram(exposure)
+            cam.sensor.setExposureProgram(exposure)
         except:
             print("Unable to set exposure")
     

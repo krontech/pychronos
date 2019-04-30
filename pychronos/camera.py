@@ -57,6 +57,12 @@ def camProperty(notify=False, save=False, prio=0):
 class CameraError(RuntimeError):
     pass
 
+
+# Parameter priority groups
+PARAM_PRIO_RESOLUTION = 3
+PARAM_PRIO_FRAME_TIME = 2
+PARAM_PRIO_EXPOSURE   = 1
+
 class camera:
     BYTES_PER_WORD = 32
     FRAME_ALIGN_WORDS = 64
@@ -69,33 +75,17 @@ class camera:
     REC_REGION_START = (LIVE_REGION_START + MAX_FRAME_WORDS * LIVE_REGION_FRAMES)
     FPN_ADDRESS = CAL_REGION_START
 
-    ### Frame Capture Programs
-    """Standard Exposure Program: Generate a free-running frame timer with a constant period and exposure time for each frame"""
-    FRAME_PROGRAM_STANDARD = 0
-
-    """Frame Trigger Program: Generate a single frame on each rising edge of the triger signal with a constant exposure time."""
-    FRAME_PROGRAM_FRAME_TRIGGER = 1
-
-    """Shutter Gating Program: Generate a single frame on each rising edge of the trigger signal, with an exposure time equal to the trigger active duration."""
-    FRAME_PROGRAM_SHUTTER_GATING = 2
-
-    """2-Point HDR Program: Generate a free-running frame timer, with a two-slope exposure time for each frame"""
-    FRAME_PROGRAM_2POINT_HDR = 3
-
-    """3-Point HDR Program: Generate a free-running frame timer, with a three-slope exposure time for each frame"""
-    FRAME_PROGRAM_3POINT_HDR = 4
-
-    ### Recording Modes
-    REC_MODE_NORMAL = 0
-    REC_MODE_SEGMENTED = 1
-    REC_MODE_BURST = 2
-
     def __init__(self, sensor, onChange=None):
         self.sensor = sensor
         self.configFile = None
         self.dimmSize = [0, 0]
 
+        # Setup internal defaults.
         self.__state = 'idle'
+        self.__recMode = 'normal'
+        self.__recMaxFrames = 0
+        self.__exposureMode = 'normal'
+        self.__exposurePeriod = self.sensor.getCurrentExposure()
         self.__wbCustom = [1.0, 1.0, 1.0]
 
         # Probe the SODIMMs
@@ -105,13 +95,11 @@ class camera:
                 self.dimmSize[slot] = spdData.size
         
         self.onChange = onChange
-        self.frameProgram = self.FRAME_PROGRAM_STANDARD
         self.description = "Chronos SN:%s" % (self.cameraSerial)
         self.idNumber = 0
 
         self.ioInterface = regmaps.ioInterface()
         
-        self.__frameProgram = 0 #TODO: What is this?
     
     def __propChange(self, name):
         """Quick and dirty wrapper to throw an on-change event by name"""
@@ -140,6 +128,7 @@ class camera:
             raise CameraError("State change failed, camera is busy")
     
     def __checkState(self, *args):
+        """Internal helper to check if the camera is in a valid state for the operation, or throw exceptions if busy"""
         if not self.__state in args:
             raise CameraError("Camera busy in state '%s'" % (self.__state))
 
@@ -313,7 +302,7 @@ class camera:
             # Take a recording and read the results from the live buffer.
             program = [regmaps.seqcommand(blockSize=numFrames+1, recTermBlkEnd=True, recTermBlkFull=True)]
             logging.debug('making recording')
-            yield from seq.startRecording([program])
+            yield from seq.startCustomRecording([program])
             addr = seq.regionStart
             for i in range(0, numFrames):
                 fAverage += numpy.asarray(pychronos.readframe(addr, xres, yres))
@@ -404,7 +393,7 @@ class camera:
         logging.info('expPrev: %f, zeroTime: %f, period: %f', expPrev, expMin, self.sensor.getCurrentPeriod())
 
         # Reconfigure for the minimum exposure supported by the sensor.
-        self.sensor.setStandardExposureProgram(expMin)
+        self.sensor.setExposureProgram(expMin)
 
         # Do a fast black cal from the live display buffer.
         # TODO: We might get better quality out of the zero-time cal by
@@ -414,7 +403,7 @@ class camera:
         yield from self.startBlackCal(numFrames=2, useLiveBuffer=True)
 
         # Restore the previous exposure settings.
-        self.sensor.setStandardExposureProgram(expPrev)
+        self.sensor.setExposureProgram(expPrev)
     
     def startCustomRecording(self, program):
         """Program the recording sequencer and start recording.
@@ -466,9 +455,8 @@ class camera:
 
         Parameters
         ----------
-        mode : `int`, optional
-            One of REC_MODE_NORMAL, REC_MODE_SEGMENTED or REC_MODE_BURST.
-            (default: REC_MODE_NORMAL)
+        mode : `string`, optional
+            One of 'normal', 'segmented' or 'burst'.
 
         Yields
         ------
@@ -485,9 +473,7 @@ class camera:
         for delay in state:
             time.sleep(delay)
         """
-        geometry = self.sensor.getCurrentGeometry()
-        nFrames = args.get('nFrames', self.getRecordingMaxFrames(geometry))
-        program = [ seqcommand(blockSize=nFrames, blkTermFull=True, recTermMemory=True, recTermBlockEnd=True) ]
+        program = [ seqcommand(blockSize=self.recMaxFrames, blkTermFull=True, recTermMemory=True, recTermBlockEnd=True) ]
         yield from self.startCustomRecording(program)
     
     def softTrigger(self):
@@ -663,6 +649,11 @@ class camera:
         return fSize.bitDepth
     
     @camProperty()
+    def sensorPixelRate(self):
+        fSize = self.sensor.getMaxGeometry()
+        return (fSize.vRes + fSize.vDarkRows) * fSize.hRes / fSize.minFrameTime
+    
+    @camProperty()
     def sensorISO(self):
         return self.sensor.baseISO
     
@@ -687,16 +678,28 @@ class camera:
     
     #===============================================================================================
     # API Parameters: Exposure Group
-    @camProperty(notify=True, save=True, prio=1)
+    def __setupExposure(self, expPeriod, expMode):
+        """Internal helper to setup the exposure time and mode."""
+        if expMode == 'normal':
+            self.sensor.setExposureProgram(expPeriod)
+        elif expMode == 'shutterGating':
+            self.sensor.setShutterGatingProgram()
+        else:
+            raise NotImplementedError()
+        
+        self.__exposurePeriod = expPeriod
+        self.__exposureMode = expMode
+
+    @camProperty(notify=True, save=True, prio=PARAM_PRIO_EXPOSURE)
     def exposurePeriod(self):
-        return int(self.sensor.getCurrentExposure() * 1000000000)
+        return int(self.__exposurePeriod * 1000000000)
     @exposurePeriod.setter
     def exposurePeriod(self, value):
         self.__checkState('idle', 'recording')
-        self.sensor.setStandardExposureProgram(value / 1000000000)
+        self.__setupExposure(value / 1000000000, self.__exposureMode)
         self.__propChange("exposurePeriod")
 
-    @camProperty(prio=1)
+    @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def exposurePercent(self):
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
@@ -709,10 +712,10 @@ class camera:
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
 
-        self.sensor.setStandardExposureProgram((value * (expMax - expMin) / 100) + expMin)
+        self.__setupExposure((value * (expMax - expMin) / 100) + expMin, self.__exposureMode)
         self.__propChange("exposurePeriod")
 
-    @camProperty(prio=1)
+    @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def shutterAngle(self):
         fPeriod = self.sensor.getCurrentPeriod()
         return self.sensor.getCurrentExposure() * 360 / fPeriod
@@ -721,7 +724,7 @@ class camera:
         self.__checkState('idle', 'recording')
         fPeriod = self.sensor.getCurrentPeriod()
 
-        self.sensor.setStandardExposureProgram(value * fPeriod / 360)
+        self.__setupExposure(value * fPeriod / 360, self.__exposureMode)
         self.__propChange("exposurePeriod")
 
     @camProperty(notify=True)
@@ -729,15 +732,28 @@ class camera:
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
-        return expMin
+        return int(expMin * 1000000000)
     
     @camProperty(notify=True)
     def exposureMax(self):
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
-        return expMax
+        return int(expMax * 1000000000)
     
+    @camProperty(notify=True, save=True)
+    def exposureMode(self):
+        """Selects the exposure timing program."""
+        return self.__exposureMode
+    @exposureMode.setter
+    def exposureMode(self, value):
+        self.__checkState('idle')
+        if value not in self.sensor.getSupportedExposurePrograms():
+            raise ValueError("exposureMode value of '%s' is not supported" % (value))
+        
+        self.__setupExposure(self.__exposurePeriod, value)
+        self.__propChange("exposureMode")
+
     #===============================================================================================
     # API Parameters: Gain Group
     @camProperty(notify=True)
@@ -756,13 +772,44 @@ class camera:
 
     #===============================================================================================
     # API Parameters: Recording Group
+    @camProperty(notify=True, save=True)
+    def recMode(self):
+        return self.__recMode
+    @recMode.setter
+    def recMode(self, value):
+        self.__checkState('idle')
+        if value not in ('normal', 'segmented', 'burst'):
+            raise ValueError("recMode value of '%s' is not supported" % (value))
+        self.__recMode = value
+        self.__propChange("recMode")
+
+    @camProperty(notify=True, save=True)
+    def recMaxFrames(self):
+        """Maximum number of frames to use in the recording buffer."""
+        currentMaxFrames = self.cameraMaxFrames
+        if not self.__recMaxFrames:
+            return currentMaxFrames
+        elif self.__recMaxFrames > currentMaxFrames:
+            return currentMaxFrames
+        else:
+            return self.__recMaxFrames
+    @recMaxFrames.setter
+    def recMaxFrames(self, value):
+        self.__checkState('idle')
+        currentMaxFrames = self.cameraMaxFrames
+        if value < currentMaxFrames:
+            self.__recMaxFrames = value
+        else:
+            self.__recMaxFrames = 0
+        self.__propChange("recMaxFrames")
+
     @camProperty(notify=True)
     def cameraMaxFrames(self):
         """Maximum number of frames the camera's memory can save at the current resolution."""
         fSize = self.sensor.getCurrentGeometry()
         return self.getRecordingMaxFrames(fSize)
     
-    @camProperty(notify=True, save=True, prio=3)
+    @camProperty(notify=True, save=True, prio=PARAM_PRIO_RESOLUTION)
     def resolution(self):
         """Dictionary describing the current resolution settings."""
         fSize = self.sensor.getCurrentGeometry()
@@ -776,7 +823,10 @@ class camera:
         }
     @resolution.setter
     def resolution(self, value):
-        self.sensor.setResolution(pychronos.sensors.frameGeometry(**value))
+        self.__checkState('idle')
+        geometry = pychronos.sensors.frameGeometry(**value)
+        self.sensor.setResolution(geometry)
+        self.setupRecordRegion(geometry, self.REC_REGION_START)
         self.__propChange("resolution")
         # Changing resolution affects frame timing.
         self.__propChange("minFramePeriod")
@@ -786,6 +836,7 @@ class camera:
         self.__propChange("exposurePeriod")
         # Changing resolution affects recording length.
         self.__propChange("cameraMaxFrames")
+        self.__propChange("recMaxFrames")
     
     @camProperty(notify=True)
     def minFramePeriod(self):
@@ -794,34 +845,32 @@ class camera:
         fpMin, fpMax = self.sensor.getPeriodRange(fSize)
         return int(fpMin * 1000000000)
 
-    @camProperty(notify=True, save=True, prio=2)
+    @camProperty(notify=True, save=True, prio=PARAM_PRIO_FRAME_TIME)
     def framePeriod(self):
         """Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating)."""
         return int(self.sensor.getCurrentPeriod() * 1000000000)
     @framePeriod.setter
     def framePeriod(self, value):
+        self.__checkState('idle')
         self.sensor.setFramePeriod(value / 1000000000)
         # Changing frame period affects exposure timing.
         self.__propChange("exposureMin")
         self.__propChange("exposureMax")
         self.__propChange("exposurePeriod")
 
-    @camProperty(prio=2)
+    @camProperty(prio=PARAM_PRIO_FRAME_TIME)
     def frameRate(self):
         """Estimated recording frame rate in frames per second (reciprocal of framePeriod)."""
         return 1 / self.sensor.getCurrentPeriod()
     @frameRate.setter
     def frameRate(self, value):
+        self.__checkState('idle')
         self.sensor.setFramePeriod(1 / value)
         # Changing frame period affects exposure timing.
         self.__propChange("exposureMin")
         self.__propChange("exposureMax")
         self.__propChange("exposurePeriod")
     
-    @camProperty(notify=True, save=True)
-    def frameCapture(self):
-        return self.__frameProgram
-
     #===============================================================================================
     # API Parameters: Color Space Group
     @camProperty(notify=True, save=True)
