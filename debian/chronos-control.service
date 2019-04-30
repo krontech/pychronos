@@ -1,6 +1,6 @@
 [Unit]
 Description=Control interface for the Chronos Camera
-After=chronos-fpga.service
+After=chronos-fpga.service chronos-video.service
 Requires=chronos-fpga.service
 
 [Service]

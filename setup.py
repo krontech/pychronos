@@ -2,7 +2,7 @@
 from distutils.core import setup, Extension
 import sysconfig
 
-VERSION='0.3.1'
+VERSION='0.4.0'
 DESCRIPTION=("Python bindings for the Chronos High Speed Camera")
 
 extra_cflags = sysconfig.get_config_var('CFLAGS').split()
