@@ -9,8 +9,6 @@ import pychronos
 import pychronos.regmaps as regmaps
 import pychronos.spd as spd
 
-API_VERISON_STRING = '0.1'
-
 __propertiesACameraPropertyCanHave = {'notify', 'save'}
 def camProperty(notify=False, save=False, prio=0):
     """@camProperty: Like @property, but include metadata.
@@ -576,7 +574,7 @@ class camera:
     # API Parameters: Camera Info Group
     @camProperty()
     def cameraApiVersion(self):
-        return API_VERISON_STRING
+        return pychronos.__version__
     
     @camProperty()
     def cameraFpgaVersion(self):

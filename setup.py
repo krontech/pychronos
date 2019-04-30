@@ -2,7 +2,15 @@
 from distutils.core import setup, Extension
 import sysconfig
 
-VERSION='0.4.0'
+# Grab the package version from version.py
+try:
+    results = {}
+    with open("pychronos/version.py") as fp:
+        exec(fp.read(), results)
+    VERSION=results['__version__']
+except:
+    VERSION="unknown"
+
 DESCRIPTION=("Python bindings for the Chronos High Speed Camera")
 
 extra_cflags = sysconfig.get_config_var('CFLAGS').split()
