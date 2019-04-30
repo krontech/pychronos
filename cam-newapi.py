@@ -2,6 +2,7 @@
 
 import os, sys, pdb
 import json
+import argparse
 from functools import lru_cache
 from pathlib import Path
 
@@ -32,22 +33,6 @@ GPIO_ENCSW = "/sys/class/gpio/gpio27/value"
 REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 #-----------------------------------------------------------------
-
-
-# Drop into a debugger when an error happens.
-def excepthook(t,v,tb):
-    pdb.traceback.print_exception(t, v, tb)
-    pdb.post_mortem(t=tb)
-sys.excepthook = excepthook
-dbg, brk = pdb.set_trace, pdb.set_trace #convenience debugging
-
-#Fix system not echoing keystrokes in debugger, after restart.
-try:
-    os.system('stty sane')
-except Exception:
-    pass
-
-
 
 class store():
     """A persistant key/value store which survives reboots.
@@ -432,8 +417,6 @@ class controlApi(dbus.service.Object):
                 "error": e.message
             }
 
-
-
     #===============================================================================================
     #Method('testResolution', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
@@ -457,11 +440,34 @@ if __name__ == "__main__":
     # Enable logging.
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s [%(funcName)s] %(message)s')
 
-    ## TODO: Initialize the FPGA.
-    ## TODO: This needs to go into an init script somewhere.
+    # Do argument parsing
+    parser = argparse.ArgumentParser(description="Chronos control daemon")
+    parser.add_argument('--debug', default=False, action='store_true',
+                        help="Enable debug logging")
+    parser.add_argument('--pdb', default=False, action='store_true',
+                        help="Drop into a python debug console on exception")
+    args = parser.parse_args()
 
-    # Use the GLib mainloop.
-    
+    if not args.debug:
+        logging.getLogger().setLevel(logging.INFO)
+    else:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    if args.pdb:
+        # Drop into a debugger when an error happens.
+        def excepthook(t,v,tb):
+            pdb.traceback.print_exception(t, v, tb)
+            pdb.post_mortem(t=tb)
+        sys.excepthook = excepthook
+        dbg, brk = pdb.set_trace, pdb.set_trace #convenience debugging
+
+        #Fix system not echoing keystrokes in debugger, after restart.
+        try:
+            os.system('stty sane')
+        except Exception:
+            pass
+
+    # Use the GLib mainloop.    
     mainloop = GLib.MainLoop()
 
     # Setup resources.
