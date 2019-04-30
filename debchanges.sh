@@ -6,7 +6,7 @@ if [ $REVISION -gt 0 ]; then
 	VERSION="${VERSION}${REVISION}"
 fi
 cat << EOF
-chronos-cli (${VERSION}) unstable; urgency=medium
+pychronos (${VERSION}) unstable; urgency=medium
 
 $(git log --oneline ${TAGGED}..HEAD | sed -e 's/^[0-9a-f]*/  \*/g')
   * Upstream release ${TAGGED}
