@@ -193,30 +193,25 @@ The `ioMapping` dictionary contains the following members:
 
 | Output            | Note | Description
 |:------------------|:-----|:-----------
-|`io1`              | 2    | Output Driver - IO 1
-|`io2`              | 2    | Output Driver - IO 2
+|`io1`              | 1    | Output Driver - IO 1
+|`io2`              | 1    | Output Driver - IO 2
 |`combOr1`          |      | Combinatorial OR 1 input
 |`combOr2`          |      | Combinatorial OR 2 input
 |`combOr3`          |      | Combinatorial OR 3 input
 |`combAnd`          |      | Combinatorial AND input
 |`combXOr`          |      | Combinatorial XOR input
-|`delay`            | 3    | Delay source
+|`delay`            | 2    | Delay source
 |`toggleSet`        |      | Toggle block SET source
 |`toggleClear`      |      | Toggle block CLEAR source
 |`toggleFlip`       |      | Toggle block FLIP source
-|`gate`             | 1    | Gate source
-|`start`            | 1    | Start source - starts recordings (Not implemented yet)
-|`stop`             | 1    | Stop source - stops recording (Not implemented yet)
-|`shutter`          | 4    | Shutter source - used for Shutter Gatting (while active, open shutter)
-|`cpuInt`           | 1    | interrupt source - (Not implemented yet)
-|`io1In`            | 5    | input configuration for io1
-|`io2In`            | 5    | input configuration for io2
+|`shutter`          | 3    | Shutter source - used for Shutter Gatting (while active, open shutter)
+|`io1In`            | 4    | input configuration for io1
+|`io2In`            | 4    | input configuration for io2
 
-1 - Not implemented yet
-2 - Parameters for IO drive strength
-3 - Parameters for delay function
-4 - Parameters for shutter function
-5 - Special input configuration
+1 - Parameters for IO drive strength
+2 - Parameters for delay function
+3 - Parameters for shutter function
+4 - Special input configuration
 
 Each of the `Output` blocks is a dictionary that contains:
 
@@ -238,7 +233,6 @@ The source can be one of the following
 |`io2`                 | Input 2
 |`io3`                 | Isolated input
 |`comb`                | Combinatorial block output
-|`software`            | Software (Not implemented yet)
 |`delay`               | Delay block output
 |`toggle`              | Toggle block output
 |`shutter`             | Signal from the old timing engine - currently integrating
