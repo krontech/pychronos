@@ -50,11 +50,8 @@ def camProperty(notify=False, save=False, prio=0):
     
     return camPropertyAnnotate
 
-        
-
 class CameraError(RuntimeError):
     pass
-
 
 # Parameter priority groups
 PARAM_PRIO_RESOLUTION = 3
@@ -248,160 +245,6 @@ class camera:
 
         ## TODO: Attempt to load calibration files, if present.
 
-    def startBlackCal(self, numFrames=16, useLiveBuffer=True):
-        """Begin the black calibration proceedure at the current settings.
-
-        Black calibration takes a sequence of images with the lens cap or shutter
-        closed and averages them to find the black level of the image sensor. This
-        value can then be subtracted during playback to correct for image offset
-        defects.
-
-        Parameters
-        ----------
-        numFrames : int, optional
-            The number of frames to use for black calibration (default 16 frames)
-        useLiveBuffer : bool, optional
-            Whether to use the live display for black calibration (default True)
-
-        Yields
-        ------
-        float :
-            The sleep time, in seconds, between steps of the calibration proceedure.
-        
-        Examples
-        --------
-        This function returns a generator iterator with the sleep time between the
-        steps of the black calibration proceedure. The caller may use this for
-        cooperative multithreading, or can complete the calibration sychronously
-        as follows:
-
-        state = camera.startBlackCal()
-        for delay in state:
-            time.sleep(delay)
-        """
-        # get the resolution from the display properties
-        # TODO: We actually want to get it from the sequencer.
-        display = regmaps.display()
-        xres = display.hRes
-        yres = display.vRes
-
-        self.__setState('blackcal')
-        logging.debug('Starting Black Calibration')
-
-        seq = regmaps.sequencer()
-        fAverage = numpy.zeros((yres, xres))
-        if (useLiveBuffer):
-            # Readout and average the frames from the live buffer.
-            for i in range(0, numFrames):
-                logging.debug('waiting for frame %d of %d', i+1, numFrames)
-                yield from seq.startLiveReadout(xres, yres)
-                fAverage += numpy.asarray(seq.liveResult)
-        else:
-            # Take a recording and read the results from the live buffer.
-            program = [regmaps.seqcommand(blockSize=numFrames+1, recTermBlkEnd=True, recTermBlkFull=True)]
-            logging.debug('making recording')
-            yield from seq.startCustomRecording([program])
-            addr = seq.regionStart
-            for i in range(0, numFrames):
-                fAverage += numpy.asarray(pychronos.readframe(addr, xres, yres))
-                addr += seq.frameSize
-                yield 0
-
-        fAverage /= numFrames
-        
-        # Readout the column gain and linearity calibration.
-        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, display.hRes * 2)
-        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, display.hRes * 2)
-        colOffsetRegs = pychronos.fpgamap(pychronos.FPGA_COL_OFFSET_BASE, display.hRes * 2)
-        gain = numpy.asarray(colGainRegs.mem16, dtype=numpy.uint16) / (1 << 12)
-        curve = numpy.asarray(colCurveRegs.mem16, dtype=numpy.int16) / (1 << 21)
-        offsets = numpy.asarray(colOffsetRegs.mem16, dtype=numpy.int16)
-        yield 0
-
-        # For each column, the average gives the DC component of the FPN, which
-        # gets applied to the column calibration as the constant term. The column
-        # calibration function is given by:
-        #
-        # f(x) = curve * x^2 + gain * x + offset
-        #
-        # For the FPN to be black, we expected f(fpn) == 0, and therefore:
-        #
-        # offset = -(curve * fpn^2 + gain * fpn)
-        colAverage = numpy.average(fAverage, 0)
-        colOffset = curve * (colAverage * colAverage) + gain * colAverage
-        # TODO: Would be nice to have a write helper.
-        for x in range(0, xres):
-            colOffsetRegs.mem16[x] = int(-colOffset[x]) & 0xffff
-        yield 0
-
-        # For each pixel, the AC component of the FPN can be found by subtracting
-        # the column average, which we will load into the per-pixel FPN region as
-        # a signed quantity.
-        #
-        # TODO: For even better calibration, this should actually take the slope
-        # into consideration around the FPN, in which case we would also divide
-        # by the derivative of f'(fpn) for the column.
-        fpn = numpy.int16(fAverage - colAverage)
-        pychronos.writeframe(display.fpnAddr, fpn)
-
-        self.__setState('idle')
-        logging.info('finished - getting some statistics')
-        logging.info("---------------------------------------------")
-        logging.info("fpn details: min = %d, max = %d", numpy.min(fAverage), numpy.max(fAverage))
-        logging.info("fpn standard deviation: %d", numpy.std(fAverage))
-        logging.info("fpn standard deviation horiz: %s", numpy.std(fAverage, axis=1))
-        logging.info("fpn standard deviation vert:  %s", numpy.std(fAverage, axis=0))
-        logging.info("---------------------------------------------")
-
-    def startZeroTimeBlackCal(self):
-        """Begin the black calibration proceedure using a zero-time exposure.
-
-        Black calibration is best performed with the lens cap or shutter closed,
-        but in the absence of user intervention, an acceptable calibration can be
-        achieved by taking a zero-time exposure instead.
-
-        Parameters
-        ----------
-        numFrames : int, optional
-            The number of frames to use for black calibration (default 16 frames)
-        useLiveBuffer : bool, optional
-            Whether to use the live display for black calibration (default True)
-
-        Yields
-        ------
-        float :
-            The sleep time, in seconds, between steps of the calibration proceedure.
-        
-        Examples
-        --------
-        This function returns a generator iterator with the sleep time between the
-        steps of the black calibration proceedure. The caller may use this for
-        cooperative multithreading, or can complete the calibration sychronously
-        as follows:
-
-        state = camera.startZeroTimeBlackCal()
-        for delay in state:
-            time.sleep(delay)
-        """
-        # Grab the current frame size and exposure.
-        fSize = self.sensor.getCurrentGeometry()
-        expPrev = self.sensor.getCurrentExposure()
-        expMin, expMax = self.sensor.getExposureRange(fSize, self.sensor.getCurrentPeriod())
-        logging.info('fSize: %s', fSize)
-        logging.info('expPrev: %f, zeroTime: %f, period: %f', expPrev, expMin, self.sensor.getCurrentPeriod())
-
-        # Reconfigure for the minimum exposure supported by the sensor.
-        self.sensor.setExposureProgram(expMin)
-
-        # Do a fast black cal from the live display buffer.
-        # TODO: We might get better quality out of the zero-time cal by
-        # testing a bunch of exposure durations and finding the actual
-        # zero-time intercept.
-        yield (3 / 60) # ensure the exposure time has taken effect.
-        yield from self.startBlackCal(numFrames=2, useLiveBuffer=True)
-
-        # Restore the previous exposure settings.
-        self.sensor.setExposureProgram(expPrev)
     
     def startCustomRecording(self, program):
         """Program the recording sequencer and start recording.
@@ -570,6 +413,188 @@ class camera:
         self.wbMatrix = whiteBalance
         self.__setState('idle')
 
+    #===============================================================================================
+    # API Methods: Calibration Group
+    #===============================================================================================
+    def __startBlackCal(self, numFrames=16, useLiveBuffer=True):
+        # get the resolution from the display properties
+        # TODO: We actually want to get it from the sequencer.
+        display = regmaps.display()
+        xres = display.hRes
+        yres = display.vRes
+
+        seq = regmaps.sequencer()
+        fAverage = numpy.zeros((yres, xres))
+        if (useLiveBuffer):
+            # Readout and average the frames from the live buffer.
+            for i in range(0, numFrames):
+                logging.debug('waiting for frame %d of %d', i+1, numFrames)
+                yield from seq.startLiveReadout(xres, yres)
+                fAverage += numpy.asarray(seq.liveResult)
+        else:
+            # Take a recording and read the results from the live buffer.
+            program = [regmaps.seqcommand(blockSize=numFrames+1, recTermBlkEnd=True, recTermBlkFull=True)]
+            logging.debug('making recording')
+            yield from seq.startCustomRecording([program])
+            addr = seq.regionStart
+            for i in range(0, numFrames):
+                fAverage += numpy.asarray(pychronos.readframe(addr, xres, yres))
+                addr += seq.frameSize
+                yield 0
+
+        fAverage /= numFrames
+        
+        # Readout the column gain and linearity calibration.
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, display.hRes * 2)
+        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, display.hRes * 2)
+        colOffsetRegs = pychronos.fpgamap(pychronos.FPGA_COL_OFFSET_BASE, display.hRes * 2)
+        gain = numpy.asarray(colGainRegs.mem16, dtype=numpy.uint16) / (1 << 12)
+        curve = numpy.asarray(colCurveRegs.mem16, dtype=numpy.int16) / (1 << 21)
+        offsets = numpy.asarray(colOffsetRegs.mem16, dtype=numpy.int16)
+        yield 0
+
+        # For each column, the average gives the DC component of the FPN, which
+        # gets applied to the column calibration as the constant term. The column
+        # calibration function is given by:
+        #
+        # f(x) = curve * x^2 + gain * x + offset
+        #
+        # For the FPN to be black, we expected f(fpn) == 0, and therefore:
+        #
+        # offset = -(curve * fpn^2 + gain * fpn)
+        colAverage = numpy.average(fAverage, 0)
+        colOffset = curve * (colAverage * colAverage) + gain * colAverage
+        # TODO: Would be nice to have a write helper.
+        for x in range(0, xres):
+            colOffsetRegs.mem16[x] = int(-colOffset[x]) & 0xffff
+        yield 0
+
+        # For each pixel, the AC component of the FPN can be found by subtracting
+        # the column average, which we will load into the per-pixel FPN region as
+        # a signed quantity.
+        #
+        # TODO: For even better calibration, this should actually take the slope
+        # into consideration around the FPN, in which case we would also divide
+        # by the derivative of f'(fpn) for the column.
+        fpn = numpy.int16(fAverage - colAverage)
+        pychronos.writeframe(display.fpnAddr, fpn)
+
+        self.__setState('idle')
+        logging.info('finished - getting some statistics')
+        logging.info("---------------------------------------------")
+        logging.info("fpn details: min = %d, max = %d", numpy.min(fAverage), numpy.max(fAverage))
+        logging.info("fpn standard deviation: %d", numpy.std(fAverage))
+        logging.info("fpn standard deviation horiz: %s", numpy.std(fAverage, axis=1))
+        logging.info("fpn standard deviation vert:  %s", numpy.std(fAverage, axis=0))
+        logging.info("---------------------------------------------")
+
+    def __startZeroTimeBlackCal(self):
+        """Begin the black calibration proceedure using a zero-time exposure.
+
+        Black calibration is best performed with the lens cap or shutter closed,
+        but in the absence of user intervention, an acceptable calibration can be
+        achieved by taking a zero-time exposure instead.
+
+        Parameters
+        ----------
+        numFrames : int, optional
+            The number of frames to use for black calibration (default 16 frames)
+        useLiveBuffer : bool, optional
+            Whether to use the live display for black calibration (default True)
+
+        Yields
+        ------
+        float :
+            The sleep time, in seconds, between steps of the calibration proceedure.
+        
+        Examples
+        --------
+        This function returns a generator iterator with the sleep time between the
+        steps of the black calibration proceedure. The caller may use this for
+        cooperative multithreading, or can complete the calibration sychronously
+        as follows:
+
+        state = camera.startZeroTimeBlackCal()
+        for delay in state:
+            time.sleep(delay)
+        """
+        # Grab the current frame size and exposure.
+        fSize = self.sensor.getCurrentGeometry()
+        expPrev = self.sensor.getCurrentExposure()
+        expMin, expMax = self.sensor.getExposureRange(fSize, self.sensor.getCurrentPeriod())
+        logging.info('fSize: %s', fSize)
+        logging.info('expPrev: %f, zeroTime: %f, period: %f', expPrev, expMin, self.sensor.getCurrentPeriod())
+
+        # Reconfigure for the minimum exposure supported by the sensor.
+        self.sensor.setExposureProgram(expMin)
+
+        # Do a fast black cal from the live display buffer.
+        # TODO: We might get better quality out of the zero-time cal by
+        # testing a bunch of exposure durations and finding the actual
+        # zero-time intercept.
+        yield (3 / 60) # ensure the exposure time has taken effect.
+        yield from self.__startBlackCal(numFrames=2, useLiveBuffer=True)
+
+        # Restore the previous exposure settings.
+        self.__setupExposure(self.__exposurePeriod, self.__exposureMode)
+    
+    def startCalibration(self, blackCal=False, analogCal=False, zeroTimeBlackCal=False):
+        """Begin one or more calibration proceedures at the current settings.
+
+        Black calibration takes a sequence of images with the lens cap or shutter
+        closed and averages them to find the black level of the image sensor. This
+        value can then be subtracted during playback to correct for image offset
+        defects.
+
+        Analog calibration consists of any automated image sensor calibration
+        that can be performed quickly and autonomously without any setup from
+        the user (eg: no closing of the aperture or calibration jigs).
+
+        Parameters
+        ----------
+        blackCal : bool, optional
+            Perform a full black calibration assuming the user has closed the
+            aperture or lens cap. (default: false)
+        analogCal : bool, optional
+            Perform autonomous analog calibration. (default: false)
+        zeroTimeBlackCal : bool, optional
+            Perform a fast black calibration by reducing the exposure time and
+            aperture to their minimum values. (default: false)
+        
+        Yields
+        ------
+        float :
+            The sleep time, in seconds, between steps of the calibration proceedure.
+        
+        Examples
+        --------
+        This function returns a generator iterator with the sleep time between steps
+        of the calibration proceedures. The caller may use this for cooperative
+        multithreading, or can complete the calibration sychronously as follows:
+
+        state = camera.startCalibration(blackCal=True)
+        for delay in state:
+            time.sleep(delay)
+        """
+        # Perform autonomous sensor calibration first.
+        if analogCal:
+            logging.info('starting analog calibration')
+            self.__setState('analogcal')
+            yield from self.sensor.startAnalogCal()
+            self.__setState('idle')
+
+        # Perform at most one black calibration.
+        if blackCal:
+            self.__setState('blackcal')
+            logging.info('starting standard black calibration')
+            yield from self.__startBlackCal()
+            self.__setState('idle')
+        elif zeroTimeBlackCal:
+            self.__setState('blackcal')
+            logging.info('starting zero time black calibration')
+            yield from self.__startZeroTimeBlackCal()
+            self.__setState('idle')
+        
     #===============================================================================================
     # API Parameters: Camera Info Group
     @camProperty()
@@ -817,7 +842,8 @@ class camera:
             "hOffset": fSize.hOffset,
             "vOffset": fSize.vOffset,
             "vDarkRows": fSize.vDarkRows,
-            "bitDepth": fSize.bitDepth
+            "bitDepth": fSize.bitDepth,
+            "minFrameTime": fSize.minFrameTime
         }
     @resolution.setter
     def resolution(self, value):
@@ -826,6 +852,8 @@ class camera:
         self.sensor.setResolution(geometry)
         self.setupRecordRegion(geometry, self.REC_REGION_START)
         self.__propChange("resolution")
+        # TODO: Should a change of resolution revert exposureMode back to normal?
+        self.__exposurePeriod = self.sensor.getCurrentPeriod()
         # Changing resolution affects frame timing.
         self.__propChange("minFramePeriod")
         self.__propChange("framePeriod")
@@ -942,7 +970,7 @@ class camera:
     def ioDelayTime(self):
         """Property alias of the ioMapping.delay.delayTime value"""
         return self.ioInterface.delayTime
-    @ioDelay.setter
+    @ioDelayTime.setter
     def ioDelayTime(self, value):
         self.ioInterface.delayTime = value
 

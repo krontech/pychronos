@@ -298,9 +298,7 @@ of the supported methods are as follows:
 | `startAutoWhiteBalance`  |`S`| none             | `whitebal`   | Take a reference image from the live display and compute the white balance.
 | `revertAutoWhiteBalance` |`S`| none             |              | This copies the contents of `wbCustom` into `wbMatrix`.
 | `startAutoFocus`         |   | dict(location)   |              | Attempt to automatically focus the camera on a subject.
-| `startBlackCalibration`  |`S`| none             | `blackcal`   | Perform full black calibration, assuming the user has covered the sensor.
-| `startZeroTimeBlackCal`  |`S`| none             | `blackcal`   | Perform black calibration by reducing the exposure and aperture to zero.
-| `startAnalogCalibration` |`S`| none             | `analogcal`  | Perform automated image sensor calibration.
+| `startCalibration`       |`S`| dict(calTypes)   | varies       | Perform full calibration operations.
 | `startRecording`         |`S`| none             | `recording`  | Begin recording video data to memory.
 | `stopRecording`          |`S`| none             | `idle`       | Terimnate recording of video data to memory.
 | `flushRecording`         |   | none             |              | Flush recoreded video data from memory.

@@ -88,10 +88,7 @@ cam.setRecordingConfig(fSize)
 time.sleep(0.1) # FIXME: This needs to go into the sensor class.
 
 # Perform initial calibration
-for delay in cam.sensor.startAnalogCal():
-    time.sleep(delay)
-
-for delay in cam.startZeroTimeBlackCal():
+for delay in cam.startCalibration(analogCal=True, zeroTimeBlackCal=True):
     time.sleep(delay)
 
 # Switch to live display.

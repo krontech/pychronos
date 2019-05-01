@@ -14,7 +14,7 @@ import dbus.mainloop.glib
 from gi.repository import GLib
 
 import pychronos
-from pychronos import camera
+from pychronos import camera, CameraError
 from pychronos.sensors import lux1310, frameGeometry
 import pychronos.regmaps as regmaps
 
@@ -120,10 +120,15 @@ class controlApi(dbus.service.Object):
         # Always return false to remove the Glib source for the last step.
         return False
     
-    ## Internal helper to run a generator. This ought to be the preferred way to
-    ## invoke a generator from within GLib's mainloop.
+    ## Internal helper to run a generator. This will make the first call to the
+    ## generator, and throw an exception if an error occurs. Any errors that
+    ## occur after the first yield will instead be passed to the onError method.
     def runGenerator(self, generator, onError=lambda e: logging.debug("Generator failed: %s", e)):
-        GLib.idle_add(self.stepGenerator, generator, onError)
+        try:
+            delay = next(generator)
+            GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
+        except StopIteration:
+            pass
 
     ## Internal helper to call something in the future. Should function identically
     ## to Twisted's reactor.callLater function, except that the yield asleep thing
@@ -333,13 +338,27 @@ class controlApi(dbus.service.Object):
             self.display.whiteBalance[0] = int(1.5226 * 4096)
             self.display.whiteBalance[1] = int(1.0723 * 4096)
             self.display.whiteBalance[2] = int(1.5655 * 4096)
-            #self.runGenerator(self.startCalibration({'analog':True, 'zeroTimeBlackCal':True}))
+            yield from self.startCalibration({'analogCal':True, 'zeroTimeBlackCal':True})
 
+    #===============================================================================================
+    #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startCalibration(self, args):
+        try:
+            logging.debug("got cal args = %s", args)
+            self.runGenerator(self.camera.startCalibration(**args))
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
+            }
+    
     #===============================================================================================
     #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
     #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
-    #Method('startBlackCalibration', arguments='a{sv}', regutns='a{sv}'),
-    #Method('startZeroTimeBlackCal', arguments='a{sv}', regutns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def startAutoWhiteBalance(self, args):
         logging.info('starting white balance')
@@ -351,7 +370,7 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": e.message
+                "error": str(e)
             }
 
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
@@ -361,51 +380,8 @@ class controlApi(dbus.service.Object):
             "state": self.camera.state
         }
     
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startBlackCalibration(self, args):
-        logging.info('starting standard black calibration')
-        try:
-            self.runGenerator(self.camera.startBlackCal())
-            return {
-                "state": self.camera.state
-            }
-        except Exception as e:
-            return {
-                "state": self.camera.state,
-                "error": e.message
-            }
-    
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startZeroTimeBlackCal(self, args):
-        logging.info('starting zero-time black calibration')
-        try:
-            self.runGenerator(self.camera.startZeroTimeBlackCal())
-            return {
-                "state": self.camera.state
-            }
-        except CameraError as e:
-            return {
-                "state": self.camera.state,
-                "error": e.message
-            }
-
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startAnalogCalibration(self, args):
-        logging.info('starting analog calibration')
-        try:
-            self.runGenerator(self.camera.sensor.startAnalogCal())
-            return {
-                "state": self.camera.state
-            }
-        except CameraError as e:
-            return {
-                "state": self.camera.state,
-                "error": e.message
-            }
-    
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startRecording(self, args):
-        logging.info('starting analog calibration')
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def startRecording(self):
         try:
             self.runGenerator(self.camera.startRecording())
             return {
@@ -414,7 +390,20 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": e.message
+                "error": str(e)
+            }
+    
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def stopRecording(self):
+        try:
+            self.camera.stopRecording()
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
             }
 
     #===============================================================================================
