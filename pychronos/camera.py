@@ -930,9 +930,20 @@ class camera:
 
     #===============================================================================================
     # API Parameters: IO Configuration Group
-    @camProperty()
+    @camProperty(notify=True, save=True)
     def ioMapping(self):
+        """Configuration for the IO block - this is a dictionary of IO components and what their inputs are configured to"""
         return self.ioInterface.getConfiguration()
     @ioMapping.setter
     def ioMapping(self, value):
         self.ioInterface.setConfiguration(value)
+
+    @camProperty()
+    def ioDelay(self):
+        """Property alias of the ioMapping.delay.delayTime value"""
+        return self.ioInterface.delayTime
+    @ioDelay.setter
+    def ioDelay(self, value):
+        self.ioInterface.delayTime = value
+
+    

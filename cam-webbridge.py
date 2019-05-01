@@ -89,6 +89,85 @@ class Root(resource.Resource):
         return bytes(returnString, 'utf8')
 
 
+class GetMethod(resource.Resource):
+    """
+    Implements a callable method with arguments on dbus
+    """
+    isLeaf = True
+    def __init__(self, parent, bus, methodName='get'):
+        self.parent = parent
+        self.bus = bus
+        self.arguments = True
+
+        self.parent.putChild(bytes(methodName, 'utf8'), self)
+
+    def allowCrossOrigin(self, request):
+        # Append headers to allow cross-origin requests.
+        request.setHeader('Access-Control-Allow-Origin', '*')
+        request.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTION')
+        request.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+        request.setHeader('Access-Control-Max-Age', 2520)
+
+    def render_OPTIONS(self, request):
+        allowCrossOrigin(request)
+        request.setHeader('Content-Type', 'application/json')
+        request.write('')
+        request.finish()
+        return server.NOT_DONE_YET
+
+    def render_GET(self, request):
+        names = []
+        logging.info('GET arguments: %s', request.args)
+        names = request.args.get(b'names')
+        if not names:
+            request.setResponseCode(400)
+            return b'"names" field required'
+        # this lets multiple copies of 'names' concatenate together then breaks
+        # them appart to individual items
+        names = names[0].decode('utf8').split(',')
+
+        allowCrossOrigin(request)
+        request.setHeader('Content-Type', 'application/json')
+        reactor.callLater(0.0, self.startDBusGetRequest, request, names)
+        return server.NOT_DONE_YET
+        
+    def render_POST(self, request):
+        contentType = request.getHeader("Content-Type")
+        self.allowCrossOrigin(request)
+        if contentType == "application/json":
+            # Expect a JSON object for the POST data.
+            names = request.content.getvalue().decode("utf8")
+            request.setHeader('Content-Type', 'application/json')
+            reactor.callLater(0.0, self.startDBusGetRequest, request, json.loads(names))
+            return server.NOT_DONE_YET
+        # Expect JSON data passed in URL-encoded form.
+        rawData = request.args.get(b'names', None)
+        if not rawData:
+            request.setResponseCode(400)
+            return b'"names" field required'
+        names = ''
+        for line in rawData:
+            names += line.decode('utf8')
+        names = json.loads(names)
+
+        request.setHeader('Content-Type', 'application/json')
+        reactor.callLater(0.0, self.startDBusGetRequest, request, names)
+        return server.NOT_DONE_YET
+
+    @inlineCallbacks
+    def startDBusGetRequest(self, request, names):
+        logging.debug('Get Request: %s (%s)', names, type(names))
+        reply = yield self.bus.callRemote('get', names)
+
+        returnData = json.dumps(reply)
+        
+        request.write(bytes('{0}\n'.format(returnData), 'utf8'))
+        request.finish()
+
+        logging.info('Get Method requested with names: %s with response: %s', names, returnData)
+
+
+
 class Method(resource.Resource):
     """
     Implements a callable method with arguments on dbus
@@ -262,13 +341,13 @@ class dbusPublisher:
         self.videoApi = videoApi
         self.ringApi = ringApi
 
-        self.controlApi.notifyOnSignal('statusHasChanged', self.publishStatusChanged)
+        self.controlApi.notifyOnSignal('notify', self.publishNotify)
         self.videoApi.notifyOnSignal('segment', self.publishSegment)
         self.videoApi.notifyOnSignal('sof', self.publishSOF)
         self.videoApi.notifyOnSignal('eof', self.publishEOF)
 
-    def publishStatusChanged(self, signal):
-        event = 'control/statusHasChanged'
+    def publishNotify(self, signal):
+        event = 'control/notify'
         data = json.dumps(signal)
         logging.info('%s: %s', event, data)
         self.subscriber.publishToAll(event, data)
@@ -419,7 +498,7 @@ def main():
     logging.info('Adding methods')
     control = resource.Resource()
     root.putChild(b'control', control)
-    Method(control, controlApi, 'get',                    arguments=True)
+    GetMethod(control, controlApi, 'get')
     Method(control, controlApi, 'set',                    arguments=True)
     
     Method(control, controlApi, 'startAutoWhiteBalance',  arguments=False)
