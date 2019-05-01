@@ -230,6 +230,7 @@ Each of the `Output` blocks is a dictionary that contains:
 |`delayTime`           | float | 0.0 |     | The time the delay block delays the incoming signal for in seconds. Values of 0.00000001 through 32768.0 are possible with varying internal resolution
 
 The source can be one of the following
+
 | Source               | Description
 |:---------------------|:-----------
 |`none`                | Always 0
