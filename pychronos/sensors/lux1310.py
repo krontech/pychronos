@@ -422,16 +422,22 @@ class lux1310(api):
     # Sensor Analog Calibration Functions
     #--------------------------------------------
     def getColorMatrix(self, cTempK=5500):
-        if self.cfaPattern:
+        if not self.cfaPattern:
             # Identity matrix for monochrome cameras.
-            return [[1.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                    [0.0, 0.0, 1.0]]
+            return [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
         else:
             # CIECAM16/D55
-            return [[ 1.9147, -0.5768, -0.2342], 
-                    [-0.3056,  1.3895, -0.0969],
-                    [ 0.1272, -0.9531,  1.6492]]
+            return [ 1.9147, -0.5768, -0.2342, 
+                    -0.3056,  1.3895, -0.0969,
+                     0.1272, -0.9531,  1.6492]
+    
+    def getWhiteBalance(self, cTempK=5500):
+        if not self.cfaPattern:
+            return [1.0, 1.0, 1.0]
+        else:
+            return [1.5226, 1.0723, 1.5655]
 
     def setGain(self, gain):
         gainConfig = {  # VRSTB, VRST,  VRSTH,  Sampling Cap, Feedback Cap, Serial Gain

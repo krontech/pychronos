@@ -262,10 +262,32 @@ class api(ABC):
 
         Returns
         -------
-        [[float]] : A 3x3 matrix of floats converting the camera color space to sRGB.
+        [float] : An array of 9 of floats converting the camera color space to sRGB. The
+            array should contain the 3x3 matrix coefficients in row-scan order.
         """
         ## Return an identity matrix if not implemented.
         return [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]]
+    
+    def getWhiteBalance(self, cTempK=5500):
+        """Return the white balance matrix for this image sensor.
+
+        A white balance is required to equalize the sensitivity of each channel of the
+        bayer filter data to achieve white. If the image sensor is characterized under
+        multiple lighting conditions, the white balance which best matches the provided
+        color temperature should be returned.
+        
+        Parameters
+        ----------
+        cTempK: int, optional
+            The color temperature (degrees Kelvin) of the CIE D-series illuminant under
+            which the white balance will be used (default 5500K).
+
+        Returns
+        -------
+        [float] : An array of 3 floats to balance the Red, Green and Blue channels.
+        """
+        ## Return a do-nothing white balance if not implemented.
+        return [1.0, 1.0, 1.0]
     
     @abstractmethod
     def startAnalogCal(self):

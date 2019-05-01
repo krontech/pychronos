@@ -84,7 +84,7 @@ fMinPeriod, fMaxPeriod = cam.sensor.getPeriodRange(fSize)
 fPeriod = fMinPeriod
 if (args.framerate):
     fPeriod = 1/args.framerate
-cam.setRecordingConfig(fSize)
+cam.resolution = fSize
 time.sleep(0.1) # FIXME: This needs to go into the sensor class.
 
 # Perform initial calibration

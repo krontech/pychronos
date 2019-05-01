@@ -8,6 +8,7 @@ from pathlib import Path
 
 import inspect
 import logging
+import traceback
 import dbus
 import dbus.service
 import dbus.mainloop.glib
@@ -81,8 +82,13 @@ class store():
                 check_circular = False,
                 indent = 4,
             )
-
-
+    
+    @staticmethod
+    def all():
+        result = {}
+        for name in os.listdir(str(store._basepath)):
+            result[name] = store.get(name)
+        return result
 
 class controlApi(dbus.service.Object):
     ## This feels like a duplication of the Python exceptions.
@@ -104,7 +110,7 @@ class controlApi(dbus.service.Object):
         self.camera.setOnChange(self.onChangeHandler)
         self.changeset = None
 
-        self.callLater(0.5, self.doReset, {'reset':True, 'sensor':True})
+        self.callLater(0.5, self.softReset)
         
     ## Internal helper to iterate over a generator from the GLib mainloop.
     ## TODO: Do we need a callback for exception handling?
@@ -117,13 +123,17 @@ class controlApi(dbus.service.Object):
         except Exception as error:
             if (onError):
                 onError(error)
+            else:
+                logging.error(error)
+                logging.debug(traceback.format_exc())
+
         # Always return false to remove the Glib source for the last step.
         return False
     
     ## Internal helper to run a generator. This will make the first call to the
     ## generator, and throw an exception if an error occurs. Any errors that
     ## occur after the first yield will instead be passed to the onError method.
-    def runGenerator(self, generator, onError=lambda e: logging.debug("Generator failed: %s", e)):
+    def runGenerator(self, generator):
         try:
             delay = next(generator)
             GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
@@ -312,40 +322,36 @@ class controlApi(dbus.service.Object):
         return {'state':self.camera.state}
 
     #===============================================================================================
-    #Method('doReset', arguments='a{sv}', returns='a{sv}'),
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def doReset(self, args):
-        self.callLater(0.0, self.runReset, args)
-        return self.status()
+    #Method('softReset', arguments='', returns='a{sv}'),
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def softReset(self):
+        try:
+            self.runGenerator(self.runSoftReset())
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
+            }
+    
+    def runSoftReset(self):
+        # Wrapper method to do a complete soft reset of both the camera class,
+        # reloading of parameters, and tickling of the video system.
+        yield from self.camera.softReset()
 
-    def runReset(self, args):
-        recal = False
-        reinitAll = args.get('all', False)
-        if args.get('fpga') or reinitAll:
-            reinitAll = True
-            recal = True
-            self.camera.reset(FPGA_BITSTREAM)
+        # Reload the configuration.
+        self.set(store.all())
 
-        if args.get('reset'):
-            recal = True
-            self.camera.reset()
-            
-        if args.get('sensor') or reinitAll:
-            recal = True
-            self.camera.sensor.reset()
-
-        if recal:
-            self.display.whiteBalance[0] = int(1.5226 * 4096)
-            self.display.whiteBalance[1] = int(1.0723 * 4096)
-            self.display.whiteBalance[2] = int(1.5655 * 4096)
-            yield from self.startCalibration({'analogCal':True, 'zeroTimeBlackCal':True})
+        # Re-run initial calibration.
+        yield from self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True)
 
     #===============================================================================================
     #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def startCalibration(self, args):
         try:
-            logging.debug("got cal args = %s", args)
             self.runGenerator(self.camera.startCalibration(**args))
             return {
                 "state": self.camera.state
@@ -466,6 +472,7 @@ if __name__ == "__main__":
     obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam)
     
     #Load previously set values.
+    logging.debug("TODO: Restoring... %s", store.all())
     obj.set({
         key: store.get(key)
         for key, attrs in obj.availableKeys().items()

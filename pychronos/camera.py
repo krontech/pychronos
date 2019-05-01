@@ -130,27 +130,50 @@ class camera:
     def setOnChange(self, handler):
         self.onChange = handler
 
-    def reset(self, bitstream=None):
+    #===============================================================================================
+    # API Methods: Reset Group
+    #===============================================================================================
+    def softReset(self, bitstream=None):
         """Reset the camera and initialize the FPGA and image sensor.
-
+        
         Parameters
         ----------
         bitstream : str, optional
             File path to the FPGA bitstream to load, or None to perform
             only a soft-reset of the FPGA.
+        
+        Yields
+        ------
+        float :
+            The sleep time, in seconds, between steps of the reset proceedure.
+        
+        Examples
+        --------
+        This function returns a generator iterator with the sleep time between steps
+        of the reset proceedure. The caller can perform a complete reset as follows:
+
+        state = camera.softReset()
+        for delay in state:
+            time.sleep(delay)
         """
+        # If the current state is neither `idle` nor `recording`, then switch
+        # to the `reset` state to force any outstanding generators to complete.
+        if self.__state != 'idle' and self.__state != 'recording':
+            self.__setState('reset')
+            while (self.__state == 'reset'):
+                yield 0.1
 
         # Setup the FPGA if a bitstream was provided.
         if (bitstream):
             os.system("cam-loader %s" % (bitstream))
             config = regmaps.config()
             config.sysReset = 1
-            time.sleep(0.2)
+            yield 0.2
             logging.info("Loaded FPGA Version %s.%s", config.version, config.subver)
         else:
             config = regmaps.config()
             config.sysReset = 1
-            time.sleep(0.2)
+            yield 0.2
             logging.info("Detected FPGA Version %s.%s", config.version, config.subver)
 
         # Setup memory
@@ -170,14 +193,6 @@ class camera:
         self.setupRecordRegion(self.geometry, self.REC_REGION_START)
         sequencerRegs.frameSize = self.geometry.size() // self.BYTES_PER_WORD
 
-        displayRegs = regmaps.display()
-        displayRegs.control = displayRegs.COLOR_MODE
-        i = 0
-        for row in self.sensor.getColorMatrix():
-            for val in row:
-                displayRegs.colorMatrix[i] = val * displayRegs.COLOR_MATRIX_DIV
-                i += 1
-
         # Load a default calibration
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
         colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
@@ -185,9 +200,12 @@ class camera:
             colGainRegs.mem16[x] = (1 << 12)
             colCurveRegs.mem16[0] = 0
 
-        # Reboot the sensor and enter live display mode
+        # Reboot the sensor and return to the default resolution.
         self.sensor.reset()
         self.sensor.setResolution(self.geometry)
+        self.wbMatrix = self.sensor.getWhiteBalance()
+        self.colorMatrix = self.sensor.getColorMatrix()
+        self.__setState('idle')
 
     def setupMemory(self):
         configRegs = regmaps.config()
@@ -229,23 +247,9 @@ class camera:
         fSizeWords *= self.FRAME_ALIGN_WORDS
         return ramSizeWords // fSizeWords
     
-    def setRecordingConfig(self, fSize, fPeriod=None, expPeriod=None):
-        if (not self.sensor.isValidResolution(fSize)):
-            raise ValueError("Unsupported resolution setting")
-        
-        # Default to maximum framerate if not provided.
-        if (fPeriod is None):
-            minPeriod, maxPeriod = self.sensor.getPeriodRange(fSize)
-            fPeriod = minPeriod
-        
-        self.sensor.setResolution(fSize, fPeriod)
-        self.setupRecordRegion(fSize, self.REC_REGION_START)
-        if (expPeriod is not None):
-            self.sensor.setExposurePeriod(expPeriod)
-
-        ## TODO: Attempt to load calibration files, if present.
-
-    
+    #===============================================================================================
+    # API Methods: Recording Group
+    #===============================================================================================
     def startCustomRecording(self, program):
         """Program the recording sequencer and start recording.
 
@@ -329,6 +333,9 @@ class camera:
         seq.control |= seq.STOP_REC
         seq.control &= ~seq.STOP_REC
 
+    #===============================================================================================
+    # API Methods: Calibration Group
+    #===============================================================================================
     def startWhiteBalance(self, hStart=None, vStart=None):
         """Begin the white balance proceedure
 
@@ -412,10 +419,7 @@ class camera:
         self.wbCustom = whiteBalance
         self.wbMatrix = whiteBalance
         self.__setState('idle')
-
-    #===============================================================================================
-    # API Methods: Calibration Group
-    #===============================================================================================
+    
     def __startBlackCal(self, numFrames=16, useLiveBuffer=True):
         # get the resolution from the display properties
         # TODO: We actually want to get it from the sequencer.
@@ -428,6 +432,10 @@ class camera:
         if (useLiveBuffer):
             # Readout and average the frames from the live buffer.
             for i in range(0, numFrames):
+                # Breakout in case of a soft reset.
+                if self.__state == 'reset':
+                    self.__setState('idle')
+                    return
                 logging.debug('waiting for frame %d of %d', i+1, numFrames)
                 yield from seq.startLiveReadout(xres, yres)
                 fAverage += numpy.asarray(seq.liveResult)
@@ -920,8 +928,8 @@ class camera:
     def wbCustom(self):
         """Array of Red, Green, and Blue gain coefficients to achieve white balance."""
         return self.__wbCustom
-    @wbMatrix.setter
-    def wbMatrix(self, value):
+    @wbCustom.setter
+    def wbCustom(self, value):
         self.__wbCustom[0] = value[0]
         self.__wbCustom[1] = value[1]
         self.__wbCustom[2] = value[2]
@@ -944,7 +952,7 @@ class camera:
         ]
     @colorMatrix.setter
     def colorMatrix(self, value):
-        display = regmaps.colorMatrix()
+        display = regmaps.display()
         display.colorMatrix[0] = int(value[0] * display.COLOR_MATRIX_DIV)
         display.colorMatrix[1] = int(value[1] * display.COLOR_MATRIX_DIV)
         display.colorMatrix[2] = int(value[2] * display.COLOR_MATRIX_DIV)
@@ -973,5 +981,3 @@ class camera:
     @ioDelayTime.setter
     def ioDelayTime(self, value):
         self.ioInterface.delayTime = value
-
-    

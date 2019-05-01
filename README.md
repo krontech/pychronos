@@ -305,7 +305,7 @@ of the supported methods are as follows:
 | `startFilesave`          |   | dict             |              | TBD: A proxy for the `filesave` method in the Video API.
 | `softTrigger`            |`S`| none             |              | Generate a software trigger event.
 | `revertToDefaults`       |   | none             |              | Revert all settings to their default values (with optional parameter overrides).
-| `softReset`              |   | none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
+| `softReset`              |`S`| none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
 | `testResolution`         |`S`| dict(resolution) |              | Test if a resolution is valid and return the timing limits at that resolution.
 
 All methods return a dictionary of parameters, normally this will just include
