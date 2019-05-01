@@ -413,7 +413,7 @@ class lux1310(api):
     # Advanced Exposure and Timing Functions 
     #--------------------------------------------
     def getSupportedExposurePrograms(self):
-        return ("standard", "shutterGating")
+        return ("normal", "shutterGating")
     
     def setShutterGatingProgram(self):
         self.timing.programShutterGating()

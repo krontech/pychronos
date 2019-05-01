@@ -260,10 +260,10 @@ The input configuration has a single parameter:
 |`recMode`          |`G`|`S`|`N`| enum   |       |       | One of `normal`, `segmented` or `burst`
 |`recMaxFrames`     |`G`|`S`|`N`| int    |       |       | Maximum number of frames available for the recording buffer.
 |`recSegments`      |`x`|`x`|`x`| int    | 1     |       | Number of memory segments supported when in segmented recording mode.
-|`burstPreRecord`   |`x`|`x`|`x`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
+|`recPreBurst`      |`x`|`x`|`x`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
 |`resolution`       |`G`|`S`|`N`| dict   |       |       | Dict describing the resolution settings.
 |`minFramePeriod`   |`G`|   |`N`| int    |       |       | Minimum frame period at the current resolution settings.
-|`cameraMaxFrames`  |`x`|`x`|`x`| int    |       |       | Maximum number of frames the camera's memory can save at the current resolution.
+|`cameraMaxFrames`  |`G`|   |`N`| int    |       |       | Maximum number of frames the camera's memory can save at the current resolution.
 |`framePeriod`      |`G`|`S`|`N`| int    |       |       | Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating).
 |`frameRate`        |`G`|`S`|   | float  |       |       | Estimated frame rate in frames per second (reciprocal of `framePeriod`)
 |`totalFrames`      |`x`|   |   | int    |       |       | Total number of frames in memory recorded by the camera.

@@ -79,6 +79,8 @@ class camera:
         self.__state = 'idle'
         self.__recMode = 'normal'
         self.__recMaxFrames = 0
+        self.__recSegments = 1
+        self.__recPreBurst = 1
         self.__exposureMode = 'normal'
         self.__exposurePeriod = self.sensor.getCurrentExposure()
         self.__wbCustom = [1.0, 1.0, 1.0]
@@ -318,9 +320,31 @@ class camera:
         for delay in state:
             time.sleep(delay)
         """
-        program = [ seqcommand(blockSize=self.recMaxFrames, blkTermFull=True, recTermMemory=True, recTermBlockEnd=True) ]
-        yield from self.startCustomRecording(program)
-    
+        if not mode:
+            mode = self.__recMode
+
+        if mode == 'normal':
+            # Record into a single segment until the trigger event.
+            cmd = seqcommand(blockSize=self.recMaxFrames,
+                            blkTermFull=True, blkTermRising=True,
+                            recTermMemory=True, recTermBlockEnd=True)
+            yield from self.startCustomRecording([cmd])
+        elif mode == 'segmented':
+            # Record into segments 
+            cmd = seqcommand(blockSize=self.recMaxFrames / self.recSegments,
+                            blkTermFull=True, blkTermRising=True,
+                            recTermMemory=True, recTermBlockEnd=(self.recSegments > 1))
+            yield from self.startCustomRecording([cmd])
+        elif mode == 'burst':
+            # When trigger is inactive, save the pre-record into a ring buffer.
+            precmd = seqcommand(blockSize=self.recPreBurst, blkTermHigh=True)
+            # While trigger is active, save frames into the remaining memory.
+            burstcmd = seqcommand(blockSize=self.recMaxFrames - self.recPreBurst - 1,
+                                blkTermLow=True, recTermMemory=True)
+            yield from self.startCustomRecording([precmd, burstcmd])
+        else:
+            raise ValueError("recording mode of '%s' is not supported" % (mode))
+
     def softTrigger(self):
         """Signal a soft trigger event to the recording sequencer."""
         seq = regmaps.sequencer()
@@ -831,8 +855,34 @@ class camera:
         if value < currentMaxFrames:
             self.__recMaxFrames = value
         else:
-            self.__recMaxFrames = 0
+            self.__recMaxFrames = 0 # We use an internal value of zero to mean infinity.
         self.__propChange("recMaxFrames")
+
+    @camProperty(notify=True, save=True)
+    def recSegments(self):
+        return self.__recSegments
+    @recSegments.setter
+    def recSegments(self, value):
+        if not isinstance(value, int):
+            raise TypeError("recSegments must be an integer")
+        if value < 1:
+            raise ValueError("recSegments must be greater than zero")
+        self.__checkState('idle')
+        self.__recSegments = value
+        self.__propChange("recSegments")
+    
+    @camProperty(notify=True, save=True)
+    def recPreBurst(self):
+        return self.__recPreBurst
+    @recPreBurst.setter
+    def recPreBurst(self, value):
+        if not isinstance(value, int):
+            raise TypeError("recPreBurst must be an integer")
+        if value < 1:
+            raise ValueError("recPreBurst must be greater than zero")
+        self.__checkState('idle')
+        self.__recSegments = value
+        self.__propChange("recPreBurst")
 
     @camProperty(notify=True)
     def cameraMaxFrames(self):
@@ -861,7 +911,7 @@ class camera:
         self.setupRecordRegion(geometry, self.REC_REGION_START)
         self.__propChange("resolution")
         # TODO: Should a change of resolution revert exposureMode back to normal?
-        self.__exposurePeriod = self.sensor.getCurrentPeriod()
+        self.__exposurePeriod = self.sensor.getCurrentExposure()
         # Changing resolution affects frame timing.
         self.__propChange("minFramePeriod")
         self.__propChange("framePeriod")
