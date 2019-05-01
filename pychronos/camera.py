@@ -939,11 +939,11 @@ class camera:
         self.ioInterface.setConfiguration(value)
 
     @camProperty()
-    def ioDelay(self):
+    def ioDelayTime(self):
         """Property alias of the ioMapping.delay.delayTime value"""
         return self.ioInterface.delayTime
     @ioDelay.setter
-    def ioDelay(self, value):
+    def ioDelayTime(self, value):
         self.ioInterface.delayTime = value
 
     

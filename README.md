@@ -183,6 +183,82 @@ group and made more a part of the video display system.
 |`wbTemperature`    |`x`|`x`|`x`| int    | 1800  | 10000 | Estimated lighting temperature in degrees Kelvin.
 |`colorMatrix`      |`G`|`S`|`N`| array  |       |       | Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order.
 
+### IO Group
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
+|`ioMapping`        |`G`|`S`|`N`| dict   |       |       | A dictionary of the output mappings
+|`ioDelayTime`      |`G`|`S`|   | float  | 0.0   |       | An alias to ioMapping.delay.delayTime
+
+The `ioMapping` dictionary contains the following members:
+
+| Output            | Note | Description
+|:------------------|:-----|:-----------
+|`io1`              | 2    | Output Driver - IO 1
+|`io2`              | 2    | Output Driver - IO 2
+|`combOr1`          |      | Combinatorial OR 1 input
+|`combOr2`          |      | Combinatorial OR 2 input
+|`combOr3`          |      | Combinatorial OR 3 input
+|`combAnd`          |      | Combinatorial AND input
+|`combXOr`          |      | Combinatorial XOR input
+|`delay`            | 3    | Delay source
+|`toggleSet`        |      | Toggle block SET source
+|`toggleClear`      |      | Toggle block CLEAR source
+|`toggleFlip`       |      | Toggle block FLIP source
+|`gate`             | 1    | Gate source
+|`start`            | 1    | Start source - starts recordings (Not implemented yet)
+|`stop`             | 1    | Stop source - stops recording (Not implemented yet)
+|`shutter`          | 4    | Shutter source - used for Shutter Gatting (while active, open shutter)
+|`cpuInt`           | 1    | interrupt source - (Not implemented yet)
+|`io1In`            | 5    | input configuration for io1
+|`io2In`            | 5    | input configuration for io2
+
+1 - Not implemented yet
+2 - Parameters for IO drive strength
+3 - Parameters for delay function
+4 - Parameters for shutter function
+5 - Special input configuration
+
+Each of the `Output` blocks is a dictionary that contains:
+
+| Parameter            | Type  | Min | Max | Description
+|:---------------------|:------|:----|:----|:-----------
+|`source`              | enum  |     |     | Which input is connected to this - see list bellow
+|`invert`              | bool  |     |     | If true, invert the input
+|`debounce`            | bool  |     |     | If true, a debounce circuit is used
+|`driveStrength`       | int   | 0   | 3   | For IO drive pins only - sets the output drive strength (io1: 0, 1mA, 20mA, 21mA; io2: 0, 20mA, 20mA, 20mA)
+|`shutterTriggersFrame`| bool  |     |     | If true, shutter signal is forwarded to timing block. If false, this function is disabled
+|`delayTime`           | float | 0.0 |     | The time the delay block delays the incoming signal for in seconds. Values of 0.00000001 through 32768.0 are possible with varying internal resolution
+
+The source can be one of the following
+| Source               | Description
+|:---------------------|:-----------
+|`none`                | Always 0
+|`io1`                 | Input 1
+|`io2`                 | Input 2
+|`io3`                 | Isolated input
+|`comb`                | Combinatorial block output
+|`software`            | Software (Not implemented yet)
+|`delay`               | Delay block output
+|`toggle`              | Toggle block output
+|`shutter`             | Signal from the old timing engine - currently integrating
+|`recording`           | Signal from the record sequencer - active while not in live preview mode
+|`dispFrame`           | Signal from the record sequencer - pulses on each frame
+|`startRec`            | Signal from the record sequencer - pulses when recording starts
+|`endRec`              | Signal from the record sequencer - pulses when recording stopped
+|`nextSeg`             | Signal from the record sequencer - pulses on new segment
+|`timingIo`            | Signal from the new timing engine - adjustable, normally integrating
+|`alwaysHigh`          | Always 1
+
+
+The input configuration has a single parameter:
+
+| Parameter            | type  | Min | Max | Description
+|:---------------------|:------|:----|:----|:-----------
+|`threshold`           | float | 0.0 | 5.0 | Input threshhold in volts
+
+
+
+
 ### Recording Group
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
@@ -199,15 +275,16 @@ group and made more a part of the video display system.
 |`totalSegments`    |`x`|   |   | int    |       |       | Total number of segments in memory recorded by the camera.
 
 The `resolution` dictionary contains the following members:
+
 | Parameter         | Type  | Description
 |:------------------|:------|:-----------
-| `hRes`            | int   | Number of active horizontal pixels in each row.
-| `vRes`            | int   | Number of active vertical pixels in each column.
-| `hOffset`         | int   | Horizontal offset to the left of the sensor to the start of active pixels.
-| `vOffset`         | int   | Vertical offset from the top of the sensor to the start of active pixels.
-| `vDarkRows`       | int   | Number of optical black rows to read out at the top of the frame.
-| `bitDepth`        | int   | Bit depth to sample the image at.
-| `minFrameTime`    | float | Minimum frame time at this resolution.
+|`hRes`             | int   | Number of active horizontal pixels in each row.
+|`vRes`             | int   | Number of active vertical pixels in each column.
+|`hOffset`          | int   | Horizontal offset to the left of the sensor to the start of active pixels.
+|`vOffset`          | int   | Vertical offset from the top of the sensor to the start of active pixels.
+|`vDarkRows`        | int   | Number of optical black rows to read out at the top of the frame.
+|`bitDepth`         | int   | Bit depth to sample the image at.
+|`minFrameTime`     | float | Minimum frame time at this resolution.
 
 When setting resolution, the `hRes` and `vRes` members are required to be specified. All
 other members of the dictionary are optional and may be used to further tune the sensor's
