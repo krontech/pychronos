@@ -1,5 +1,7 @@
 import time
 import pychronos
+import logging
+from . import ioInterface
 
 class timing(pychronos.fpgamap):
     """Return a new map of the FPGA timing register space.
@@ -97,7 +99,8 @@ class timing(pychronos.fpgamap):
         start = time.time()
         while time.time() < (start + timeout):
             if not self.busy:
-                break
+                return True
+        return False
 
     def flip(self, timeout=0.01, force=False):
         """Activate the timing program by performing a page flip
@@ -114,17 +117,33 @@ class timing(pychronos.fpgamap):
         """
         self.inhibitTiming = 0
 
+        # Force a flip if the timeout is negative. This is guaranteed to flip, but may
+        # result in a deadlocked sensor if the timing signals change at the wrong time.
         if (timeout < 0):
             self.requestFlip = 1
             self.reset()
             return
 
-        self.waitForIdle(timeout)
-        if self.busy:
-            self.requestFlip = 1
-            self.reset()
-        else:
-            self.requestFlip = 1
+        # Request a flip of the timing program.
+        self.requestFlip = 1
+        if self.waitForIdle(timeout):
+            return
+        
+        # Flip did not complete, is it waiting on a trigger event?
+        if self.currentlyWaitingForActive or self.currentlyWaitingForInactive:
+            logging.debug('flip state machine waiting on external trigger')
+            io = ioInterface.ioInterface()
+            origTrig = io.shutterTriggersFrame
+            io.shutterTriggersFrame = False
+            self.exposureEnabled = 0
+            if self.waitForIdle(timeout):
+                io.shutterTriggersFrame = origTrig
+                return
+            io.shutterTriggersFrame = origTrig
+        
+        # Flip is still deadlocked, the only thing left to do is force a reset
+        logging.warning('flip state machine deadlocked - forcing a reset')
+        self.reset()
 
     def runProgram(self, prog, timeout=0.01):
         """Load a program into the timing engine and run it.
