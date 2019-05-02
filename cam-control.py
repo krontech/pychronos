@@ -179,20 +179,19 @@ class controlApi(dbus.service.Object):
     def onChangeHandler(self, pName, pValue):
         logging.debug("Parameter %s -> %s", pName, pValue)
         if not self.changeset:
-            self.changeset = {pName: pValue}
+            self.changeset = {pName: self.dbusifyTypes(pValue)}
             GLib.timeout_add(100, self.notifyChanges)
         else:
-            self.changeset[pName] = pValue
+            self.changeset[pName] = self.dbusifyTypes(pValue)
 
     def notifyChanges(self):
         self.notify(self.changeset)
-        
         self.changeset = None
         return False
     
     @dbus.service.signal(interface, signature='a{sv}')
     def notify(self, args):
-        return self.dbusifyTypes(self.changeset)
+        return self.changeset
     
     #===============================================================================================
     #Method('get', arguments='as', returns='a{sv}')
