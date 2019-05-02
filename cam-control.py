@@ -113,26 +113,21 @@ class controlApi(dbus.service.Object):
         self.callLater(0.5, self.softReset)
         
     ## Internal helper to iterate over a generator from the GLib mainloop.
-    ## TODO: Do we need a callback for exception handling?
-    def stepGenerator(self, generator, onError=None):
+    def stepGenerator(self, generator):
         try:
             delay = next(generator)
             GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
         except StopIteration:
             pass
         except Exception as error:
-            if (onError):
-                onError(error)
-            else:
-                logging.error(error)
-                logging.debug(traceback.format_exc())
+            logging.error(error)
+            logging.debug(traceback.format_exc())
 
         # Always return false to remove the Glib source for the last step.
         return False
     
     ## Internal helper to run a generator. This will make the first call to the
-    ## generator, and throw an exception if an error occurs. Any errors that
-    ## occur after the first yield will instead be passed to the onError method.
+    ## generator, and throw an exception if an error occurs.
     def runGenerator(self, generator):
         try:
             delay = next(generator)
@@ -253,6 +248,7 @@ class controlApi(dbus.service.Object):
         for name in keys:
             # If the property exists in the camera class, set it.
             value = newValues[name]
+            logging.debug("Setting %s -> %s", name, value)
             camprop = getattr(type(self.camera), name)
             if camprop.fset is not None:
                 setattr(self.camera, name, value)
@@ -264,7 +260,9 @@ class controlApi(dbus.service.Object):
         
         # For any keys that don't exist - try setting them in the video API.
         if videoAttributes:
-            video.set(self.dbusifyTypes(videoAttributes))
+            video.set(self.dbusifyTypes(videoAttributes),
+                    reply_handler=self.dbusReplyHandler,
+                    error_handler=self.dbusErrorHandler)
         
         #HACK: Manually poke the video pipeline back into live display after changing
         # the display resolution. This should eventually go away by making the video

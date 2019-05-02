@@ -194,6 +194,10 @@ class camera:
         self.geometry.vDarkRows = 0
         self.setupRecordRegion(self.geometry, self.REC_REGION_START)
         sequencerRegs.frameSize = self.geometry.size() // self.BYTES_PER_WORD
+        
+        # Enable video readout
+        displayRegs = regmaps.display()
+        displayRegs.control &= ~displayRegs.READOUT_INHIBIT
 
         # Load a default calibration
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
@@ -626,7 +630,7 @@ class camera:
             logging.info('starting zero time black calibration')
             yield from self.__startZeroTimeBlackCal()
             self.__setState('idle')
-        
+
     #===============================================================================================
     # API Parameters: Camera Info Group
     @camProperty()
