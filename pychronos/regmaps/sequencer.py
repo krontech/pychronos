@@ -264,7 +264,7 @@ class sequencer(pychronos.fpgamap):
 
     ## FIXME: Does this require locking or other mutual exclusion mechanisms to
     ## ensure multiple readout functions don't collide and do bad things?
-    def startLiveReadout(self, hRes, vRes):
+    def startLiveReadout(self, hRes, vRes, timeout=0.05):
         """Begin readout of a frame from the live display buffer.
 
         This helper function is typically used during calibration routines to
@@ -278,6 +278,9 @@ class sequencer(pychronos.fpgamap):
             The horizontal resolution of image data to read out.
         vRes : int
             The vertical resolution of image data to read out.
+        timeout : float, optional
+            If greater than zero, timeout with reverting
+            This defaults to 0.05s which is valid for anything higher than 20fps
 
         Returns
         -------
@@ -298,11 +301,25 @@ class sequencer(pychronos.fpgamap):
             self.liveAddr[2] = backup[0]
         
         # Wait for the sequencer to begin writing to somewhere else.
-        while (self.writeAddr == address):
-            yield 0.001 # 1ms
+        timedOut = False
+        if (timeout > 0):
+            timedOut = True
+            start = time.time()
+            while (time.time() < (start + timeout)):
+                if (self.writeAddr == address):
+                    timedOut = False
+                    break
+                yield 0.001 # 1ms
+
+        else:
+            while (self.writeAddr == address):
+                yield 0.001 # 1ms
         
         # Readout the frame and restore the live display configuration.
-        self.__result = pychronos.readframe(address, hRes, vRes)
+        if timedOut:
+            self.__result = None
+        else:
+            self.__result = pychronos.readframe(address, hRes, vRes)
         self.liveAddr[0] = backup[0]
         self.liveAddr[1] = backup[1]
         self.liveAddr[2] = backup[2]

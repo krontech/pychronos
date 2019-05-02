@@ -272,7 +272,7 @@ class controlApi(dbus.service.Object):
                 'vres':dbus.types.Int32(res['vRes'], variant_level=1)
             })
         
-        return self.status() #¯\_(ツ)_/¯
+        return self.get(keys) # return the settings as they've been applied
     
     
     #===============================================================================================
@@ -443,10 +443,10 @@ if __name__ == "__main__":
                         help="Drop into a python debug console on exception")
     args = parser.parse_args()
 
-    if not args.debug:
-        logging.getLogger().setLevel(logging.INFO)
-    else:
-        logging.getLogger().setLevel(logging.DEBUG)
+    #if not args.debug:
+    #    logging.getLogger().setLevel(logging.INFO)
+    #else:
+    logging.getLogger().setLevel(logging.DEBUG)
 
     # Install exception handlers for interactive debug on exception.
     if args.pdb:

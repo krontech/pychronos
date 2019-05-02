@@ -115,6 +115,10 @@ class lux1310(api):
 
         self.__nTrigFrames = 5
         self.integrationTime = 0
+
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.framePeriod = int(0.001 * self.LUX1310_SENSOR_HZ)
+        self.integrationTime = int(self.framePeriod * 0.95)
         
         super().__init__()
 
@@ -413,7 +417,7 @@ class lux1310(api):
     # Advanced Exposure and Timing Functions 
     #--------------------------------------------
     def getSupportedExposurePrograms(self):
-        return ("standard", "shutterGating")
+        return ("normal", "frameTrigger", "shutterGating") # , "hdr2slope", "hdr3slope"
     
     def setShutterGatingProgram(self):
         self.timing.programShutterGating()
