@@ -108,18 +108,16 @@ class lux1310timing(timing):
         self.programInterm(readoutTime, timeout)
         self.io.shutterTriggersFrame = False
         
-        self.program[0] = self.NONE + t2Time
-        self.program[1] = self.ABN                 | self.TIMING_WAIT_FOR_ACTIVE
-        self.program[2] = self.IODRIVE | self.NONE | self.TIMING_WAIT_FOR_INACTIVE
-        self.program[3] = self.TXN  | 0x31
+        prog = [self.NONE + t2Time]
+        prog.append(self.ABN                 | self.TIMING_WAIT_FOR_ACTIVE)
+        prog.append(self.IODRIVE | self.NONE | self.TIMING_WAIT_FOR_INACTIVE)
+        prog.append(self.TXN  | 0x31)
         if self.useMinLinesWait:
-            self.program[4] = self.TXN | self.TIMING_WAIT_FOR_NLINES
-            self.program[5] = self.NONE | self.TIMING_RESTART
-        else:
-            self.program[4] = self.NONE | self.TIMING_RESTART
+            prog.append(self.TXN | self.TIMING_WAIT_FOR_NLINES)
+        prog.append(self.NONE | self.TIMING_RESTART)
         
         logging.debug('programShutterGating - flip')
-        self.flip(timeout)
+        self.runProgram(prog, timeout)
         self.io.shutterTriggersFrame = True
         
     def programTriggerFrames(self, frameTime, integrationTime, t2Time=17, disableIoDrive=False, readoutTime=90000, timeout=0.01):
@@ -147,17 +145,16 @@ class lux1310timing(timing):
         if disableIoDrive: ioDrive = 0
         else:              ioDrive = self.IODRIVE
 
-        
-        self.program[0] = self.NONE + t2Time                      # period before ABN goes low (must be t2 time)
-        # ABN Falls here
-        self.program[1] = self.ABN | self.TIMING_WAIT_FOR_ACTIVE  # (hence why the hold happens after the first command)
-        self.program[2] = self.ABN + (frameTime - integrationTime)
-        self.program[3] = ioDrive + self.NONE + (integrationTime) # ABN raises
-        self.program[4] = ioDrive + self.TXN + 0x31               # TXN falls
-        self.program[5] = self.TIMING_RESTART                     # TXN raises and cycle restarts
-
         logging.debug('programTriggerFrames - flip')
-        self.flip(timeout)
+        self.runProgram(timeout=timeout, prog=[
+            self.NONE + t2Time,                      # period before ABN goes low (must be t2 time)
+            # ABN Falls here
+            self.ABN | self.TIMING_WAIT_FOR_ACTIVE,  # (hence why the hold happens after the first command)
+            self.ABN + (frameTime - integrationTime),
+            ioDrive + self.NONE + (integrationTime), # ABN raises
+            ioDrive + self.TXN + 0x31,               # TXN falls
+            self.TIMING_RESTART                      # TXN raises and cycle restarts
+        ])
         self.io.shutterTriggersFrame = True
         
     def programStandard(self, frameTime, integrationTime, t2Time=17, disableFrameTrig=True, disableIoDrive=False, readoutTime=90000, timeout=0.01):
@@ -186,9 +183,9 @@ class lux1310timing(timing):
         
         # Program preamble: delay before ABN falling (t2 time)
         prog = [ self.NONE + t2Time ]
-        if (disableFrameTrig):                                      # ABN Falls here
-            prog.append(self.ABN | self.TIMING_WAIT_FOR_INACTIVE)   # Timing for the pulsed mode is reset on the falling edge
-            prog.append(self.ABN | self.TIMING_WAIT_FOR_ACTIVE)     # (hence why the hold happens after the first command)
+        #if (disableFrameTrig):                                      # ABN Falls here
+        #    prog.append(self.ABN | self.TIMING_WAIT_FOR_INACTIVE)   # Timing for the pulsed mode is reset on the falling edge
+        #    prog.append(self.ABN | self.TIMING_WAIT_FOR_ACTIVE)     # (hence why the hold happens after the first command)
         prog.append(self.ABN + (frameTime - integrationTime))
         prog.append(ioDrive + self.NONE + (integrationTime))    # ABN raises
         #prog.append(ioDrive + self.PRSTN + 0x000001)           # PRSTN falls
@@ -214,17 +211,17 @@ class lux1310timing(timing):
         origShutterTriggersFrame = self.io.shutterTriggersFrame
         self.io.shutterTriggersFrame = False
 
-        self.program[0] = self.NONE + t2Time
-        self.program[1] = self.ABN + self.TIMING_WAIT_FOR_INACTIVE
-        self.program[2] = self.ABN + self.TIMING_WAIT_FOR_ACTIVE
-        self.program[3] = self.ABN + preFrameTime - (wavetableTime+2)
-        self.program[4] = self.ABN + (wavetableTime+2)
-        self.program[5] = self.IODRIVE + self.NONE + (integrationTime)
-        self.program[6] = self.IODRIVE + self.TXN + 6
-        self.program[7] = self.NONE + self.TIMING_RESTART
-
         logging.debug('programSpecial - flip')
-        self.flip(timeout)
+        self.runProgram(timeout=timeout, prog=[
+            self.NONE + t2Time,
+            self.ABN + self.TIMING_WAIT_FOR_INACTIVE,
+            self.ABN + self.TIMING_WAIT_FOR_ACTIVE,
+            self.ABN + preFrameTime - (wavetableTime+2),
+            self.ABN + (wavetableTime+2),
+            self.IODRIVE + self.NONE + (integrationTime),
+            self.IODRIVE + self.TXN + 6,
+            self.NONE + self.TIMING_RESTART
+        ])
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
     def programHDR_2slope(self, frameTime, integration1, integration2, t2Time=17, VDR1=2.5, VDR2 = 2.0, readoutTime=90000, timeout=0.01):
@@ -255,17 +252,18 @@ class lux1310timing(timing):
         lux.regHidyEn        = True
         
         #... hmm... need to set up some other stuff too
-        self.program[0] = self.NONE  + t2Time
-        self.program[1] = self.ABN   + self.TIMING_WAIT_FOR_INACTIVE
-        self.program[2] = self.ABN   + self.TIMING_WAIT_FOR_ACTIVE
-        self.program[3] = self.ABN   + 50
-        self.program[4] = self.NONE  + integration1 - (15+45)
-        self.program[5] = self.PRSTN + 15                      # PRSTN \__ to TXN \__
-        self.program[6] = self.PRSTN + self.TXN + 45           # TXN ___
-        self.program[7] = self.PRSTN + 60                      # TXN __/ to TXN \__
-        self.program[8] = self.TXN   + (integration2 - 15)
         logging.debug('programHDR-2slope - flip')
-        self.flip(timeout)
+        self.runProgram(timeout=timeout, prog=[
+            self.NONE  + t2Time,
+            self.ABN   + self.TIMING_WAIT_FOR_INACTIVE,
+            self.ABN   + self.TIMING_WAIT_FOR_ACTIVE,
+            self.ABN   + 50,
+            self.NONE  + integration1 - (15+45),
+            self.PRSTN + 15,                     # PRSTN \__ to TXN \__
+            self.PRSTN + self.TXN + 45,          # TXN ___
+            self.PRSTN + 60,                     # TXN __/ to TXN \__
+            self.TXN   + (integration2 - 15)
+        ])
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
     def programHDR_3slope(self, frameTime, integration1, integration2, integration3, t2Time=17, VDR1=2.5, VDR2 = 2.0, readoutTime=90000, timeout=0.01):
@@ -290,17 +288,18 @@ class lux1310timing(timing):
         lux.regHidyEn        = True
         
         #... hmm... need to set up some other stuff too
-        self.program[0] = self.NONE  + t2Time
-        self.program[1] = self.ABN   + 50
-        self.program[2] = self.NONE  + integration1 - (15+45)
-        self.program[3] = self.PRSTN + 15                      # PRSTN \__ to TXN \__
-        self.program[4] = self.PRSTN + self.TXN + 45           # TXN ___
-        self.program[5] = self.PRSTN + 60                      # TXN __/ to TXN \__
-        self.program[6] = self.PRSTN + self.TXN + (integration2 - 60)
-        self.program[7] = self.PRSTN + 15
-        self.program[8] = self.TXN   + (integration3 - 15)
         logging.debug('programHDR-3slope - flip')
-        self.flip(timeout)
+        self.runProgram(timeout=timeout, prog=[
+            self.NONE  + t2Time,
+            self.ABN   + 50,
+            self.NONE  + integration1 - (15+45),
+            self.PRSTN + 15,                     # PRSTN \__ to TXN \__
+            self.PRSTN + self.TXN + 45,          # TXN ___
+            self.PRSTN + 60,                     # TXN __/ to TXN \__
+            self.PRSTN + self.TXN + (integration2 - 60),
+            self.PRSTN + 15,
+            self.TXN   + (integration3 - 15)
+        ])
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
 
