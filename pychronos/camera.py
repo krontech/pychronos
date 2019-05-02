@@ -648,6 +648,18 @@ class camera:
             self.__setState('idle')
 
     #===============================================================================================
+    # API Parameters: Configuration Dictionary
+    @camProperty()
+    def config(self):
+        """Return a configuration dictionary of all saveable parameters"""
+        result = {}
+        for name in dir(type(self)):
+            prop = getattr(type(self), name, None)
+            if (isinstance(prop, property) and getattr(prop.fget, 'savable', False)):
+                result[name] = getattr(self, name)
+        return result
+
+    #===============================================================================================
     # API Parameters: Camera Info Group
     @camProperty()
     def cameraApiVersion(self):
@@ -691,7 +703,7 @@ class camera:
     @cameraDescription.setter
     def cameraDescription(self, value):
         if not isinstance(value, str):
-            raise TypeError("Description must be a string")
+            raise TypeError("cameraDescription must be a string")
         self.description = value
         self.__propChange("cameraDescription")
 
@@ -701,7 +713,7 @@ class camera:
     @cameraIDNumber.setter
     def cameraIDNumber(self, value):
         if not isinstance(value, int):
-            raise TypeError("IDNumber must be an integer")
+            raise TypeError("cameraIDNumber must be an integer got %s instead" % (type(value)))
         self.idNumber = value
         self.__propChange("cameraIDNumber")
     

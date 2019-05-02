@@ -141,7 +141,7 @@ API to the `chronos-cli` program.
 |`cameraSerial`     |`G`|   |   | string |       |       | Camera unique serial number.
 |`cameraDescription`|`G`|`S`|`N`| string |       |       | User description of camera.
 |`cameraIDNumber`   |`G`|`S`|`N`| int    |       |       | User-assigned camera number for ordering and identification.
-|`cameraTallyMode`  |`x`|`x`|`x`| enum   |       |       | Control of the recording LEDs as one of `auto`, `off`, `top`, `back` or `on`
+|`cameraTallyMode`  |`G`|`S`|`N`| enum   |       |       | Control of the recording LEDs as one of `auto`, `off`, `top`, `back` or `on`
 
 ### Sensor Info Parameters
 | Parameter           | G | S | N | Type   | Min   | Max   | Description

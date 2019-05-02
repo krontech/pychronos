@@ -35,72 +35,18 @@ REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 #-----------------------------------------------------------------
 
-class store():
-    """A persistant key/value store which survives reboots.
-        
-        Example:
-            Store.set('foo', 5)
-            assert Store.get('foo') == 5 #passes
-            #«reboot camera»
-            assert Store.get('foo') == 5 #passes
-        """
-    
-    _basepath = Path(os.path.expanduser('~/.config/Krontech/dbus control api'))
-    try:
-        _basepath.mkdir(parents=True)
-    except FileExistsError:
-        pass
-    
-    @staticmethod
-    def get(name: str, *args):
-        """get(name[, default]): Retrieve a set value.
-            
-            If a default is supplied, use it if the stored
-            value cannot be loaded. (ie, is corrupt or dne)"""
-        
-        try:
-            with (store._basepath/name).open(mode='r') as file:
-                return json.load(file)
-        except Exception as e:
-            if args:
-                return args[0]
-            else:
-                #This merges the errors "we can't find the data" and "we can't find all the data".
-                raise ValueError("No valid saved data named '%s' found and no default provided." % name)
-    
-    @staticmethod
-    def set(name: str, value: any):
-        """set(name, value): Persist a value to disk.
-            
-            Can be got() later."""
-        
-        with (store._basepath/name).open(mode='w') as file:
-            json.dump(
-                value,
-                file,
-                ensure_ascii = False,
-                check_circular = False,
-                indent = 4,
-            )
-    
-    @staticmethod
-    def all():
-        result = {}
-        for name in os.listdir(str(store._basepath)):
-            result[name] = store.get(name)
-        return result
-
 class controlApi(dbus.service.Object):
     ## This feels like a duplication of the Python exceptions.
     ERROR_NOT_IMPLEMENTED_YET = 9999
     VALUE_ERROR               = 1
     
-    def __init__(self, bus, path, mainloop, camera):
+    def __init__(self, bus, path, mainloop, camera, configFile=None):
         # FIXME: This seems hacky, just calling the class method directly.
         # Shouldn't we be using a super() call somehow?
         dbus.service.Object.__init__(self, bus, path)
         self.bus = bus
         self.mainloop = mainloop
+        self.configFile = configFile
     
         self.camera = camera
         self.io = regmaps.ioInterface()
@@ -109,6 +55,7 @@ class controlApi(dbus.service.Object):
         # Install a callback to catch parameter and state changes.
         self.camera.setOnChange(self.onChangeHandler)
         self.changeset = None
+        self.changecfg = False
 
         self.callLater(0.5, self.softReset)
         
@@ -163,7 +110,7 @@ class controlApi(dbus.service.Object):
                 result[key] = dbus.types.Int32(value, variant_level=1)
             elif isinstance(value, float):
                 result[key] = dbus.types.Double(value, variant_level=1)
-            elif isinstance(value, dict):
+            elif isinstance(value, (dict, list)):
                 result[key] = self.dbusifyTypes(value, variant_level=1)
             else:
                 result[key] = dbus.types.String(value, variant_level=1)
@@ -185,9 +132,22 @@ class controlApi(dbus.service.Object):
         else:
             self.changeset[pName] = self.dbusifyTypes(pValue)
 
+        # Check if this is a saved property.
+        prop = getattr(type(self.camera), pName)
+        if isinstance(prop, property) and getattr(prop.fget, 'savable', False):
+            self.changecfg = True
+
     def notifyChanges(self):
+        # Generate the DBus notify signal.
         self.notify(self.changeset)
         self.changeset = None
+
+        # Save configuration changes to disk.
+        if (self.changecfg and self.configFile):
+            with open(self.configFile, 'w') as outFile:
+                json.dump(self.camera.config, outFile, sort_keys=True, indent=4, separators=(',', ': '))
+            self.changecfg = False
+        
         return False
     
     @dbus.service.signal(interface, signature='a{sv}')
@@ -231,7 +191,7 @@ class controlApi(dbus.service.Object):
                     )
                 )
     
-    def paramsorter(self, name):
+    def paramsort(self, name):
         """Internal helper function to sort a parameter by priority"""
         try:
             camprop = getattr(type(self.camera), name)
@@ -243,20 +203,23 @@ class controlApi(dbus.service.Object):
     def set(self, newValues):
         """Set named values in the control API and the video API."""
         
-        keys = sorted(newValues.keys(), key=self.paramsorter, reverse=True)
+        keys = sorted(newValues.keys(), key=self.paramsort, reverse=True)
+        failedAttributes = {}
         videoAttributes = {}
         for name in keys:
             # If the property exists in the camera class, set it.
             value = newValues[name]
             logging.debug("Setting %s -> %s", name, value)
-            camprop = getattr(type(self.camera), name)
-            if camprop.fset is not None:
-                setattr(self.camera, name, value)
-                if (getattr(camprop.fget, 'savable', False)):
-                    store.set(name, value)
-        
+            camprop = getattr(type(self.camera), name, None)
+            if isinstance(camprop, property):
+                try:
+                    setattr(self.camera, name, value)
+                except Exception as e:
+                    logging.info("Setting %s failed: %s", name, e)
+                    failedAttributes[name] = str(e)
             # Otherwise, try setting the property in the video interface.
-            videoAttributes[name] = value
+            else:
+                videoAttributes[name] = value
         
         # For any keys that don't exist - try setting them in the video API.
         if videoAttributes:
@@ -275,8 +238,11 @@ class controlApi(dbus.service.Object):
                 'vres':dbus.types.Int32(res['vRes'], variant_level=1)
             }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
         
-        return self.get(keys) # return the settings as they've been applied
-    
+        # Return the settings as they've been applied.
+        result = self.get(keys)
+        if failedAttributes:
+            result['error'] = self.dbusifyTypes(failedAttributes)
+        return result
     
     #===============================================================================================
     #Method('availableKeys', arguments='', returns='as')
@@ -339,13 +305,24 @@ class controlApi(dbus.service.Object):
                 "error": str(e)
             }
     
+    def loadConfig(self):
+        if not self.configFile:
+            return
+        
+        try:
+            logging.info('checking for config file: %s', self.configFile)
+            with open(self.configFile, 'r') as inFile:
+                self.set(json.load(inFile))
+        except FileNotFoundError:
+            logging.info('config file not found')
+
     def runSoftReset(self):
         # Wrapper method to do a complete soft reset of both the camera class,
         # reloading of parameters, and tickling of the video system.
         yield from self.camera.softReset()
 
         # Reload the configuration.
-        self.set(store.all())
+        self.loadConfig()
 
         # Re-run initial calibration.
         yield from self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True)
@@ -448,6 +425,9 @@ if __name__ == "__main__":
 
     # Do argument parsing
     parser = argparse.ArgumentParser(description="Chronos control daemon")
+    parser.add_argument('--config', metavar='FILE', action='store',
+                        default='/var/camera/apiConfig.json',
+                        help="Configuration file path")
     parser.add_argument('--debug', default=False, action='store_true',
                         help="Enable debug logging")
     parser.add_argument('--pdb', default=False, action='store_true',
@@ -480,7 +460,7 @@ if __name__ == "__main__":
     cam  = camera(lux1310())
    
     name = dbus.service.BusName('com.krontech.chronos.control', bus=bus)
-    obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam)
+    obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam, configFile=args.config)
 
     # Run the mainloop.
     logging.info("Running control service...")
