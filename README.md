@@ -259,8 +259,8 @@ The input configuration has a single parameter:
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
 |`recMode`          |`G`|`S`|`N`| enum   |       |       | One of `normal`, `segmented` or `burst`
 |`recMaxFrames`     |`G`|`S`|`N`| int    |       |       | Maximum number of frames available for the recording buffer.
-|`recSegments`      |`x`|`x`|`x`| int    | 1     |       | Number of memory segments supported when in segmented recording mode.
-|`recPreBurst`      |`x`|`x`|`x`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
+|`recSegments`      |`G`|`S`|`N`| int    | 1     |       | Number of memory segments supported when in segmented recording mode.
+|`recPreBurst`      |`G`|`S`|`N`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
 |`resolution`       |`G`|`S`|`N`| dict   |       |       | Dict describing the resolution settings.
 |`minFramePeriod`   |`G`|   |`N`| int    |       |       | Minimum frame period at the current resolution settings.
 |`cameraMaxFrames`  |`G`|   |`N`| int    |       |       | Maximum number of frames the camera's memory can save at the current resolution.

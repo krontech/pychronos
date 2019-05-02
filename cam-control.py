@@ -174,6 +174,12 @@ class controlApi(dbus.service.Object):
                 result[key] = dbus.types.String(value, variant_level=1)
         return result
     
+    def dbusReplyHandler(self, args):
+        logging.debug("D-Bus reply: %s", args)
+    
+    def dbusErrorHandler(self, err):
+        logging.error("D-Bus error: %s", err)
+    
     #===============================================================================================
     #Method('notify', arguments='', returns='a{sv}'),
     def onChangeHandler(self, pName, pValue):
@@ -269,7 +275,7 @@ class controlApi(dbus.service.Object):
             video.livedisplay({
                 'hres':dbus.types.Int32(res['hRes'], variant_level=1),
                 'vres':dbus.types.Int32(res['vRes'], variant_level=1)
-            })
+            }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
         
         return self.get(keys) # return the settings as they've been applied
     
@@ -345,6 +351,14 @@ class controlApi(dbus.service.Object):
 
         # Re-run initial calibration.
         yield from self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True)
+
+        # Re-configure the video system back into live display.
+        res = self.camera.resolution
+        logging.info('Notifying cam-pipeline to reconfigure display')
+        video.livedisplay({
+            'hres':dbus.types.Int32(res['hRes'], variant_level=1),
+            'vres':dbus.types.Int32(res['vRes'], variant_level=1)
+        }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
 
     #===============================================================================================
     #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),
@@ -469,16 +483,7 @@ if __name__ == "__main__":
    
     name = dbus.service.BusName('com.krontech.chronos.control', bus=bus)
     obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam)
-    
-    #Load previously set values.
-    logging.debug("TODO: Restoring... %s", store.all())
-    obj.set({
-        key: store.get(key)
-        for key, attrs in obj.availableKeys().items()
-        if attrs['set']
-        and store.get(key, None) is not None
-    })
-    
+
     # Run the mainloop.
     logging.info("Running control service...")
     mainloop.run()
