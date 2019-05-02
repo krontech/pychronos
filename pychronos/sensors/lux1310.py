@@ -97,6 +97,22 @@ class lux1310(api):
         else:
             return 740
 
+    @property
+    def hMin(self):
+        return self.MIN_HRES
+    
+    @property
+    def hIncrement(self):
+        return self.HRES_INCREMENT
+
+    @property
+    def vMin(self):
+        return self.MIN_VRES
+    
+    @property
+    def vIncrement(self):
+        return self.VRES_INCREMENT
+
     def __init__(self, board={
             "lux1310-spidev":  "/dev/spidev3.0",
             "lux1310-dac-cs": "/sys/class/gpio/gpio33/value",

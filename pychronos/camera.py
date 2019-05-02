@@ -722,10 +722,26 @@ class camera:
         return fSize.vRes
     
     @camProperty()
+    def sensorVMin(self):
+        return self.sensor.vMin
+
+    @camProperty()
+    def sensorVIncrement(self):
+        return self.sensor.vIncrement
+
+    @camProperty()
     def sensorHMax(self):
         fSize = self.sensor.getMaxGeometry()
         return fSize.hRes
     
+    @camProperty()
+    def sensorHMin(self):
+        return self.sensor.hMin
+
+    @camProperty()
+    def sensorHIncrement(self):
+        return self.sensor.hIncrement
+
     @camProperty()
     def sensorVDark(self):
         fSize = self.sensor.getMaxGeometry()
@@ -937,6 +953,7 @@ class camera:
     def framePeriod(self, value):
         self.__checkState('idle')
         self.sensor.setFramePeriod(value / 1000000000)
+        self.__propChange("framePeriod")
         # Changing frame period affects exposure timing.
         self.__propChange("exposureMin")
         self.__propChange("exposureMax")
@@ -950,6 +967,7 @@ class camera:
     def frameRate(self, value):
         self.__checkState('idle')
         self.sensor.setFramePeriod(1 / value)
+        self.__propChange("framePeriod")
         # Changing frame period affects exposure timing.
         self.__propChange("exposureMin")
         self.__propChange("exposureMax")

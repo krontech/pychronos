@@ -153,11 +153,11 @@ API to the `chronos-cli` program.
 |`sensorMaxGain`      |`G`|   |   | int    |       |       | Maximum gain of the image sensor as a multiple of `sensorISO`
 |`sensorPixelRate`    |`G`|   |   | int    |       |       | Approximate pixel rate of the image sensor in pixels per second.
 |`sensorVMax`         |`G`|   |   | int    |       |       | Maximum vertical resolution of the image sensor.
-|`sensorVMin`         |`x`|   |   | int    |       |       | Minimum vertical resolution of the image sensor.
-|`sensorVIncrement`   |`x`|   |   | int    |       |       | Minimum quantization of vertical resolutions.
+|`sensorVMin`         |`G`|   |   | int    |       |       | Minimum vertical resolution of the image sensor.
+|`sensorVIncrement`   |`G`|   |   | int    |       |       | Minimum quantization of vertical resolutions.
 |`sensorHMax`         |`G`|   |   | int    |       |       | Maximum horizontal resolution of the image sensor.
-|`sensorHMin`         |`x`|   |   | int    |       |       | Minimum horizontal resolution of the image sensor.
-|`sensorHIncrement`   |`x`|   |   | int    |       |       | Minimum quantization of horizontal resolutions.
+|`sensorHMin`         |`G`|   |   | int    |       |       | Minimum horizontal resolution of the image sensor.
+|`sensorHIncrement`   |`G`|   |   | int    |       |       | Minimum quantization of horizontal resolutions.
 |`sensorVDark`        |`G`|   |   | int    |       |       | Number of vertical dark rows (not included in sensorVMax)
 
 ### Camera Status Parameters

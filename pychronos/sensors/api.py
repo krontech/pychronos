@@ -75,7 +75,27 @@ class api(ABC):
     def maxGain(self):
         """The maximum gain supported by the sensor"""
         return 1
+    
+    @property
+    def hMin(self):
+        """The minimum horizontal resolution of the image sensor"""
+        return 1
+    
+    @property
+    def hIncrement(self):
+        """The minimum step size for changes in horizontal resolution"""
+        return 1
 
+    @property
+    def vMin(self):
+        """The minimum vertical resolution of the image sensor"""
+        return 1
+    
+    @property
+    def vIncrement(self):
+        """The minimum step size for changes in vertical resolution"""
+        return 1
+    
     #--------------------------------------------
     # Frame Geometry Configuration Functions
     #--------------------------------------------
