@@ -304,11 +304,10 @@ class sequencer(pychronos.fpgamap):
         # Wait for the sequencer to begin writing to somewhere else.
         timedOut = False
         if (timeout > 0):
-            timedOut = True
             start = time.time()
-            while (time.time() < (start + timeout)):
-                if (self.writeAddr == address):
-                    timedOut = False
+            while (self.writeAddr == address):
+                if (time.time() > (start + timeout)):
+                    timedOut = True
                     break
                 yield 0.001 # 1ms
 
