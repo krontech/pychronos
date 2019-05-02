@@ -1,4 +1,5 @@
 import pychronos
+import time
 
 class seqcommand:
     # Block termination flags

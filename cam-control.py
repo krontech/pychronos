@@ -442,10 +442,10 @@ if __name__ == "__main__":
                         help="Drop into a python debug console on exception")
     args = parser.parse_args()
 
-    #if not args.debug:
-    #    logging.getLogger().setLevel(logging.INFO)
-    #else:
-    logging.getLogger().setLevel(logging.DEBUG)
+    if not args.debug:
+        logging.getLogger().setLevel(logging.INFO)
+    else:
+        logging.getLogger().setLevel(logging.DEBUG)
 
     # Install exception handlers for interactive debug on exception.
     if args.pdb:
