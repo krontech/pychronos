@@ -146,7 +146,7 @@ class lux1310(api):
         
         # Configure the DAC to autoupdate when written.
         pychronos.writespi(device=self.spidev, csel=self.spics, mode=1, bitsPerWord=16,
-            data=bytearray([0, self.DAC_AUTOUPDATE]))
+            data=bytearray([0, self.DAC_AUTOUPDATE << 4]))
 
         # Initialize the DAC voltage levels.
         self.writeDAC(self.DAC_VABL, 0.3)
@@ -410,6 +410,8 @@ class lux1310(api):
     
     def setExposureProgram(self, expPeriod):
         # TODO: Sanity-check the exposure time.
+        if (expPeriod < 1.0 / 1000000):
+            expPeriod = 1.0 / 1000000
         self.integrationTime = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
         self.timing.programStandard(self.framePeriod, self.integrationTime)
 
