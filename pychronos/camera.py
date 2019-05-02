@@ -4,10 +4,13 @@ import time
 import os
 import numpy
 import logging
+import datetime
 
 import pychronos
 import pychronos.regmaps as regmaps
 import pychronos.spd as spd
+
+from . import utils
 
 __propertiesACameraPropertyCanHave = {'notify', 'save'}
 def camProperty(notify=False, save=False, prio=0):
@@ -898,6 +901,14 @@ class camera:
     @camProperty(notify=True)
     def state(self):
         return self.__state
+    
+    @camProperty()
+    def dateTime():
+        return datetime.datetime.now().isoformat()
+    
+    @camProperty()
+    def externalStorage(self):
+        return utils.getStorageDevices()
 
     #===============================================================================================
     # API Parameters: Recording Group

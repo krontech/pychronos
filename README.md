@@ -166,8 +166,8 @@ API to the `chronos-cli` program.
 |`state`            |`G`|   |`N`| enum   |       |       | One of `idle`, `recording`, `reset` and others???? TBD.
 |`error`            |   |   |`x`| string |       |       | Included in a notification dictionary if, and only if, an operation fails due to an error.
 |`networkInterfaces`|`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the network interfaces.
-|`externalStorage`  |`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the external storage devices.
-|`dateTime`         |`x`|   |   | string |       |       | ISO-8601 formatted date and time string.
+|`externalStorage`  |`G`|   |   | dict   |       |       | Dictionary of dictionaries describing the external storage devices.
+|`dateTime`         |`G`|   |   | string |       |       | ISO-8601 formatted date and time string.
 |`externalPower`    |`x`|   |`x`| bool   |       |       | True when the AC adaptor is present, and False when on battery power.
 |`batteryCharge`    |`x`|   |   | float  | 0.0   | 1.0   | Estimated battery charge, with 0.0 being fully depleted and 1.0 for fully charged.
 |`batteryVoltage`   |`x`|   |   | float  |       |       | Mesured battery voltage in `V`
@@ -301,7 +301,7 @@ of the supported methods are as follows:
 | `startCalibration`       |`S`| dict(calTypes)   | varies       | Perform full calibration operations.
 | `startRecording`         |`S`| none             | `recording`  | Begin recording video data to memory.
 | `stopRecording`          |`S`| none             | `idle`       | Terimnate recording of video data to memory.
-| `flushRecording`         |   | none             |              | Flush recoreded video data from memory.
+| `flushRecording`         |`S`| none             |              | Flush recoreded video data from memory.
 | `startFilesave`          |   | dict             |              | TBD: A proxy for the `filesave` method in the Video API.
 | `softTrigger`            |`S`| none             |              | Generate a software trigger event.
 | `revertToDefaults`       |   | none             |              | Revert all settings to their default values (with optional parameter overrides).

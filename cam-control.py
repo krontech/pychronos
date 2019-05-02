@@ -9,6 +9,8 @@ from pathlib import Path
 import inspect
 import logging
 import traceback
+import time
+
 import dbus
 import dbus.service
 import dbus.mainloop.glib
@@ -22,8 +24,6 @@ import pychronos.regmaps as regmaps
 interface = 'com.krontech.chronos.control'
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 bus = dbus.SystemBus()
-video = bus.get_object('com.krontech.chronos.video',
-                       '/com/krontech/chronos/video')
 
 #-----------------------------------------------------------------
 # Some constants that ought to go into a board-specific dict.
@@ -49,6 +49,7 @@ class controlApi(dbus.service.Object):
         self.configFile = configFile
     
         self.camera = camera
+        self.video = bus.get_object('com.krontech.chronos.video', '/com/krontech/chronos/video')
         self.io = regmaps.ioInterface()
         self.display = regmaps.display()
 
@@ -56,6 +57,12 @@ class controlApi(dbus.service.Object):
         self.camera.setOnChange(self.onChangeHandler)
         self.changeset = None
         self.changecfg = False
+
+        # Install a callback to catch video signals.
+        self.video.connect_to_signal('sof', self.videoSofSignal)
+        self.video.connect_to_signal('eof', self.videoEofSignal)
+        self.video.connect_to_signal('segment', self.videoSegmentSignal)
+        self.video.connect_to_signal('update', self.videoUpdateSignal)
 
         self.callLater(0.5, self.softReset)
         
@@ -155,6 +162,55 @@ class controlApi(dbus.service.Object):
         return self.changeset
     
     #===============================================================================================
+    # Video Proxy Signal Handling
+
+    def videoSofSignal(self, args):
+        logging.debug("Received SOF -> %s", args)
+    
+    def videoEofSignal(self, args):
+        logging.debug("Received EOF -> %s", args)
+    
+    def videoSegmentSignal(self, args):
+        logging.debug("Received segment -> %s", args)
+
+    def videoUpdateSignal(self, args):
+        # Pass parameter updates along as though they came from the control API.
+        for key, value in args:
+            self.onChangeHandler(key, value)
+    
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
+    def startFilesave(self, args, onReply=None, onError=None):
+        # Filename suffixes for the formats that need one.
+        suffixes = {
+            'h264': '.mp4',
+            'x264': '.mp4',
+            'byr2': '.raw',
+            'y16':  '.raw',
+            'y12b': '.raw'
+        }
+        saveFormat = args['format']
+
+        # Remove some arguments for sanitiziation.
+        devName = args.pop('device')
+        filename = args.pop('filename', time.strftime('vid_%F_%H-%M-%S')) + suffixes.get(saveFormat)
+
+        # Assemble the full pathname for recorded file.
+        extStorate = self.camera.externalStorage
+        if devName not in extStorage:
+            raise ValueError('Invalid storage device given for recording')
+        storage = extStorate[devName]
+        filepath = os.path.abspath(os.path.join(storage['mount'], filename))
+        if not filepath.startswith(storage['mount']):
+            raise ValueError('Invalid filename given for recording')
+        # TODO: Check for available space or any other sanity checking.
+        # TODO: Start a saveDoneTimer to monitor available storage space?
+        # TODO: Maybe launch the saveDoneTimer from the SOF/EOF signal.
+
+        # Make the real call to save the file and pass through the remaining arguments.
+        args['filename'] = filepath
+        video.recordfile(args, reply_handler=onReply, error_handler=onError)
+    
+    #===============================================================================================
     #Method('get', arguments='as', returns='a{sv}')
     #Method('set', arguments='a{sv}', returns='a{sv}')
     @dbus.service.method(interface, in_signature='as', out_signature='a{sv}')
@@ -173,7 +229,7 @@ class controlApi(dbus.service.Object):
                 if name not in controlAttrs
             ]
             
-            data = video.get(videoAttrs) if videoAttrs else {}
+            data = self.video.get(videoAttrs) if videoAttrs else {}
             for name in controlAttrs:
                 data[name] = self.dbusifyTypes(getattr(self.camera, name))
             return data
@@ -223,7 +279,7 @@ class controlApi(dbus.service.Object):
         
         # For any keys that don't exist - try setting them in the video API.
         if videoAttributes:
-            video.set(self.dbusifyTypes(videoAttributes),
+            self.video.set(self.dbusifyTypes(videoAttributes),
                     reply_handler=self.dbusReplyHandler,
                     error_handler=self.dbusErrorHandler)
         
@@ -233,7 +289,7 @@ class controlApi(dbus.service.Object):
         if ('resolution' in newValues):
             res = self.camera.resolution
             logging.info('Notifying cam-pipeline to reconfigure display')
-            video.livedisplay({
+            self.video.livedisplay({
                 'hres':dbus.types.Int32(res['hRes'], variant_level=1),
                 'vres':dbus.types.Int32(res['vRes'], variant_level=1)
             }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
@@ -330,7 +386,7 @@ class controlApi(dbus.service.Object):
         # Re-configure the video system back into live display.
         res = self.camera.resolution
         logging.info('Notifying cam-pipeline to reconfigure display')
-        video.livedisplay({
+        self.video.livedisplay({
             'hres':dbus.types.Int32(res['hRes'], variant_level=1),
             'vres':dbus.types.Int32(res['vRes'], variant_level=1)
         }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
@@ -353,6 +409,9 @@ class controlApi(dbus.service.Object):
     #===============================================================================================
     #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
     #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
+    #Method('startRecording', arguments='', regutns='a{sv}'),
+    #Method('stopRecording', arguments='', regutns='a{sv}'),
+    #Method('flushRecording', arguments='', regutns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def startAutoWhiteBalance(self, args):
         logging.info('starting white balance')
@@ -399,6 +458,10 @@ class controlApi(dbus.service.Object):
                 "state": self.camera.state,
                 "error": str(e)
             }
+    
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
+    def flushRecording(self, onReply=None, onError=None):
+        self.video.flush(reply_handler=onReply, error_handler=onError)
 
     #===============================================================================================
     #Method('testResolution', arguments='a{sv}', returns='a{sv}'),
@@ -417,6 +480,7 @@ class controlApi(dbus.service.Object):
             return {
                 "error": "Invalid Resolution"
             }
+    
 
 # Run the control API
 if __name__ == "__main__":
