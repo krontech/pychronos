@@ -58,6 +58,10 @@ PARAM_PRIO_RESOLUTION = 3
 PARAM_PRIO_FRAME_TIME = 2
 PARAM_PRIO_EXPOSURE   = 1
 
+# Recording LEDs
+REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
+REC_LED_BACK = "/sys/class/gpio/gpio25/value"
+
 class camera:
     BYTES_PER_WORD = 32
     FRAME_ALIGN_WORDS = 64
@@ -83,6 +87,7 @@ class camera:
         self.__recPreBurst = 1
         self.__exposureMode = 'normal'
         self.__exposurePeriod = self.sensor.getCurrentExposure()
+        self.__tallyMode = 'auto'
         self.__wbCustom = [1.0, 1.0, 1.0]
 
         # Probe the SODIMMs
@@ -123,6 +128,13 @@ class camera:
         else:
             # Otherwise, the state change can't happen because the camera is busy.
             raise CameraError("State change failed, camera is busy")
+        
+        # If the camera tally mode is 'auto' then also control the LED.
+        if self.__tallyMode == 'auto':
+            with open(REC_LED_FRONT, 'w') as fp:
+                fp.write('1' if newState == 'recording' else '0')
+            with open(REC_LED_BACK, 'w') as fp:
+                fp.write('1' if newState == 'recording' else '0')
     
     def __checkState(self, *args):
         """Internal helper to check if the camera is in a valid state for the operation, or throw exceptions if busy"""
@@ -160,9 +172,13 @@ class camera:
         """
         # If the current state is neither `idle` nor `recording`, then switch
         # to the `reset` state to force any outstanding generators to complete.
+        # Give the generators up to half a second to finish and then continue
+        # with the reset proceedure.
         if self.__state != 'idle' and self.__state != 'recording':
             self.__setState('reset')
-            while (self.__state == 'reset'):
+            for x in range(0,5):
+                if (self.__state == 'idle'):
+                    break
                 yield 0.1
 
         # Setup the FPGA if a bitstream was provided.
@@ -329,22 +345,22 @@ class camera:
 
         if mode == 'normal':
             # Record into a single segment until the trigger event.
-            cmd = seqcommand(blockSize=self.recMaxFrames,
+            cmd = regmaps.seqcommand(blockSize=self.recMaxFrames,
                             blkTermFull=True, blkTermRising=True,
                             recTermMemory=True, recTermBlockEnd=True)
             yield from self.startCustomRecording([cmd])
         elif mode == 'segmented':
             # Record into segments 
-            cmd = seqcommand(blockSize=self.recMaxFrames / self.recSegments,
+            cmd = regmaps.seqcommand(blockSize=self.recMaxFrames / self.recSegments,
                             blkTermFull=True, blkTermRising=True,
                             recTermMemory=True, recTermBlockEnd=(self.recSegments > 1))
             yield from self.startCustomRecording([cmd])
         elif mode == 'burst':
             # When trigger is inactive, save the pre-record into a ring buffer.
-            precmd = seqcommand(blockSize=self.recPreBurst, blkTermHigh=True)
+            precmd = regmaps.seqcommand(blockSize=self.recPreBurst, blkTermHigh=True)
             # While trigger is active, save frames into the remaining memory.
-            burstcmd = seqcommand(blockSize=self.recMaxFrames - self.recPreBurst - 1,
-                                blkTermLow=True, recTermMemory=True)
+            burstcmd = regmaps.seqcommand(blockSize=self.recMaxFrames - self.recPreBurst - 1,
+                            blkTermLow=True, recTermMemory=True)
             yield from self.startCustomRecording([precmd, burstcmd])
         else:
             raise ValueError("recording mode of '%s' is not supported" % (mode))
@@ -688,6 +704,29 @@ class camera:
             raise TypeError("IDNumber must be an integer")
         self.idNumber = value
         self.__propChange("cameraIDNumber")
+    
+    @camProperty(notify=True, save=True)
+    def cameraTallyMode(self):
+        return self.__tallyMode
+    @cameraTallyMode.setter
+    def cameraTallyMode(self, value):
+        # Update the LEDs and tally state.
+        if (value == 'on'):
+            ledstate = '1'
+        elif (value == 'off'):
+            ledstate = '0'
+        elif (value == 'auto'):
+            ledstate = '1' if self.__state == 'recording' else '0'
+        else:
+            raise ValueError("cameraTallyMode value of '%s' is not supported" % (value))
+
+        with open(REC_LED_FRONT, 'w') as fp:
+            fp.write(ledstate)
+        with open(REC_LED_BACK, 'w') as fp:
+            fp.write(ledstate)
+
+        self.__tallyMode = value
+        self.__propChange('cameraTallyMode')
     
     #===============================================================================================
     # API Parameters: Sensor Info Group
