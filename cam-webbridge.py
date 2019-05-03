@@ -484,8 +484,6 @@ def main():
     root.putChild(b'publish', webPublisher)
     root.putChild(b'', root)
     site = server.Site(root)
-    reactor.listenTCP(12000, site)
-    yield asleep(0.1)
 
     logging.info('Adding dbus signals')
     system = yield client.connect(reactor, 'system')
@@ -538,6 +536,9 @@ def main():
     root.putChild(b'timingControl.html', File('timingControl.html'))
 
     root.putChild(b'forceReboot', forceReboot())
+
+    reactor.listenTCP(12000, site)
+    yield asleep(0.1)
     
     logging.info("All Systems Go")
     
