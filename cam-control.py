@@ -416,7 +416,7 @@ class controlApi(dbus.service.Object):
     def startAutoWhiteBalance(self, args):
         logging.info('starting white balance')
         try:
-            self.runGenerator(self.camera.startWhiteBalance(args))
+            self.runGenerator(self.camera.startWhiteBalance(**args))
             return {
                 "state": self.camera.state
             }
@@ -467,11 +467,12 @@ class controlApi(dbus.service.Object):
     #Method('testResolution', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def testResolution(self, args):
-        if (self.camera.sensor.isValidResolution(args)):
-            fpMin, fpMax = self.camera.sensor.getPeriodRange(args)
-            expMin, expMax = self.camera.sensor.getExposureRange(args, fpMin)
+        fSize = frameGeometry(**args)
+        if (self.camera.sensor.isValidResolution(fSize)):
+            fpMin, fpMax = self.camera.sensor.getPeriodRange(fSize)
+            expMin, expMax = self.camera.sensor.getExposureRange(fSize, fpMin)
             return {
-                "cameraMaxFrames": self.camera.getRecordingMaxFrames(args),
+                "cameraMaxFrames": self.camera.getRecordingMaxFrames(fSize),
                 "minFramePeriod": int(fpMin * 1000000000),
                 "exposureMin": int(expMin * 1000000000),
                 "exposureMax": int(expMax * 1000000000)
