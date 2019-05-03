@@ -472,13 +472,11 @@ class camera:
     
     def __startBlackCal(self, numFrames=16, useLiveBuffer=True):
         # get the resolution from the display properties
-        # TODO: We actually want to get it from the sequencer.
+        fSize = self.sensor.getCurrentGeometry()
         display = regmaps.display()
-        xres = display.hRes
-        yres = display.vRes
-
         seq = regmaps.sequencer()
-        fAverage = numpy.zeros((yres, xres))
+
+        fAverage = numpy.zeros((fSize.vRes, fSize.hRes))
         if (useLiveBuffer):
             # Readout and average the frames from the live buffer.
             for i in range(0, numFrames):
@@ -487,7 +485,7 @@ class camera:
                     self.__setState('idle')
                     return
                 logging.debug('waiting for frame %d of %d', i+1, numFrames)
-                yield from seq.startLiveReadout(xres, yres)
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
                 fAverage += numpy.asarray(seq.liveResult)
         else:
             # Take a recording and read the results from the live buffer.
@@ -496,16 +494,16 @@ class camera:
             yield from seq.startCustomRecording([program])
             addr = seq.regionStart
             for i in range(0, numFrames):
-                fAverage += numpy.asarray(pychronos.readframe(addr, xres, yres))
+                fAverage += numpy.asarray(pychronos.readframe(addr, fSize.hRes, fSize.vRes))
                 addr += seq.frameSize
                 yield 0
 
         fAverage /= numFrames
         
         # Readout the column gain and linearity calibration.
-        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, display.hRes * 2)
-        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, display.hRes * 2)
-        colOffsetRegs = pychronos.fpgamap(pychronos.FPGA_COL_OFFSET_BASE, display.hRes * 2)
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, fSize.hRes * 2)
+        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, fSize.hRes * 2)
+        colOffsetRegs = pychronos.fpgamap(pychronos.FPGA_COL_OFFSET_BASE, fSize.hRes * 2)
         gain = numpy.asarray(colGainRegs.mem16, dtype=numpy.uint16) / (1 << 12)
         curve = numpy.asarray(colCurveRegs.mem16, dtype=numpy.int16) / (1 << 21)
         offsets = numpy.asarray(colOffsetRegs.mem16, dtype=numpy.int16)
@@ -523,7 +521,7 @@ class camera:
         colAverage = numpy.average(fAverage, 0)
         colOffset = curve * (colAverage * colAverage) + gain * colAverage
         # TODO: Would be nice to have a write helper.
-        for x in range(0, xres):
+        for x in range(0, fSize.hRes):
             colOffsetRegs.mem16[x] = int(-colOffset[x]) & 0xffff
         yield 0
 
@@ -537,14 +535,9 @@ class camera:
         fpn = numpy.int16(fAverage - colAverage)
         pychronos.writeframe(display.fpnAddr, fpn)
 
+        logging.info('black calibration complete: min=%d, max=%d, deviation=%d',
+                     numpy.min(fAverage), numpy.max(fAverage), numpy.std(fAverage))
         self.__setState('idle')
-        logging.info('finished - getting some statistics')
-        logging.info("---------------------------------------------")
-        logging.info("fpn details: min = %d, max = %d", numpy.min(fAverage), numpy.max(fAverage))
-        logging.info("fpn standard deviation: %d", numpy.std(fAverage))
-        logging.info("fpn standard deviation horiz: %s", numpy.std(fAverage, axis=1))
-        logging.info("fpn standard deviation vert:  %s", numpy.std(fAverage, axis=0))
-        logging.info("---------------------------------------------")
 
     def __startZeroTimeBlackCal(self):
         """Begin the black calibration proceedure using a zero-time exposure.

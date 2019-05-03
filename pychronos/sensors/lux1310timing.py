@@ -37,15 +37,8 @@ class lux1310timing(timing):
         self.pulsedAbnLowPeriod = wavetableLength
         self.pulsedAbnHighPeriod = hSync
 
-    def stopTiming(self, waitUntilStopped=False, timeout=0.0):
-        self.programInterm()
-
     def singleFrame(self):
         self.requestFrame = 1
-
-    def continueTiming(self):
-        self.programLast()
-        #self.exposureEnabled = 0
 
     @property
     def frameTime(self):
@@ -86,18 +79,6 @@ class lux1310timing(timing):
         logging.debug('programInterm - flip')
         self.runProgram(prog=[self.NONE + readoutTime, self.NONE | self.TIMING_RESTART], timeout=timeout)
 
-    def programLast(self):
-        if self.__program == self.PROGRAM_STANDARD:
-            self.programStandard(self.__frameTime, self.__integrationTime, self.__t2Time, self.__disableFrameTrig, self.__disableIoDrive)
-        elif self.__program == self.PROGRAM_FRAME_TRIG:
-            self.programTriggerFrames(self.__frameTime, value, self.__t2Time, self.__disableIoDrive)
-        elif self.__program == self.PROGRAM_N_FRAME_TRIG:
-            self.programTriggerNFrames(self.__frameTime, value, self.__nFrames, self.__t2Time, self.__disableIoDrive)
-        elif self.__program == self.PROGRAM_SHUTTER_GATING:
-            self.programShutterGating(self.__t2Time)
-        else:
-            logging.error('unknown last timing program')
-        
     def programShutterGating(self, t2Time=17, readoutTime=90000, timeout=0.01):
         self.__program = self.PROGRAM_SHUTTER_GATING
         self.__t2Time           = t2Time

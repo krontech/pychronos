@@ -130,11 +130,10 @@ class lux1310(api):
         self.adcOffsets = [0] * self.HRES_INCREMENT
 
         self.__nTrigFrames = 5
-        self.integrationTime = 0
 
         self.currentProgram = self.timing.PROGRAM_STANDARD
-        self.framePeriod = int(0.001 * self.LUX1310_SENSOR_HZ)
-        self.integrationTime = int(self.framePeriod * 0.95)
+        self.frameClocks = int(0.001 * self.LUX1310_SENSOR_HZ)
+        self.exposureClocks = int(self.frameClocks * 0.95)
         
         super().__init__()
 
@@ -155,10 +154,9 @@ class lux1310(api):
     # Sensor Configuration and Control API
     #--------------------------------------------
     def reset(self, fSize=None):
+        # Enable the timing engine, but disable integration during setup.
         self.timing.enabled = True
-        self.timing.programStandard(0.001 * self.LUX1310_SENSOR_HZ, 0.00095 * self.LUX1310_SENSOR_HZ)
-        # Disable integration while setup is in progress.
-        self.timing.stopTiming(waitUntilStopped=True)
+        self.timing.programInterm()
         
         # Configure the DAC to autoupdate when written.
         pychronos.writespi(device=self.spidev, csel=self.spics, mode=1, bitsPerWord=16,
@@ -243,12 +241,11 @@ class lux1310(api):
         self.regs.regTimingEn = True
         time.sleep(0.01)
 
-        # Start the FPGA timing engine.
-        self.timing.continueTiming()
+        # Start the FPGA timing engine using the standard timing program.
         self.currentProgram = self.timing.PROGRAM_STANDARD
-        self.framePeriod = int(0.001 * self.LUX1310_SENSOR_HZ)
-        self.integrationTime = int(self.framePeriod * 0.95)
-        self.timing.programStandard(self.framePeriod, self.integrationTime)
+        self.frameClocks = int(0.001 * self.LUX1310_SENSOR_HZ)
+        self.exposureClocks = int(self.frameClocks * 0.95)
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
         return True
 
     ## TODO: I think this whole function is unnecessary on the LUX1310 FPGA
@@ -362,7 +359,7 @@ class lux1310(api):
             fClocks = self.getMinFrameClocks(size)
 
         # Disable the FPGA timing engine and wait for the current readout to end.
-        self.timing.stopTiming(waitUntilStopped=True)
+        self.timing.programInterm()
         time.sleep(0.01) # Extra delay to allow frame readout to finish. 
 
         # Switch to the desired resolution pick the best matching wavetable.
@@ -374,9 +371,10 @@ class lux1310(api):
         self.timing.minLines = size.vRes
 
         # Set the frame period and the maximum shutter after changing resolution.
-        self.framePeriod = int(0.001 * self.LUX1310_SENSOR_HZ)
-        self.integrationTime = int(self.framePeriod * 0.95)
-        self.timing.programStandard(fClocks, fClocks * 0.95)
+        self.frameClocks = fClocks
+        self.exposureClocks = int(self.frameClocks * 0.95)
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
     
     #--------------------------------------------
     # Frame Timing Configuration Functions
@@ -409,12 +407,13 @@ class lux1310(api):
         return (fClocks / self.LUX1310_SENSOR_HZ, 0)
     
     def getCurrentPeriod(self):
-        return self.framePeriod / self.LUX1310_SENSOR_HZ
+        return self.frameClocks / self.LUX1310_SENSOR_HZ
 
     def setFramePeriod(self, fPeriod):
         # TODO: Sanity-check the frame period.
-        self.framePeriod = math.ceil(fPeriod * self.LUX1310_SENSOR_HZ)
-        self.timing.programStandard(self.framePeriod, self.integrationTime)
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.frameClocks = math.ceil(fPeriod * self.LUX1310_SENSOR_HZ)
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
     
     def getExposureRange(self, fSize, fPeriod):
         # Defaulting to 1us minimum exposure and infinite maximum exposure.
@@ -422,14 +421,15 @@ class lux1310(api):
         return (1.0 / 1000000, fPeriod - (500 / self.LUX1310_SENSOR_HZ))
 
     def getCurrentExposure(self):
-        return self.integrationTime / self.LUX1310_SENSOR_HZ
+        return self.exposureClocks / self.LUX1310_SENSOR_HZ
     
     def setExposureProgram(self, expPeriod):
         # TODO: Sanity-check the exposure time.
         if (expPeriod < 1.0 / 1000000):
             expPeriod = 1.0 / 1000000
-        self.integrationTime = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
-        self.timing.programStandard(self.framePeriod, self.integrationTime)
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.exposureClocks = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
 
     #--------------------------------------------
     # Advanced Exposure and Timing Functions 
@@ -438,6 +438,7 @@ class lux1310(api):
         return ("normal", "shutterGating")
     
     def setShutterGatingProgram(self):
+        self.currentProgram = self.timing.PROGRAM_SHUTTER_GATING
         self.timing.programShutterGating()
 
     #--------------------------------------------
@@ -514,6 +515,9 @@ class lux1310(api):
         seq = sequencer()
         for x in range(0, numFrames):
             yield from seq.startLiveReadout(fSize.hRes, fSize.vDarkRows)
+            if not seq.liveResult:
+                logging.error("ADC offset training failed to read frame")
+                return
             fAverage += numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
         
         # Train the ADC offsets for a target of Average = Footroom + StandardDeviation
@@ -531,7 +535,7 @@ class lux1310(api):
             self.regs.regAdcOs[col] = self.adcOffsets[col]
 
     def autoAdcOffsetCal(self, fSize, iterations=16):
-        tRefresh = (self.timing.frameTime * 3) / self.LUX1310_SENSOR_HZ
+        tRefresh = (self.frameClocks * 3) / self.LUX1310_SENSOR_HZ
         tRefresh += (1/60)
 
         # Clear out the ADC offsets
@@ -548,7 +552,7 @@ class lux1310(api):
     def autoAdcGainCal(self, fSize):
         # Setup some math constants
         numRows = 64
-        tRefresh = (self.timing.frameTime * 10) / self.LUX1310_SENSOR_HZ
+        tRefresh = (self.frameClocks * 10) / self.LUX1310_SENSOR_HZ
         pixFullScale = (1 << fSize.bitDepth)
 
         seq = sequencer()
@@ -556,10 +560,10 @@ class lux1310(api):
         colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
 
         # Disable the FPGA timing engine and load the gain calibration wavetable. 
-        self.timing.stopTiming(waitUntilStopped=True)
+        self.timing.programInterm()
         time.sleep(0.1) # Extra delay to allow frame readout to finish. 
-        self.updateWavetable(fSize, frameClocks=self.timing.frameTime, gaincal=True)
-        self.timing.continueTiming()
+        self.updateWavetable(fSize, frameClocks=self.frameClocks, gaincal=True)
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
 
         # Search for a dummy voltage high reference point.
         vhigh = 31
@@ -569,6 +573,9 @@ class lux1310(api):
 
             # Read a frame and compute the column averages and minimum.
             yield from seq.startLiveReadout(fSize.hRes, numRows)
+            if not seq.liveResult:
+                logging.error("ADC Gain calibration failed to read frame")
+                return
             frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
             highColumns = numpy.average(frame, 0)
 
@@ -586,6 +593,9 @@ class lux1310(api):
             
             # Read a frame and compute the column averages and minimum.
             yield from seq.startLiveReadout(fSize.hRes, numRows)
+            if not seq.liveResult:
+                logging.error("ADC Gain calibration failed to read frame")
+                return
             frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
             lowColumns = numpy.average(frame, 0)
 
@@ -602,6 +612,9 @@ class lux1310(api):
 
         # Read a frame out of the live display.
         yield from seq.startLiveReadout(fSize.hRes, numRows)
+        if not seq.liveResult:
+            logging.error("ADC Gain calibration failed to read frame")
+            return
         frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
         midColumns = numpy.average(frame, 0)
 
@@ -678,7 +691,7 @@ class lux1310(api):
         # Retrieve the current resolution and frame period.
         fSizePrev = self.getCurrentGeometry()
         fSizeCal = copy.deepcopy(fSizePrev)
-        fPeriod = self.timing.frameTime / self.LUX1310_SENSOR_HZ
+        fPeriod = self.frameClocks / self.LUX1310_SENSOR_HZ
 
         # Enable black bars if not already done.
         if (fSizeCal.vDarkRows == 0):
@@ -688,10 +701,10 @@ class lux1310(api):
             fSizeCal.vRes -= fSizeCal.vDarkRows
 
             # Disable the FPGA timing engine and apply the changes.
-            self.timing.stopTiming(waitUntilStopped=True)
+            self.timing.programInterm()
             time.sleep(0.01) # Extra delay to allow frame readout to finish. 
             self.updateReadoutWindow(fSizeCal)
-            self.timing.continueTiming()
+            self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
         # Perform ADC offset calibration using the optical black regions.
         logging.debug('Starting ADC offset calibration')
@@ -703,8 +716,16 @@ class lux1310(api):
 
         # Restore the frame period and wavetable.
         logging.debug("Restoring sensor configuration")
-        self.timing.stopTiming(waitUntilStopped=True)
+        self.timing.programInterm()
         time.sleep(0.01) # Extra delay to allow frame readout to finish. 
         self.updateReadoutWindow(fSizePrev)
-        self.updateWavetable(fSizePrev, frameClocks=self.timing.frameTime, gaincal=False)
-        self.timing.continueTiming()
+        self.updateWavetable(fSizePrev, frameClocks=self.frameClocks, gaincal=False)
+
+        # Restore the timing program
+        if (self.currentProgram == self.timing.PROGRAM_STANDARD):
+            self.timing.programStandard(self.frameClocks, self.exposureClocks)
+        elif (self.currentProgram == self.timing.PROGRAM_SHUTTER_GATING):
+            self.timing.programShutterGating()
+        else:
+            logging.error("Invalid timing program, reverting to standard exposure")
+            self.timing.programStandard(self.frameClocks, self.exposureClocks)
