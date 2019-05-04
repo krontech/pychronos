@@ -811,6 +811,10 @@ class camera:
             self.sensor.setFrameTriggerProgram(expPeriod)
         elif expMode == 'shutterGating':
             self.sensor.setShutterGatingProgram()
+        elif expMode == 'hdr2slope':
+            self.sensor.setHdrExposureProgram(expPeriod, 2)
+        elif expMode == 'hdr3slope':
+            self.sensor.setHdrExposureProgram(expPeriod, 3)
         else:
             raise NotImplementedError()
         

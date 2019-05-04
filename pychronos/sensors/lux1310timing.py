@@ -210,27 +210,11 @@ class lux1310timing(timing):
             logging.error("frameTime (%d) must be longer than integrationTime (%d)", frameTime, integrationTime)
             integrationTime = frameTime * 0.95
 
-        logging.debug('ProgramHDR_2slope: %d, %d, %d', frameTime, integrationTime1, integrationTime2)
+        logging.debug('ProgramHDR_2slope: %d, %d, %d', frameTime, integration1, integration2)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame
         self.io.shutterTriggersFrame = False
-
-        lux = pychronos.lux1310()
-        lux.writeDAC(lux.DAC_VDR1, VDR1) # example 2.5
-        lux.writeDAC(lux.DAC_VDR2, VDR2) # example 2.0 or 2.2
-        lux.writeDAC(lux.DAC_VDR3, VDR2)
-
-        # r31 = 2
-        lux.regFtTrigNbPulse = 2
-        # r69 = Tint2 + 640ns = 
-        lux.regSelVdr1Width  = integration2 + t2Time + 50
-        # r6A = 0
-        lux.regSelVdr2Width  = 0
-        # r6B = 0
-        lux.regSelVdr3Width  = 0
-        # r67 = 1
-        lux.regHidyEn        = True
         
         #... hmm... need to set up some other stuff too
         logging.debug('programHDR-2slope - flip')
@@ -239,11 +223,11 @@ class lux1310timing(timing):
             self.ABN   + self.TIMING_WAIT_FOR_INACTIVE,
             self.ABN   + self.TIMING_WAIT_FOR_ACTIVE,
             self.ABN   + 50,
-            self.NONE  + integration1 - (15+45),
+            self.NONE  + int(integration1) - (15+45),
             self.PRSTN + 15,                     # PRSTN \__ to TXN \__
             self.PRSTN + self.TXN + 45,          # TXN ___
             self.PRSTN + 60,                     # TXN __/ to TXN \__
-            self.TXN   + (integration2 - 15)
+            self.TXN   + int(integration2) - 15
         ])
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 
@@ -251,35 +235,24 @@ class lux1310timing(timing):
         if (integration1 + integration2 + integration3 + t2Time + 50) > frameTime:
             raise ValueError("frameTime (%d) must be longer than total integrationTime (%d)" % (frameTime, integrationTime))
 
-        logging.debug('ProgramHDR_3slope: %d, %d, %d', frameTime, integrationTime1, integrationTime2, integrationTime3)
+        logging.debug('ProgramHDR_3slope: %d, %d, %d', frameTime, integration1, integration2, integration3)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame
         self.io.shutterTriggersFrame = False
 
-        lux = pychronos.lux1310()
-        lux.writeDAC(lux.DAC_VDR1, VDR1) # example 2.5
-        lux.writeDAC(lux.DAC_VDR2, VDR2) # example 2.0 or 2.2
-        lux.writeDAC(lux.DAC_VDR3, VDR2)
-
-        lux.regFtTrigNbPulse = 3
-        lux.regSelVdr1Width  = (15 + 45 + 60)
-        lux.regSelVdr2Width  = (integration2 + integration3)
-        lux.regSelVdr3Width  = 0
-        lux.regHidyEn        = True
-        
         #... hmm... need to set up some other stuff too
         logging.debug('programHDR-3slope - flip')
         self.runProgram(timeout=timeout, prog=[
             self.NONE  + t2Time,
             self.ABN   + 50,
-            self.NONE  + integration1 - (15+45),
+            self.NONE  + int(integration1) - (15+45),
             self.PRSTN + 15,                     # PRSTN \__ to TXN \__
             self.PRSTN + self.TXN + 45,          # TXN ___
             self.PRSTN + 60,                     # TXN __/ to TXN \__
-            self.PRSTN + self.TXN + (integration2 - 60),
+            self.PRSTN + self.TXN + int(integration2) - 60,
             self.PRSTN + 15,
-            self.TXN   + (integration3 - 15)
+            self.TXN   + int(integration3) - 15
         ])
         self.io.shutterTriggersFrame = origShutterTriggersFrame
 

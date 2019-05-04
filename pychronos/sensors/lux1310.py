@@ -427,6 +427,10 @@ class lux1310(api):
         # TODO: Sanity-check the exposure time.
         if (expPeriod < 1.0 / 1000000):
             expPeriod = 1.0 / 1000000
+        
+        # Disable HDR modes.
+        self.regs.regHidyEn = False
+
         self.currentProgram = self.timing.PROGRAM_STANDARD
         self.exposureClocks = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
         self.timing.programStandard(self.frameClocks, self.exposureClocks)
@@ -435,18 +439,67 @@ class lux1310(api):
     # Advanced Exposure and Timing Functions 
     #--------------------------------------------
     def getSupportedExposurePrograms(self):
-        return ("normal", "frameTrigger", "shutterGating")
+        return ("normal", "frameTrigger", "shutterGating", "hdr2slope", "hdr3slope")
     
     def setShutterGatingProgram(self):
+        # Disable HDR modes.
+        self.regs.regHidyEn = False
+
         self.currentProgram = self.timing.PROGRAM_SHUTTER_GATING
         self.timing.programShutterGating()
     
     def setFrameTriggerProgram(self, expPeriod):
         if (expPeriod < 1.0 / 1000000):
             expPeriod = 1.0 / 1000000
+        
+        # Disable HDR modes.
+        self.regs.regHidyEn = False
+
         self.currentProgram = self.timing.PROGRAM_FRAME_TRIG
         self.exposureClocks = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
         self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
+
+    def setHdrExposureProgram(self, expPeriod, numIntegrations=2):
+        if numIntegrations == 2:
+            # Reprogram the HDR DACs.
+            self.writeDAC(self.DAC_VDR1, 2.7)
+            self.writeDAC(self.DAC_VDR2, 2.7)
+            self.writeDAC(self.DAC_VDR3, 2.7)
+
+            self.exposureClocks = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
+            expFirst = self.exposureClocks * 0.9
+            expSecond = self.exposureClocks * 0.09
+
+            # Configure the VDR pulse timing widths.
+            self.regs.regFtTrigNbPulse = 2
+            self.regs.regSelVdr1Width  = int(expSecond) + 17 + 50
+            self.regs.regSelVdr2Width  = 0
+            self.regs.regSelVdr3Width  = 0
+            self.regs.regHidyEn        = True
+
+            self.currentProgram = self.timing.PROGRAM_2POINT_HDR
+            self.timing.programHDR_2slope(self.frameClocks, expFirst, expSecond)
+        elif numIntegrations == 3:
+            # Reprogram the HDR DACs.
+            self.writeDAC(self.DAC_VDR1, 2.5)
+            self.writeDAC(self.DAC_VDR2, 2.0)
+            self.writeDAC(self.DAC_VDR3, 2.0)
+
+            self.exposureClocks = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
+            expFirst = self.exposureClocks * 0.9
+            expSecond = self.exposureClocks * 0.09
+            expThird = self.exposureClocks * 0.009
+
+            self.regs.regFtTrigNbPulse = 3
+            self.regs.regSelVdr1Width  = (15 + 45 + 60)
+            self.regs.regSelVdr2Width  = int(expSecond + expThird)
+            self.regs.regSelVdr3Width  = 0
+            self.regs.regHidyEn        = True
+
+            self.currentProgram = self.timing.PROGRAM_3POINT_HDR
+            self.timing.programHDR_3slope(self.frameClocks, expFirst, expSecond, expThird)
+        else:
+            raise NotImplementedError("HDR timing with %s-slope integrations are not implemented." % (numIntegrations))
 
     #--------------------------------------------
     # Sensor Analog Calibration Functions
@@ -711,6 +764,7 @@ class lux1310(api):
             self.timing.programInterm()
             time.sleep(0.01) # Extra delay to allow frame readout to finish. 
             self.updateReadoutWindow(fSizeCal)
+            self.regs.regHidyEn = False
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
         # Perform ADC offset calibration using the optical black regions.
@@ -735,6 +789,10 @@ class lux1310(api):
             self.timing.programShutterGating()
         elif (self.currentProgram == self.timing.PROGRAM_FRAME_TRIG):
             self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
+        elif (self.currentProgram == self.timing.PROGRAM_2POINT_HDR):
+            self.setHdrExposureProgram(self.exposureClocks / self.LUX1310_SENSOR_HZ, 2)
+        elif (self.currentProgram == self.timing.PROGRAM_3POINT_HDR):
+            self.setHdrExposureProgram(self.exposureClocks / self.LUX1310_SENSOR_HZ, 3)
         else:
             logging.error("Invalid timing program, reverting to standard exposure")
             self.timing.programStandard(self.frameClocks, self.exposureClocks)

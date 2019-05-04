@@ -272,6 +272,7 @@ class controlApi(dbus.service.Object):
                     setattr(self.camera, name, value)
                 except Exception as e:
                     logging.info("Setting %s failed: %s", name, e)
+                    logging.debug(traceback.format_exc())
                     failedAttributes[name] = str(e)
             # Otherwise, try setting the property in the video interface.
             else:

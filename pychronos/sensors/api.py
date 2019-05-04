@@ -260,6 +260,23 @@ class api(ABC):
             The number of frames to acquire after each risng edge (default: 1)
         """
         raise NotImplementedError()
+    
+    def setHdrExposureProgram(self, expPeriod, numIntegration=2):
+        """Configure the sensor to operate in high dynmaic range mode
+
+        When in high dynamic range mode, the image sensor combines multiple
+        integration periods to achieve a non-linear response to incoming
+        sensitivities. 
+        
+        Parameters
+        ----------
+        expPeriod : `float`
+            The exposure time of each frame, in seconds.
+        numIntegrations : `int`, optional
+            The number of integration periods to apply for HDR mode.
+            (default: 2)
+        """
+        raise NotImplementedError()
 
     #--------------------------------------------
     # Sensor Analog Calibration Functions
