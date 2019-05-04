@@ -141,7 +141,7 @@ class controlApi(dbus.service.Object):
 
         # Check if this is a saved property.
         prop = getattr(type(self.camera), pName)
-        if isinstance(prop, property) and getattr(prop.fget, 'savable', False):
+        if isinstance(prop, property) and getattr(prop.fget, 'saveable', False):
             self.changecfg = True
 
     def notifyChanges(self):

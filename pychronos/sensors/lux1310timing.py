@@ -235,7 +235,7 @@ class lux1310timing(timing):
         if (integration1 + integration2 + integration3 + t2Time + 50) > frameTime:
             raise ValueError("frameTime (%d) must be longer than total integrationTime (%d)" % (frameTime, integrationTime))
 
-        logging.debug('ProgramHDR_3slope: %d, %d, %d', frameTime, integration1, integration2, integration3)
+        logging.debug('ProgramHDR_3slope: %d, %d, %d, %d', frameTime, integration1, integration2, integration3)
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame
