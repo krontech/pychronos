@@ -261,8 +261,6 @@ class api(ABC):
         """
         raise NotImplementedError()
 
-    ## TODO: HDR exposure programs should go here.
-
     #--------------------------------------------
     # Sensor Analog Calibration Functions
     #--------------------------------------------

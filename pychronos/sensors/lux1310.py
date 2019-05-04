@@ -435,11 +435,18 @@ class lux1310(api):
     # Advanced Exposure and Timing Functions 
     #--------------------------------------------
     def getSupportedExposurePrograms(self):
-        return ("normal", "shutterGating")
+        return ("normal", "frameTrigger", "shutterGating")
     
     def setShutterGatingProgram(self):
         self.currentProgram = self.timing.PROGRAM_SHUTTER_GATING
         self.timing.programShutterGating()
+    
+    def setFrameTriggerProgram(self, expPeriod):
+        if (expPeriod < 1.0 / 1000000):
+            expPeriod = 1.0 / 1000000
+        self.currentProgram = self.timing.PROGRAM_FRAME_TRIG
+        self.exposureClocks = math.ceil(expPeriod * self.LUX1310_SENSOR_HZ)
+        self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
 
     #--------------------------------------------
     # Sensor Analog Calibration Functions
@@ -726,6 +733,8 @@ class lux1310(api):
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
         elif (self.currentProgram == self.timing.PROGRAM_SHUTTER_GATING):
             self.timing.programShutterGating()
+        elif (self.currentProgram == self.timing.PROGRAM_FRAME_TRIG):
+            self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
         else:
             logging.error("Invalid timing program, reverting to standard exposure")
             self.timing.programStandard(self.frameClocks, self.exposureClocks)

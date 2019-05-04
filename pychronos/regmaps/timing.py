@@ -164,3 +164,49 @@ class timing(pychronos.fpgamap):
         for pc in range(0, len(prog)):
             self.program[pc] = prog[pc]
         self.flip(timeout)
+        self.decompile(prog)
+
+    def decompile(self, prog=None):
+        """Decompile a timing program and log some info about it.
+        
+        Parameters
+        ----------
+        prog : `list` of `int`, optional
+            A timing program to decompile, as a list of instructions.
+            (default: read the current from the FPGA)
+        """
+        if prog is None:
+            prog = self.program
+        
+        # Setup some initial state and then parse the program.
+        intClocks = 0
+        frameClocks = 0
+        for pc in range(0, len(prog)):
+            cmd = prog[pc]
+
+            # Assemble a flags field with the IO levels.
+            iostr = ''
+            iostr += 'A' if (cmd & self.ABN) else '-'
+            iostr += 'a' if (cmd & self.ABN2) else '-'
+            iostr += 'T' if (cmd & self.TXN) else '-'
+            iostr += 'P' if (cmd & self.PRSTN) else '-'
+            iostr += 'I' if (cmd & self.IODRIVE) else '-'
+
+            delay = cmd & 0xffffff
+            if (delay == self.TIMING_RESTART):
+                break
+            elif (delay == self.TIMING_WAIT_FOR_ACTIVE):
+                logging.debug("%s wait(trig)", iostr)
+            elif (delay == self.TIMING_WAIT_FOR_INACTIVE):
+                logging.debug("%s wait(~trig)", iostr)
+            elif (delay == self.TIMING_WAIT_FOR_NLINES):
+                logging.debug("%s sync(%d)", iostr, self.minLines)
+            else:
+                if (cmd & self.ABN):
+                    intClocks = 0
+                elif not (cmd & self.TXN):
+                    intClocks += delay
+                frameClocks += delay
+                logging.debug("%s wait(%d)" % (iostr, delay))
+        
+        logging.debug("frameClocks=%d intClocks=%d", frameClocks, intClocks)

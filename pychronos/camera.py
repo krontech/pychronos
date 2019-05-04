@@ -807,6 +807,8 @@ class camera:
         """Internal helper to setup the exposure time and mode."""
         if expMode == 'normal':
             self.sensor.setExposureProgram(expPeriod)
+        elif expMode == 'frameTrigger':
+            self.sensor.setFrameTriggerProgram(expPeriod)
         elif expMode == 'shutterGating':
             self.sensor.setShutterGatingProgram()
         else:
