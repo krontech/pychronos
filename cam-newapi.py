@@ -208,10 +208,10 @@ class controlApi(dbus.service.Object):
             controlAttrs = [
                 name
                 for name in attrs 
-                if name in self.availableKeys()
+                if name in self.ownKeys()
             ]
             videoAttrs = [
-                name
+                str(name)
                 for name in attrs 
                 if name not in controlAttrs
             ]
@@ -241,7 +241,7 @@ class controlApi(dbus.service.Object):
         """Set named values in the control API and the video API."""
         
         try:
-            knownAttributes = set(self.availableKeys()) | set(video.availableKeys())
+            knownAttributes = set(self.availableKeys())
         except dbus.exceptions.DBusException:
             logging.error('could not load video available keys')
             knownAttributes = set(self.availableKeys())
@@ -250,7 +250,7 @@ class controlApi(dbus.service.Object):
         controlAttributes = {
             name: attr
             for name, attr in newValues.items()
-            if name in self.availableKeys()
+            if name in self.ownKeys()
         }
         videoAttributes = {
             name: attr
@@ -277,8 +277,23 @@ class controlApi(dbus.service.Object):
             if getattr(getattr(type(self.camera), key).fget, 'savable', False):
                 store.set(key, value)
         
+        for k,v in newValues.items():
+            logging.debug('updated {} to {}'.format(k, v))
+        
         return self.status() #¯\_(ツ)_/¯
     
+    @lru_cache(maxsize=1)
+    def ownKeys(self):
+        return {
+            elem: {
+                'get': getattr(type(self.camera), elem).fget is not None,
+                'set': getattr(type(self.camera), elem).fset is not None,
+                'notifies': getattr(getattr(type(self.camera), elem).fget, 'notifies', False), #set with camProperty
+            }
+            for elem in dir(self.camera)
+            if elem[0] != '_'
+            and isinstance(getattr(type(self.camera), elem, None), property) #is a getter, maybe a setter
+        }
     
     #===============================================================================================
     #Method('availableKeys', arguments='', returns='as')
@@ -292,33 +307,31 @@ class controlApi(dbus.service.Object):
         
         #Return a map, vs a list with a name key, because everything else is a{sv}.
         #dbg() #x = getattr(type(self.camera), 'sensorHMax')
-        return self.dbusifyTypes({
-            elem: {
-                'get': getattr(type(self.camera), elem).fget is not None,
-                'set': getattr(type(self.camera), elem).fset is not None,
-                'notifies': getattr(getattr(type(self.camera), elem).fget, 'notifies', False), #set with camProperty
-            }
-            for elem in dir(self.camera)
-            if elem[0] != '_'
-            and isinstance(getattr(type(self.camera), elem, None), property) #is a getter, maybe a setter
-        })
-    
-    @lru_cache(maxsize=1)
-    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
-    def availableCalls(self):
-        """Get a list of the properties we can get/set/subscribe.
-            
-            For a list of functions, see org.freedesktop.DBus.Properties.GetAll."""
         
-        return self.dbusifyTypes({
-            elem: {
-                'constant': False,
-                'action': 'set', #or 'get'.
+        #Video API doesn't know which keys it owns; hack it in here for now. (DDR 2019-05-06)
+        try:
+            videoKeys = video.availableKeys()
+        except dbus.exceptions.DBusException:
+            logging.error('could not load video available keys')
+            videoKeys = {
+                'videoState': {'get': True, 'set': False, 'notifies': True},
+                'overlayEnable': {'get': True, 'set': True, 'notifies': True},
+                'overlayFormat': {'get': True, 'set': True, 'notifies': True},
+                'focusPeakingColor': {'get': True, 'set': True, 'notifies': True},
+                'focusPeakingLevel': {'get': True, 'set': True, 'notifies': True},
+                'zebraLevel': {'get': True, 'set': True, 'notifies': True},
+                'playbackRate': {'get': True, 'set': True, 'notifies': True},
+                'playbackPosition': {'get': True, 'set': True, 'notifies': False},
+                'playbackStart': {'get': True, 'set': True, 'notifies': True},
+                'playbackLength': {'get': True, 'set': True, 'notifies': True},
+                'totalFrames': {'get': True, 'set': False, 'notifies': True},
+                'totalSegments': {'get': True, 'set': False, 'notifies': True},
             }
-            for elem in dir(self)
-            if elem[0] != '_'
-            and callable(getattr(type(self), elem, None))
-        })
+        
+        keys = videoKeys
+        keys.update(self.ownKeys())
+        return self.dbusifyTypes(keys)
+    
     
     #===============================================================================================
     #Method('status', arguments='', returns='a{sv}')
