@@ -11,7 +11,7 @@ trap "{ stty sane; echo; kill 0; }" EXIT #Kill all children when we die. (This c
 bash <<< "#sh doesn't do the equality test for 143, must use bash
 	while true; do
 		sleep 2 &
-		python3 cam-newapi.py < `readlink -f /dev/stdin` 2> `readlink -f /dev/stderr`
+		python3 cam-control.py --debug --pdb < `readlink -f /dev/stdin` 2> `readlink -f /dev/stderr`
 		PY_EXIT=\$?
 		[[ \$PY_EXIT -eq 137 ]] || echo Python exited with code \$PY_EXIT. Waiting… #Python exits with 137 when killed by watchdog running pkill. We don't really care about that, since it's so frequent, but knowing when it's died of other causes is useful.
 		wait #In combination with sleep 2, don't restart the python script until at least two seconds have passed since the last invocation. This stops python from running many times if python crashes immediately.

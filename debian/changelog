@@ -1,5 +1,35 @@
-pychronos (0.3.1~alpha) unstable; urgency=medium
+pychronos (0.4.0~alpha30) unstable; urgency=medium
 
-  * Initial release.
+  * Fix debian packaging errors.
+  * Fixed watch-camera script to start the right script, in debug mode.
+  * lux1310: Add HDR exposure programs to the API.
+  * lux1310: frame trigger program API (does not work).
+  * lux1310: Switch to standard exposure during analog cal.
+  * Fix argument parsing D-Bus methods with arguments.
+  * Add proxy methods to video system.
+  * io interface converted to using a more standard system. It's now a set of properties.
+  * Add watchdog checks to the timing flip proceedure.
+  * Save config via the onChangeHandler instead of set.
+  * Convert lux1310timing to use the runProgram method.
+  * Implement cameraTallyMode to control the recording LED
+  * Clear the readout inhibit bit after a soft reset.
+  * Implement sensor properties for minimum frame size.
+  * Fix inverted timeout logic in sequencer readout.
+  * lux1310: Fix bug in setting the DAC update mode.
+  * Use async calls to reconfigure the live display.
+  * added missing library (time) in sequencer. reverted debugging change.
+  * Merge branch 'master' of https://github.com/krontech/pychronos
+  * bug fixes. Added timeout to startLiveReadout function in case of failure.
+  * Implement gated burst and segmented recording modes.
+  * Fix bug in D-Bus variant encoding of the notify signal.
+  * Implement soft reset function.
+  * Combine calibration functions back into one.
+  * removed parts from the IO block that aren't implemented yet.
+  * fixed readme
+  * Added documentation
+  * adding some io helpers and getting web interface up and running
+  * added web bridge
+  * Add version.py to maintain a single API version number.
+  * Upstream release v0.4.0-alpha
 
- -- Owen Kirby <oskirby@gmail.com>  Tue, 26 Feb 2019 20:48:28 -0800
+ -- Owen Kirby <oskirby@gmail.com>  Fri, 03 May 2019 20:29:19 -0700

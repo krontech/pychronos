@@ -1,1 +1,2 @@
-cam-control usr/bin
+#!/usr/bin/dh-exec
+cam-control.py => usr/bin/cam-control

@@ -1,5 +1,7 @@
 import time
 import pychronos
+import logging
+from . import ioInterface
 
 class timing(pychronos.fpgamap):
     """Return a new map of the FPGA timing register space.
@@ -97,7 +99,8 @@ class timing(pychronos.fpgamap):
         start = time.time()
         while time.time() < (start + timeout):
             if not self.busy:
-                break
+                return True
+        return False
 
     def flip(self, timeout=0.01, force=False):
         """Activate the timing program by performing a page flip
@@ -114,17 +117,33 @@ class timing(pychronos.fpgamap):
         """
         self.inhibitTiming = 0
 
+        # Force a flip if the timeout is negative. This is guaranteed to flip, but may
+        # result in a deadlocked sensor if the timing signals change at the wrong time.
         if (timeout < 0):
             self.requestFlip = 1
             self.reset()
             return
 
-        self.waitForIdle(timeout)
-        if self.busy:
-            self.requestFlip = 1
-            self.reset()
-        else:
-            self.requestFlip = 1
+        # Request a flip of the timing program.
+        self.requestFlip = 1
+        if self.waitForIdle(timeout):
+            return
+        
+        # Flip did not complete, is it waiting on a trigger event?
+        if self.currentlyWaitingForActive or self.currentlyWaitingForInactive:
+            logging.debug('flip state machine waiting on external trigger')
+            io = ioInterface.ioInterface()
+            origTrig = io.shutterTriggersFrame
+            io.shutterTriggersFrame = False
+            self.exposureEnabled = 0
+            if self.waitForIdle(timeout):
+                io.shutterTriggersFrame = origTrig
+                return
+            io.shutterTriggersFrame = origTrig
+        
+        # Flip is still deadlocked, the only thing left to do is force a reset
+        logging.warning('flip state machine deadlocked - forcing a reset')
+        self.reset()
 
     def runProgram(self, prog, timeout=0.01):
         """Load a program into the timing engine and run it.
@@ -145,3 +164,49 @@ class timing(pychronos.fpgamap):
         for pc in range(0, len(prog)):
             self.program[pc] = prog[pc]
         self.flip(timeout)
+        self.decompile(prog)
+
+    def decompile(self, prog=None):
+        """Decompile a timing program and log some info about it.
+        
+        Parameters
+        ----------
+        prog : `list` of `int`, optional
+            A timing program to decompile, as a list of instructions.
+            (default: read the current from the FPGA)
+        """
+        if prog is None:
+            prog = self.program
+        
+        # Setup some initial state and then parse the program.
+        intClocks = 0
+        frameClocks = 0
+        for pc in range(0, len(prog)):
+            cmd = prog[pc]
+
+            # Assemble a flags field with the IO levels.
+            iostr = ''
+            iostr += 'A' if (cmd & self.ABN) else '-'
+            iostr += 'a' if (cmd & self.ABN2) else '-'
+            iostr += 'T' if (cmd & self.TXN) else '-'
+            iostr += 'P' if (cmd & self.PRSTN) else '-'
+            iostr += 'I' if (cmd & self.IODRIVE) else '-'
+
+            delay = cmd & 0xffffff
+            if (delay == self.TIMING_RESTART):
+                break
+            elif (delay == self.TIMING_WAIT_FOR_ACTIVE):
+                logging.debug("%s wait(trig)", iostr)
+            elif (delay == self.TIMING_WAIT_FOR_INACTIVE):
+                logging.debug("%s wait(~trig)", iostr)
+            elif (delay == self.TIMING_WAIT_FOR_NLINES):
+                logging.debug("%s sync(%d)", iostr, self.minLines)
+            else:
+                if (cmd & self.ABN):
+                    intClocks = 0
+                elif not (cmd & self.TXN):
+                    intClocks += delay
+                frameClocks += delay
+                logging.debug("%s wait(%d)" % (iostr, delay))
+        
+        logging.debug("frameClocks=%d intClocks=%d", frameClocks, intClocks)

@@ -8,4 +8,8 @@ import pychronos.sensors
 # import top level objects.
 from pychronos.spd import spdRead
 from pychronos.camera import camera
+from pychronos.camera import camProperty
 from pychronos.camera import CameraError
+
+# module version
+from pychronos.version import __version__

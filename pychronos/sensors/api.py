@@ -1,18 +1,23 @@
 from abc import ABC, abstractmethod
 
 class frameGeometry:
-    def __init__(self, hRes, vRes, hOffset=0, vOffset=0, vDarkRows=0, bitDepth=12):
+    def __init__(self, hRes, vRes, hOffset=0, vOffset=0, vDarkRows=0, bitDepth=12, minFrameTime=None):
         self.hRes = hRes
         self.vRes = vRes
         self.hOffset = hOffset
         self.vOffset = vOffset
         self.vDarkRows = vDarkRows
         self.bitDepth = bitDepth
+        self.minFrameTime = minFrameTime
     
     def __repr__(self):
-        args = (self.hRes, self.vRes, self.hOffset, self.vOffset, self.vDarkRows, self.bitDepth)
-        return "frameGeometry(hRes=%s, vRes=%s, hOffset=%s, vOffset=%s, vDarkRows=%s, bitDepth=%s)" % args
-    
+        rstr = "frameGeometry(hRes=%s, vRes=%s" % (self.hRes, self.vRes)
+        rstr += ", hOffset=%s, vOffset=%s" % (self.hOffset, self.vOffset)
+        rstr += ", vDarkRows=%s, bitDepth=%s" % (self.vDarkRows, self.bitDepth)
+        if (self.minFrameTime):
+            rstr += ", minFrameTime=%s" % (self.minFrameTime)
+        return rstr + ")"
+
     def pixels(self):
         return self.hRes * (self.vRes + self.vDarkRows)
     
@@ -70,7 +75,27 @@ class api(ABC):
     def maxGain(self):
         """The maximum gain supported by the sensor"""
         return 1
+    
+    @property
+    def hMin(self):
+        """The minimum horizontal resolution of the image sensor"""
+        return 1
+    
+    @property
+    def hIncrement(self):
+        """The minimum step size for changes in horizontal resolution"""
+        return 1
 
+    @property
+    def vMin(self):
+        """The minimum vertical resolution of the image sensor"""
+        return 1
+    
+    @property
+    def vIncrement(self):
+        """The minimum step size for changes in vertical resolution"""
+        return 1
+    
     #--------------------------------------------
     # Frame Geometry Configuration Functions
     #--------------------------------------------
@@ -110,7 +135,7 @@ class api(ABC):
         return True
 
     @abstractmethod
-    def setResolution(self, size, fPeriod=None):
+    def setResolution(self, size):
         """Configure the resolution and frame geometry of the image sensor"""
         pass
 
@@ -183,7 +208,7 @@ class api(ABC):
         pass
     
     @abstractmethod
-    def setStandardExposureProgram(self, expPeriod):
+    def setExposureProgram(self, expPeriod):
         """Configure the sensor to operate in normal exposure mode
 
         When in normal exposure mode, the image sensor is free running
@@ -205,7 +230,7 @@ class api(ABC):
     #--------------------------------------------
     def getSupportedExposurePrograms():
         """Return a tuple of the supported exposure programs"""
-        return ("standard")
+        return ("normal")
 
     def setShutterGatingProgram(self):
         """Configure the sensor to operate in shutter gating mode
@@ -235,8 +260,23 @@ class api(ABC):
             The number of frames to acquire after each risng edge (default: 1)
         """
         raise NotImplementedError()
+    
+    def setHdrExposureProgram(self, expPeriod, numIntegration=2):
+        """Configure the sensor to operate in high dynmaic range mode
 
-    ## TODO: HDR exposure programs should go here.
+        When in high dynamic range mode, the image sensor combines multiple
+        integration periods to achieve a non-linear response to incoming
+        sensitivities. 
+        
+        Parameters
+        ----------
+        expPeriod : `float`
+            The exposure time of each frame, in seconds.
+        numIntegrations : `int`, optional
+            The number of integration periods to apply for HDR mode.
+            (default: 2)
+        """
+        raise NotImplementedError()
 
     #--------------------------------------------
     # Sensor Analog Calibration Functions
@@ -257,10 +297,32 @@ class api(ABC):
 
         Returns
         -------
-        [[float]] : A 3x3 matrix of floats converting the camera color space to sRGB.
+        [float] : An array of 9 of floats converting the camera color space to sRGB. The
+            array should contain the 3x3 matrix coefficients in row-scan order.
         """
         ## Return an identity matrix if not implemented.
         return [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]]
+    
+    def getWhiteBalance(self, cTempK=5500):
+        """Return the white balance matrix for this image sensor.
+
+        A white balance is required to equalize the sensitivity of each channel of the
+        bayer filter data to achieve white. If the image sensor is characterized under
+        multiple lighting conditions, the white balance which best matches the provided
+        color temperature should be returned.
+        
+        Parameters
+        ----------
+        cTempK: int, optional
+            The color temperature (degrees Kelvin) of the CIE D-series illuminant under
+            which the white balance will be used (default 5500K).
+
+        Returns
+        -------
+        [float] : An array of 3 floats to balance the Red, Green and Blue channels.
+        """
+        ## Return a do-nothing white balance if not implemented.
+        return [1.0, 1.0, 1.0]
     
     @abstractmethod
     def startAnalogCal(self):

@@ -84,14 +84,11 @@ fMinPeriod, fMaxPeriod = cam.sensor.getPeriodRange(fSize)
 fPeriod = fMinPeriod
 if (args.framerate):
     fPeriod = 1/args.framerate
-cam.setRecordingConfig(fSize)
+cam.resolution = fSize
 time.sleep(0.1) # FIXME: This needs to go into the sensor class.
 
 # Perform initial calibration
-for delay in cam.sensor.startAnalogCal():
-    time.sleep(delay)
-
-for delay in cam.startZeroTimeBlackCal():
+for delay in cam.startCalibration(analogCal=True, zeroTimeBlackCal=True):
     time.sleep(delay)
 
 # Switch to live display.
@@ -168,7 +165,7 @@ while True:
         # Apply the exposure change.
         try:
             print("Setting exposure to %s" % (exposure))
-            cam.sensor.setStandardExposureProgram(exposure)
+            cam.sensor.setExposureProgram(exposure)
         except:
             print("Unable to set exposure")
     

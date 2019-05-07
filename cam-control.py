@@ -2,26 +2,28 @@
 
 import os, sys, pdb
 import json
+import argparse
 from functools import lru_cache
 from pathlib import Path
 
 import inspect
 import logging
+import traceback
+import time
+
 import dbus
 import dbus.service
 import dbus.mainloop.glib
 from gi.repository import GLib
 
 import pychronos
-from pychronos import camera
+from pychronos import camera, CameraError
 from pychronos.sensors import lux1310, frameGeometry
 import pychronos.regmaps as regmaps
 
 interface = 'com.krontech.chronos.control'
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 bus = dbus.SystemBus()
-video = bus.get_object('com.krontech.chronos.video',
-                       '/com/krontech/chronos/video')
 
 #-----------------------------------------------------------------
 # Some constants that ought to go into a board-specific dict.
@@ -33,115 +35,59 @@ REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 #-----------------------------------------------------------------
 
-
-# Drop into a debugger when an error happens.
-def excepthook(t,v,tb):
-    pdb.traceback.print_exception(t, v, tb)
-    pdb.post_mortem(t=tb)
-sys.excepthook = excepthook
-dbg, brk = pdb.set_trace, pdb.set_trace #convenience debugging
-
-#Fix system not echoing keystrokes in debugger, after restart.
-try:
-    os.system('stty sane')
-except Exception:
-    pass
-
-
-
-class store():
-    """A persistant key/value store which survives reboots.
-        
-        Example:
-            Store.set('foo', 5)
-            assert Store.get('foo') == 5 #passes
-            #«reboot camera»
-            assert Store.get('foo') == 5 #passes
-        """
-    
-    _basepath = Path(os.path.expanduser('~/.config/Krontech/dbus control api'))
-    try:
-        _basepath.mkdir(parents=True)
-    except FileExistsError:
-        pass
-    
-    @staticmethod
-    def get(name: str, *args):
-        """get(name[, default]): Retrieve a set value.
-            
-            If a default is supplied, use it if the stored
-            value cannot be loaded. (ie, is corrupt or dne)"""
-        
-        try:
-            with (store._basepath/name).open(mode='r') as file:
-                return json.load(file)
-        except Exception as e:
-            if args:
-                return args[0]
-            else:
-                #This merges the errors "we can't find the data" and "we can't find all the data".
-                raise ValueError("No valid saved data named '%s' found and no default provided." % name)
-    
-    @staticmethod
-    def set(name: str, value: any):
-        """set(name, value): Persist a value to disk.
-            
-            Can be got() later."""
-        
-        with (store._basepath/name).open(mode='w') as file:
-            json.dump(
-                value,
-                file,
-                ensure_ascii = False,
-                check_circular = False,
-                indent = 4,
-            )
-
-
-
 class controlApi(dbus.service.Object):
     ## This feels like a duplication of the Python exceptions.
     ERROR_NOT_IMPLEMENTED_YET = 9999
     VALUE_ERROR               = 1
     
-
-    def __init__(self, bus, path, mainloop, camera):
+    def __init__(self, bus, path, mainloop, camera, configFile=None):
         # FIXME: This seems hacky, just calling the class method directly.
         # Shouldn't we be using a super() call somehow?
         dbus.service.Object.__init__(self, bus, path)
         self.bus = bus
         self.mainloop = mainloop
+        self.configFile = configFile
     
         self.camera = camera
+        self.video = bus.get_object('com.krontech.chronos.video', '/com/krontech/chronos/video')
         self.io = regmaps.ioInterface()
         self.display = regmaps.display()
 
         # Install a callback to catch parameter and state changes.
         self.camera.setOnChange(self.onChangeHandler)
         self.changeset = None
+        self.changecfg = False
 
-        self.callLater(0.5, self.doReset, {'reset':True, 'sensor':True})
+        # Install a callback to catch video signals.
+        self.video.connect_to_signal('sof', self.videoSofSignal)
+        self.video.connect_to_signal('eof', self.videoEofSignal)
+        self.video.connect_to_signal('segment', self.videoSegmentSignal)
+        self.video.connect_to_signal('update', self.videoUpdateSignal)
+
+        self.callLater(0.5, self.softReset)
         
-        self.currentState = 'starting'
-    
     ## Internal helper to iterate over a generator from the GLib mainloop.
-    ## TODO: Do we need a callback for exception handling?
-    def stepGenerator(self, generator, onError=None):
+    def stepGenerator(self, generator):
         try:
             delay = next(generator)
             GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
         except StopIteration:
             pass
         except Exception as error:
-            if (onError):
-                onError(error)
+            logging.error(error)
+            logging.debug(traceback.format_exc())
+
         # Always return false to remove the Glib source for the last step.
         return False
     
-    ## Internal helper to run a generator. This ought to be the preferred way to
-    ## invoke a generator from within GLib's mainloop.
-    def runGenerator(self, generator, onError=None):
-        GLib.idle_add(self.stepGenerator, generator, onError)
+    ## Internal helper to run a generator. This will make the first call to the
+    ## generator, and throw an exception if an error occurs.
+    def runGenerator(self, generator):
+        try:
+            delay = next(generator)
+            GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
+        except StopIteration:
+            pass
 
     ## Internal helper to call something in the future. Should function identically
     ## to Twisted's reactor.callLater function, except that the yield asleep thing
@@ -171,31 +117,99 @@ class controlApi(dbus.service.Object):
                 result[key] = dbus.types.Int32(value, variant_level=1)
             elif isinstance(value, float):
                 result[key] = dbus.types.Double(value, variant_level=1)
-            elif isinstance(value, dict):
+            elif isinstance(value, (dict, list)):
                 result[key] = self.dbusifyTypes(value, variant_level=1)
             else:
                 result[key] = dbus.types.String(value, variant_level=1)
         return result
+    
+    def dbusReplyHandler(self, args):
+        logging.debug("D-Bus reply: %s", args)
+    
+    def dbusErrorHandler(self, err):
+        logging.error("D-Bus error: %s", err)
     
     #===============================================================================================
     #Method('notify', arguments='', returns='a{sv}'),
     def onChangeHandler(self, pName, pValue):
         logging.debug("Parameter %s -> %s", pName, pValue)
         if not self.changeset:
-            self.changeset = {pName: pValue}
+            self.changeset = {pName: self.dbusifyTypes(pValue)}
             GLib.timeout_add(100, self.notifyChanges)
         else:
-            self.changeset[pName] = pValue
+            self.changeset[pName] = self.dbusifyTypes(pValue)
+
+        # Check if this is a saved property.
+        prop = getattr(type(self.camera), pName, None)
+        if prop and isinstance(prop, property) and getattr(prop.fget, 'saveable', False):
+            self.changecfg = True
 
     def notifyChanges(self):
+        # Generate the DBus notify signal.
         self.notify(self.changeset)
-        
         self.changeset = None
+
+        # Save configuration changes to disk.
+        if (self.changecfg and self.configFile):
+            with open(self.configFile, 'w') as outFile:
+                json.dump(self.camera.config, outFile, sort_keys=True, indent=4, separators=(',', ': '))
+            self.changecfg = False
+        
         return False
     
     @dbus.service.signal(interface, signature='a{sv}')
     def notify(self, args):
-        return self.dbusifyTypes(self.changeset)
+        return self.changeset
+    
+    #===============================================================================================
+    # Video Proxy Signal Handling
+
+    def videoSofSignal(self, args):
+        logging.debug("Received SOF -> %s", args)
+    
+    def videoEofSignal(self, args):
+        logging.debug("Received EOF -> %s", args)
+    
+    def videoSegmentSignal(self, args):
+        logging.debug("Received segment -> %s", args)
+
+    def videoUpdateSignal(self, args):
+        # Pass parameter updates along as though they came from the control API.
+        print('vus args', args)
+        for key, value in args.items():
+            self.onChangeHandler(key, value)
+    
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
+    def startFilesave(self, args, onReply=None, onError=None):
+        # Filename suffixes for the formats that need one.
+        suffixes = {
+            'h264': '.mp4',
+            'x264': '.mp4',
+            'byr2': '.raw',
+            'y16':  '.raw',
+            'y12b': '.raw'
+        }
+        saveFormat = args['format']
+
+        # Remove some arguments for sanitiziation.
+        devName = args.pop('device')
+        filename = args.pop('filename', time.strftime('vid_%F_%H-%M-%S')) + suffixes.get(saveFormat)
+
+        # Assemble the full pathname for recorded file.
+        extStorate = self.camera.externalStorage
+        if devName not in extStorage:
+            raise ValueError('Invalid storage device given for recording')
+        storage = extStorate[devName]
+        filepath = os.path.abspath(os.path.join(storage['mount'], filename))
+        if not filepath.startswith(storage['mount']):
+            raise ValueError('Invalid filename given for recording')
+        # TODO: Check for available space or any other sanity checking.
+        # TODO: Start a saveDoneTimer to monitor available storage space?
+        # TODO: Maybe launch the saveDoneTimer from the SOF/EOF signal.
+
+        # Make the real call to save the file and pass through the remaining arguments.
+        args['filename'] = filepath
+        video.recordfile(args, reply_handler=onReply, error_handler=onError)
     
     #===============================================================================================
     #Method('get', arguments='as', returns='a{sv}')
@@ -216,7 +230,7 @@ class controlApi(dbus.service.Object):
                 if name not in controlAttrs
             ]
             
-            data = video.get(videoAttrs) if videoAttrs else {}
+            data = self.video.get(videoAttrs) if videoAttrs else {}
             for name in controlAttrs:
                 data[name] = self.dbusifyTypes(getattr(self.camera, name))
             return data
@@ -230,16 +244,23 @@ class controlApi(dbus.service.Object):
                     'com.krontech.chronos.UnknownAttribute',
                     "'%s' is not a known attribute. Known attributes are: %s" % (
                         e.get_dbus_message().split()[0], #attribute name
-                        sorted(set(self.availableKeys()) | set(video.availableKeys())) #all attribute names
+                        sorted(set(self.availableKeys()))
                     )
                 )
-                
-            
+    
+    def paramsort(self, name):
+        """Internal helper function to sort a parameter by priority"""
+        try:
+            camprop = getattr(type(self.camera), name)
+            return camprop.fget.prio
+        except:
+            return 0
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def set(self, newValues):
         """Set named values in the control API and the video API."""
         
+        #First, check all variables exist.
         try:
             knownAttributes = set(self.availableKeys())
         except dbus.exceptions.DBusException:
@@ -271,17 +292,54 @@ class controlApi(dbus.service.Object):
         for name, attr in controlAttributes.items():
             setattr(self.camera, name, attr)
         
-        videoAttributes and video.set(videoAttributes)
+        keys = sorted(newValues.keys(), key=self.paramsort, reverse=True)
+        failedAttributes = {}
+        videoAttributes = {}
+        for name in keys:
+            # If the property exists in the camera class, set it.
+            value = newValues[name]
+            logging.debug("Setting %s -> %s", name, value)
+            camprop = getattr(type(self.camera), name, None)
+            if isinstance(camprop, property):
+                try:
+                    setattr(self.camera, name, value)
+                except Exception as e:
+                    logging.info("Setting %s failed: %s", name, e)
+                    logging.debug(traceback.format_exc())
+                    failedAttributes[name] = str(e)
+            # Otherwise, try setting the property in the video interface.
+            else:
+                videoAttributes[name] = value
         
-        for key, value in controlAttributes.items():
-            if getattr(getattr(type(self.camera), key).fget, 'savable', False):
-                store.set(key, value)
+        # For any keys that don't exist - try setting them in the video API.
+        if videoAttributes:
+            self.video.set(self.dbusifyTypes(videoAttributes),
+                    reply_handler=self.dbusReplyHandler,
+                    error_handler=self.dbusErrorHandler)
+        
+        #HACK: Manually poke the video pipeline back into live display after changing
+        # the display resolution. This should eventually go away by making the video
+        # system more autonomous with regards to the live display res.
+        if ('resolution' in newValues):
+            res = self.camera.resolution
+            logging.info('Notifying cam-pipeline to reconfigure display')
+            self.video.livedisplay({
+                'hres':dbus.types.Int32(res['hRes'], variant_level=1),
+                'vres':dbus.types.Int32(res['vRes'], variant_level=1)
+            }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
         
         for k,v in newValues.items():
             logging.debug('updated {} to {}'.format(k, v))
         
-        return self.status() #¯\_(ツ)_/¯
+        
+        result = self.get(keys)
+        if failedAttributes:
+            result['error'] = self.dbusifyTypes(failedAttributes)
+        return result
     
+    #===============================================================================================
+    #Method('availableKeys', arguments='', returns='as')
+    #Method('availableCalls', arguments='', returns='as')
     @lru_cache(maxsize=1)
     def ownKeys(self):
         return {
@@ -292,6 +350,7 @@ class controlApi(dbus.service.Object):
             }
             for elem in dir(self.camera)
             if elem[0] != '_'
+            and elem not in {'config'} #Keys which don't work.
             and isinstance(getattr(type(self.camera), elem, None), property) #is a getter, maybe a setter
         }
     
@@ -310,7 +369,7 @@ class controlApi(dbus.service.Object):
         
         #Video API doesn't know which keys it owns; hack it in here for now. (DDR 2019-05-06)
         try:
-            videoKeys = video.availableKeys()
+            videoKeys = self.video.availableKeys()
         except dbus.exceptions.DBusException:
             logging.error('could not load video available keys')
             videoKeys = {
@@ -337,60 +396,86 @@ class controlApi(dbus.service.Object):
     #Method('status', arguments='', returns='a{sv}')
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def status(self):
-        return {'state':self.currentState}
+        return {'state':self.camera.state}
 
     #===============================================================================================
-    #Method('doReset', arguments='a{sv}', returns='a{sv}'),
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def doReset(self, args):
-        self.callLater(0.0, self.runReset, args)
-        self.currentState = 'reinitializing'
-        return self.status()
-
-    def runReset(self, args):
-        recal = False
-        reinitAll = args.get('all', False)
-        if args.get('fpga') or reinitAll:
-            reinitAll = True
-            recal = True
-            self.camera.reset(FPGA_BITSTREAM)
-
-        if args.get('reset'):
-            recal = True
-            self.camera.reset()
-            
-        if args.get('sensor') or reinitAll:
-            recal = True
-            self.camera.sensor.reset()
-
-        if recal:
-            self.display.whiteBalance[0] = int(1.5226 * 4096)
-            self.display.whiteBalance[1] = int(1.0723 * 4096)
-            self.display.whiteBalance[2] = int(1.5655 * 4096)
-            
-            #self.currentState = 'calibrating'
-            #self.runGenerator(self.startCalibration({'analog':True, 'zeroTimeBlackCal':True}))
-            self.currentState = 'idle'
-        else:
-            self.currentState = 'idle'
-
-    #===============================================================================================
-    #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
-    #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
-    #Method('startBlackCalibration', arguments='a{sv}', regutns='a{sv}'),
-    #Method('startZeroTimeBlackCal', arguments='a{sv}', regutns='a{sv}'),
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startAutoWhiteBalance(self, args):
-        logging.info('starting white balance')
+    #Method('softReset', arguments='', returns='a{sv}'),
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def softReset(self):
         try:
-            self.runGenerator(self.camera.startWhiteBalance(args))
+            self.runGenerator(self.runSoftReset())
             return {
                 "state": self.camera.state
             }
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": e.message
+                "error": str(e)
+            }
+    
+    def loadConfig(self):
+        if not self.configFile:
+            return
+        
+        try:
+            logging.info('checking for config file: %s', self.configFile)
+            with open(self.configFile, 'r') as inFile:
+                self.set(json.load(inFile))
+        except FileNotFoundError:
+            logging.info('config file not found')
+
+    def runSoftReset(self):
+        # Wrapper method to do a complete soft reset of both the camera class,
+        # reloading of parameters, and tickling of the video system.
+        yield from self.camera.softReset()
+
+        # Reload the configuration.
+        self.loadConfig()
+
+        # Re-run initial calibration.
+        yield from self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True)
+
+        # Re-configure the video system back into live display.
+        res = self.camera.resolution
+        logging.info('Notifying cam-pipeline to reconfigure display')
+        self.video.livedisplay({
+            'hres':dbus.types.Int32(res['hRes'], variant_level=1),
+            'vres':dbus.types.Int32(res['vRes'], variant_level=1)
+        }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
+
+    #===============================================================================================
+    #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startCalibration(self, args):
+        try:
+            self.runGenerator(self.camera.startCalibration(**args))
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
+            }
+    
+    #===============================================================================================
+    #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
+    #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
+    #Method('startRecording', arguments='', regutns='a{sv}'),
+    #Method('stopRecording', arguments='', regutns='a{sv}'),
+    #Method('flushRecording', arguments='', regutns='a{sv}'),
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startAutoWhiteBalance(self, args):
+        logging.info('starting white balance')
+        try:
+            self.runGenerator(self.camera.startWhiteBalance(**args))
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
             }
 
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
@@ -400,51 +485,8 @@ class controlApi(dbus.service.Object):
             "state": self.camera.state
         }
     
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startBlackCalibration(self, args):
-        logging.info('starting standard black calibration')
-        try:
-            self.runGenerator(self.camera.startBlackCal())
-            return {
-                "state": self.camera.state
-            }
-        except Exception as e:
-            return {
-                "state": self.camera.state,
-                "error": e.message
-            }
-    
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startZeroTimeBlackCal(self, args):
-        logging.info('starting zero-time black calibration')
-        try:
-            self.runGenerator(self.camera.startZeroTimeBlackCal())
-            return {
-                "state": self.camera.state
-            }
-        except CameraError as e:
-            return {
-                "state": self.camera.state,
-                "error": e.message
-            }
-
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startAnalogCalibration(self, args):
-        logging.info('starting analog calibration')
-        try:
-            self.runGenerator(self.camera.sensor.startAnalogCal())
-            return {
-                "state": self.camera.state
-            }
-        except CameraError as e:
-            return {
-                "state": self.camera.state,
-                "error": e.message
-            }
-    
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startRecording(self, args):
-        logging.info('starting analog calibration')
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def startRecording(self):
         try:
             self.runGenerator(self.camera.startRecording())
             return {
@@ -453,20 +495,36 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": e.message
+                "error": str(e)
             }
-
-
+    
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def stopRecording(self):
+        try:
+            self.camera.stopRecording()
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
+            }
+    
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
+    def flushRecording(self, onReply=None, onError=None):
+        self.video.flush(reply_handler=onReply, error_handler=onError)
 
     #===============================================================================================
     #Method('testResolution', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def testResolution(self, args):
-        if (self.camera.sensor.isValidResolution(args)):
-            fpMin, fpMax = self.camera.sensor.getPeriodRange(args)
-            expMin, expMax = self.camera.sensor.getExposureRange(args, fpMin)
+        fSize = frameGeometry(**args)
+        if (self.camera.sensor.isValidResolution(fSize)):
+            fpMin, fpMax = self.camera.sensor.getPeriodRange(fSize)
+            expMin, expMax = self.camera.sensor.getExposureRange(fSize, fpMin)
             return {
-                "cameraMaxFrames": self.camera.getRecordingMaxFrames(args),
+                "cameraMaxFrames": self.camera.getRecordingMaxFrames(fSize),
                 "minFramePeriod": int(fpMin * 1000000000),
                 "exposureMin": int(expMin * 1000000000),
                 "exposureMax": int(expMax * 1000000000)
@@ -475,33 +533,52 @@ class controlApi(dbus.service.Object):
             return {
                 "error": "Invalid Resolution"
             }
+    
 
 # Run the control API
 if __name__ == "__main__":
     # Enable logging.
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s [%(funcName)s] %(message)s')
 
-    ## TODO: Initialize the FPGA.
-    ## TODO: This needs to go into an init script somewhere.
+    # Do argument parsing
+    parser = argparse.ArgumentParser(description="Chronos control daemon")
+    parser.add_argument('--config', metavar='FILE', action='store',
+                        default='/var/camera/apiConfig.json',
+                        help="Configuration file path")
+    parser.add_argument('--debug', default=False, action='store_true',
+                        help="Enable debug logging")
+    parser.add_argument('--pdb', default=False, action='store_true',
+                        help="Drop into a python debug console on exception")
+    args = parser.parse_args()
 
-    # Use the GLib mainloop.
-    
+    if not args.debug:
+        logging.getLogger().setLevel(logging.INFO)
+    else:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Install exception handlers for interactive debug on exception.
+    if args.pdb:
+        def excepthook(t,v,tb):
+            pdb.traceback.print_exception(t, v, tb)
+            pdb.post_mortem(t=tb)
+        sys.excepthook = excepthook
+        dbg, brk = pdb.set_trace, pdb.set_trace #convenience debugging
+
+        #Fix system not echoing keystrokes in debugger, after restart.
+        try:
+            os.system('stty sane')
+        except Exception:
+            pass
+
+    # Use the GLib mainloop.    
     mainloop = GLib.MainLoop()
 
     # Setup resources.
     cam  = camera(lux1310())
    
     name = dbus.service.BusName('com.krontech.chronos.control', bus=bus)
-    obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam)
-    
-    #Load previously set values.
-    obj.set({
-        key: store.get(key)
-        for key, attrs in obj.availableKeys().items()
-        if attrs['set']
-        and store.get(key, None) is not None
-    })
-    
+    obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam, configFile=args.config)
+
     # Run the mainloop.
     logging.info("Running control service...")
     mainloop.run()
