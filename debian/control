@@ -15,7 +15,8 @@ X-Python3-Version: >= 3.4
 
 Package: python3-pychronos
 Architecture: armel
-Depends: ${python3:Depends}, ${misc:Depends}
+Depends: ${python3:Depends}, ${misc:Depends},
+         python3-numpy
 Suggests: python-pychronos-doc
 Description: Python bindings for the Chronos High Speed Camera  (Python 3)
  Python bindings for the Chronos High Speed Camera
@@ -34,15 +35,15 @@ Description: Python bindings for the Chronos High Speed Camera (common documenta
 Package: chronos-control
 Architecture: all
 Depends: ${python3:Depends}, ${misc:Depends},
-	python3-pychronos, python3-dbus,
-	chronos-fpga, chronos-video
+        python3-pychronos, python3-dbus,
+        chronos-fpga, chronos-video
 Suggests: python-pychronos-doc
 Description: Control daemon for the Chronos High Speed Camera
 
 Package: chronos-webbridge
 Architecture: all
 Depends: ${python3:Depends}, ${misc:Depends},
-	python3-pychronos, python3-twisted, python3-txdbus,
-	chronos-control, chronos-video
+        python3-pychronos, python3-twisted, python3-txdbus,
+        chronos-control, chronos-video
 Suggests: python-pychronos-doc
 Description: D-Bus web bridge for the Chronos High Speed Camera

@@ -1,5 +1,6 @@
-pychronos (0.4.0~alpha34) unstable; urgency=medium
+pychronos (0.4.0~alpha35) unstable; urgency=medium
 
+  * Fix DOS line endings and package dependencies.
   * API remaining tweaks and DBus web bridge packaging.
   * Merge branch 'master' of github.com:krontech/pychronos
   * Fixed* setting and getting keys through the control API.
@@ -36,4 +37,4 @@ pychronos (0.4.0~alpha34) unstable; urgency=medium
   * Add version.py to maintain a single API version number.
   * Upstream release v0.4.0-alpha
 
- -- Owen Kirby <oskirby@gmail.com>  Wed, 08 May 2019 12:43:03 -0700
+ -- Owen Kirby <oskirby@gmail.com>  Wed, 08 May 2019 14:40:23 -0700

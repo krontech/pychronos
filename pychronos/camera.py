@@ -705,7 +705,7 @@ class camera:
     @camProperty(notify=True, save=True)
     def cameraIdNumber(self):
         return self.idNumber
-    @cameraIDNumber.setter
+    @cameraIdNumber.setter
     def cameraIdNumber(self, value):
         if not isinstance(value, int):
             raise TypeError("cameraIdNumber must be an integer got %s instead" % (type(value)))
