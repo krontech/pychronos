@@ -1,5 +1,9 @@
-pychronos (0.4.0~alpha30) unstable; urgency=medium
+pychronos (0.4.0~alpha34) unstable; urgency=medium
 
+  * API remaining tweaks and DBus web bridge packaging.
+  * Merge branch 'master' of github.com:krontech/pychronos
+  * Fixed* setting and getting keys through the control API.
+  * Fix bug preventing API settings from being saved.
   * Fix debian packaging errors.
   * Fixed watch-camera script to start the right script, in debug mode.
   * lux1310: Add HDR exposure programs to the API.
@@ -32,4 +36,4 @@ pychronos (0.4.0~alpha30) unstable; urgency=medium
   * Add version.py to maintain a single API version number.
   * Upstream release v0.4.0-alpha
 
- -- Owen Kirby <oskirby@gmail.com>  Fri, 03 May 2019 20:29:19 -0700
+ -- Owen Kirby <oskirby@gmail.com>  Wed, 08 May 2019 12:43:03 -0700

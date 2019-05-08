@@ -42,10 +42,10 @@ def allowCrossOrigin(request, methods='GET, POST, OPTION', contentType='applicat
     request.setHeader('Access-Control-Max-Age', 2520)
 
 eventList = {'test':'',
-             'control/notify':'/com/krontech/chronos/control/notify',
-             'video/segment':'/com/krontech/chronos/video/segment',
-             'video/eof':'/com/krontech/chronos/video/eof',
-             'video/sof':'/com/krontech/chronos/video/sof'}
+             'control/notify':'/ca/krontech/chronos/control/notify',
+             'video/segment':'/ca/krontech/chronos/video/segment',
+             'video/eof':'/ca/krontech/chronos/video/eof',
+             'video/sof':'/ca/krontech/chronos/video/sof'}
 
 
 class Root(resource.Resource):
@@ -487,8 +487,8 @@ def main():
 
     logging.info('Adding dbus signals')
     system = yield client.connect(reactor, 'system')
-    controlApi = yield system.getRemoteObject('com.krontech.chronos.control', '/com/krontech/chronos/control')
-    videoApi   = yield system.getRemoteObject('com.krontech.chronos.video',   '/com/krontech/chronos/video')
+    controlApi = yield system.getRemoteObject('ca.krontech.chronos.control', '/ca/krontech/chronos/control')
+    videoApi   = yield system.getRemoteObject('ca.krontech.chronos.video',   '/ca/krontech/chronos/video')
     ringApi    = None
 
     dbusSignalPublisher = dbusPublisher(subscribe, controlApi, videoApi, ringApi)

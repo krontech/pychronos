@@ -1,0 +1,12 @@
+[Unit]
+Description=DBus web interface for the Chronos Camera
+After=chronos-control.service chronos-video.service
+Requires=chronos-control.service chronos-video.service
+
+[Service]
+ExecStart=/usr/bin/cam-webbridge
+StandardOutput=journal+console
+StandardError=inherit
+
+[Install]
+WantedBy=multi-user.target

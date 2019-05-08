@@ -111,8 +111,8 @@ electronic lens control up and running.
 ### Gain Control Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
-| `currentISO`      |`G`|`x`|   | int    |       |       | ISO number of the sensor at the current gain setting.
-| `currentGain`     |`G`|`x`|`x`| int    |       |       | The gain as a multiplier of the `sensorISO` parameter.
+| `currentIso`      |`G`|`x`|   | int    |       |       | ISO number of the sensor at the current gain setting.
+| `currentGain`     |`G`|`x`|`x`| int    |       |       | The gain as a multiplier of the `sensorIso` parameter.
 
 ### Display Parameters
 These API parameters are proxy values for the equivalent parameters in the D-Bus
@@ -149,8 +149,8 @@ API to the `chronos-cli` program.
 |`sensorName`         |`G`|   |   | string |       |       | Descriptive string of the image sensor.
 |`sensorColorPattern` |`G`|   |   | string |       |       | String of ‘R’ ‘G’ and ‘B’ that defines the color filter pattern in left-to-right and top-to-bottom order or ‘mono’ for monochrome sensors.
 |`sensorBitDepth`     |`G`|   |   | int    |       |       | Number of bits per pixel as recorded by the image sensor.
-|`sensorISO`          |`G`|   |   | int    |       |       | Base ISO of the image sensor at a gain of 1x (or 0 dB)
-|`sensorMaxGain`      |`G`|   |   | int    |       |       | Maximum gain of the image sensor as a multiple of `sensorISO`
+|`sensorIso`          |`G`|   |   | int    |       |       | Base ISO of the image sensor at a gain of 1x (or 0 dB)
+|`sensorMaxGain`      |`G`|   |   | int    |       |       | Maximum gain of the image sensor as a multiple of `sensorIso`
 |`sensorPixelRate`    |`G`|   |   | int    |       |       | Approximate pixel rate of the image sensor in pixels per second.
 |`sensorVMax`         |`G`|   |   | int    |       |       | Maximum vertical resolution of the image sensor.
 |`sensorVMin`         |`G`|   |   | int    |       |       | Minimum vertical resolution of the image sensor.

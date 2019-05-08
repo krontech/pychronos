@@ -21,7 +21,7 @@ from pychronos import camera, CameraError
 from pychronos.sensors import lux1310, frameGeometry
 import pychronos.regmaps as regmaps
 
-interface = 'com.krontech.chronos.control'
+interface = 'ca.krontech.chronos.control'
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 bus = dbus.SystemBus()
 
@@ -49,7 +49,7 @@ class controlApi(dbus.service.Object):
         self.configFile = configFile
     
         self.camera = camera
-        self.video = bus.get_object('com.krontech.chronos.video', '/com/krontech/chronos/video')
+        self.video = bus.get_object('ca.krontech.chronos.video', '/ca/krontech/chronos/video')
         self.io = regmaps.ioInterface()
         self.display = regmaps.display()
 
@@ -175,7 +175,6 @@ class controlApi(dbus.service.Object):
 
     def videoUpdateSignal(self, args):
         # Pass parameter updates along as though they came from the control API.
-        print('vus args', args)
         for key, value in args.items():
             self.onChangeHandler(key, value)
     
@@ -236,12 +235,12 @@ class controlApi(dbus.service.Object):
             return data
         
         except dbus.exceptions.DBusException as e:
-            if e.get_dbus_name() != 'com.krontech.chronos.UnknownAttribute':
+            if e.get_dbus_name() != 'ca.krontech.chronos.UnknownAttribute':
                 raise e
             else:
                 #Video didn't have the attr, we don't have the attr, return a nice error message saying _which_ attr is causing issues and why.
                 raise dbus.exceptions.DBusException(
-                    'com.krontech.chronos.UnknownAttribute',
+                    'ca.krontech.chronos.UnknownAttribute',
                     "'%s' is not a known attribute. Known attributes are: %s" % (
                         e.get_dbus_message().split()[0], #attribute name
                         sorted(set(self.availableKeys()))
@@ -260,38 +259,6 @@ class controlApi(dbus.service.Object):
     def set(self, newValues):
         """Set named values in the control API and the video API."""
         
-        #First, check all variables exist.
-        try:
-            knownAttributes = set(self.availableKeys())
-        except dbus.exceptions.DBusException:
-            logging.error('could not load video available keys')
-            knownAttributes = set(self.availableKeys())
-        
-        unknownAttributes = [attr for attr in newValues if attr not in knownAttributes]
-        controlAttributes = {
-            name: attr
-            for name, attr in newValues.items()
-            if name in self.ownKeys()
-        }
-        videoAttributes = {
-            name: attr
-            for name, attr in newValues.items()
-            if name not in controlAttributes
-        }
-        
-        if unknownAttributes:
-            raise dbus.exceptions.DBusException(
-                'com.krontech.chronos.UnknownAttribute',
-                "'%s' is not a known attribute. Known attributes are: %s" % (
-                    unknownAttributes[0],
-                    sorted(knownAttributes)
-                )
-            )
-        
-        #Set control attributes first, then video attributes, so the video system has everything ready for it.
-        for name, attr in controlAttributes.items():
-            setattr(self.camera, name, attr)
-        
         keys = sorted(newValues.keys(), key=self.paramsort, reverse=True)
         failedAttributes = {}
         videoAttributes = {}
@@ -308,10 +275,14 @@ class controlApi(dbus.service.Object):
                     logging.debug(traceback.format_exc())
                     failedAttributes[name] = str(e)
             # Otherwise, try setting the property in the video interface.
-            else:
+            elif name in self.availableKeys():
                 videoAttributes[name] = value
+            else:
+                failedAttributes[name] = "Unknown property '%s' could not be set." % (name)
         
         # For any keys that don't exist - try setting them in the video API.
+        # TODO: We should catch the async response and pass errors back to the
+        # caller, but for now we just assume that everything succeeded.
         if videoAttributes:
             self.video.set(self.dbusifyTypes(videoAttributes),
                     reply_handler=self.dbusReplyHandler,
@@ -328,10 +299,7 @@ class controlApi(dbus.service.Object):
                 'vres':dbus.types.Int32(res['vRes'], variant_level=1)
             }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
         
-        for k,v in newValues.items():
-            logging.debug('updated {} to {}'.format(k, v))
-        
-        
+        # Return the settings as they've been applied.
         result = self.get(keys)
         if failedAttributes:
             result['error'] = self.dbusifyTypes(failedAttributes)
@@ -363,9 +331,6 @@ class controlApi(dbus.service.Object):
         """Get a list of the properties we can get/set/subscribe.
             
             For a list of functions, see org.freedesktop.DBus.Properties.GetAll."""
-        
-        #Return a map, vs a list with a name key, because everything else is a{sv}.
-        #dbg() #x = getattr(type(self.camera), 'sensorHMax')
         
         #Video API doesn't know which keys it owns; hack it in here for now. (DDR 2019-05-06)
         try:
@@ -576,8 +541,8 @@ if __name__ == "__main__":
     # Setup resources.
     cam  = camera(lux1310())
    
-    name = dbus.service.BusName('com.krontech.chronos.control', bus=bus)
-    obj  = controlApi(bus, '/com/krontech/chronos/control', mainloop, cam, configFile=args.config)
+    name = dbus.service.BusName('ca.krontech.chronos.control', bus=bus)
+    obj  = controlApi(bus, '/ca/krontech/chronos/control', mainloop, cam, configFile=args.config)
 
     # Run the mainloop.
     logging.info("Running control service...")

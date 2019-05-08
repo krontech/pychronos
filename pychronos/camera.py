@@ -53,9 +53,6 @@ def camProperty(notify=False, save=False, prio=0):
     
     return camPropertyAnnotate
 
-
-
-
 class CameraError(RuntimeError):
     pass
 
@@ -108,7 +105,6 @@ class camera:
 
         self.ioInterface = regmaps.ioInterface()
         
-    
     def __propChange(self, name):
         """Quick and dirty wrapper to throw an on-change event by name"""
         try:
@@ -707,14 +703,14 @@ class camera:
         self.__propChange("cameraDescription")
 
     @camProperty(notify=True, save=True)
-    def cameraIDNumber(self):
+    def cameraIdNumber(self):
         return self.idNumber
     @cameraIDNumber.setter
-    def cameraIDNumber(self, value):
+    def cameraIdNumber(self, value):
         if not isinstance(value, int):
-            raise TypeError("cameraIDNumber must be an integer got %s instead" % (type(value)))
+            raise TypeError("cameraIdNumber must be an integer got %s instead" % (type(value)))
         self.idNumber = value
-        self.__propChange("cameraIDNumber")
+        self.__propChange("cameraIdNumber")
     
     @camProperty(notify=True, save=True)
     def cameraTallyMode(self):
@@ -763,8 +759,8 @@ class camera:
         return (fSize.vRes + fSize.vDarkRows) * fSize.hRes / fSize.minFrameTime
     
     @camProperty()
-    def sensorISO(self):
-        return self.sensor.baseISO
+    def sensorIso(self):
+        return self.sensor.baseIso
     
     @camProperty()
     def sensorMaxGain(self):
@@ -892,8 +888,8 @@ class camera:
         return self.sensor.getCurrentGain()
     
     @camProperty()
-    def currentISO(self):
-        return self.sensor.getCurrentGain() * self.sensor.baseISO
+    def currentIso(self):
+        return self.sensor.getCurrentGain() * self.sensor.baseIso
 
     #===============================================================================================
     # API Parameters: Camera Status Group
@@ -902,7 +898,7 @@ class camera:
         return self.__state
     
     @camProperty()
-    def dateTime():
+    def dateTime(self):
         return datetime.datetime.now().isoformat()
     
     @camProperty()
@@ -1175,6 +1171,3 @@ class camera:
     @camProperty(notify=False, save=False)
     def ioDetailedStatus(self):
         return self.ioInterface.getIoStatus()
-    
-    
-    

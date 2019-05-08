@@ -67,7 +67,7 @@ class api(ABC):
         return None
     
     @property
-    def baseISO(self):
+    def baseIso(self):
         """The base ISO of the image sensor at normal gain"""
         return 100
 

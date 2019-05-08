@@ -91,7 +91,7 @@ class lux1310(api):
             return None
     
     @property
-    def baseISO(self):
+    def baseIso(self):
         if self.cfaPattern:
             return 320
         else:
