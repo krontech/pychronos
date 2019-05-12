@@ -28,61 +28,68 @@
 #include "fpga.h"
 #include "pychronos.h"
 
-Py_buffer fpga_regbuffer = {
-    .buf = MAP_FAILED,
-    .obj = NULL,
-    .len = GPMC_REGISTER_LEN,
-    .format = "H",
-    .readonly = 0,
-    .itemsize = sizeof(uint16_t),
-    .ndim = 1,
-    .shape = (Py_ssize_t[]){GPMC_REGISTER_LEN / sizeof(uint16_t)},
-    .strides = (Py_ssize_t[]){sizeof(uint16_t)},
-};
-
-Py_buffer fpga_rambuffer = {
-    .buf = MAP_FAILED,
-    .obj = NULL,
-    .len = GPMC_RAM_LEN,
-    .format = "H",
-    .readonly = 0,
-    .itemsize = sizeof(uint16_t),
-    .ndim = 1,
-    .shape = (Py_ssize_t[]){GPMC_RAM_LEN / sizeof(uint16_t)},
-    .strides = (Py_ssize_t[]){sizeof(uint16_t)},
-};
-
-int
-pychronos_init_maps(void)
+/* Try opening the memory device, or return -1 and set errno. */
+static int
+pychronos_try_maps(void)
 {
-    static int fd = -1;
-    if (fd >= 0) return 0;
+    static int memfd = -1;
+    if (memfd < 0) {
+        memfd = open("/dev/mem", O_RDWR | O_SYNC);
+    }
+    return memfd;
+}
 
-    fd = open("/dev/mem", O_RDWR | O_SYNC);
-    if (fd < 0) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        return -1;
+/* Wrapper to perform a register mmap, or return NULL on failure. */
+void *
+pychronos_reg_mmap(unsigned long roffset, unsigned long rsize)
+{
+    static uint8_t *regs = MAP_FAILED;
+
+    /* Map the GPMC register space. */
+    if (regs == MAP_FAILED) {
+        int fd = pychronos_try_maps();
+        if (fd < 0) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            return NULL;
+        }
+        regs = mmap(0, GPMC_REGISTER_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, GPMC_RANGE_BASE + GPMC_REGISTER_OFFSET);
+        if (regs == MAP_FAILED) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            return NULL;
+        }
     }
 
-    fpga_regbuffer.buf = mmap(0, GPMC_REGISTER_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, GPMC_RANGE_BASE + GPMC_REGISTER_OFFSET);
-    if (fpga_regbuffer.buf == MAP_FAILED) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        close(fd);
-        fd = -1;
-        return -1;
+    if ((rsize + roffset) > GPMC_REGISTER_LEN) {
+        PyErr_SetString(PyExc_ValueError, "Register map size exceeds the GPMC register space.");
+        return NULL;
+    }
+    return regs + roffset;
+}
+
+void *
+pychronos_ram_mmap(unsigned long roffset, unsigned long rsize)
+{
+    static uint8_t *ram = MAP_FAILED;
+
+    /* Map the GPMC RAM space. */
+    if (ram == MAP_FAILED) {
+        int fd = pychronos_try_maps();
+        if (fd < 0) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            return NULL;
+        }
+        ram = mmap(0, GPMC_RAM_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, GPMC_RANGE_BASE + GPMC_RAM_OFFSET);
+        if (ram == MAP_FAILED) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            return NULL;
+        }
     }
 
-    fpga_rambuffer.buf = mmap(0, GPMC_RAM_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, GPMC_RANGE_BASE + GPMC_RAM_OFFSET);
-    if (fpga_rambuffer.buf == MAP_FAILED) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        munmap(fpga_regbuffer.buf, GPMC_REGISTER_LEN);
-        close(fd);
-        fd = -1;
-        return -1;
+    if ((rsize + roffset) > GPMC_RAM_LEN) {
+        PyErr_SetString(PyExc_ValueError, "Register map size exceeds the GPMC RAM space.");
+        return NULL;
     }
-
-    /* Success */
-    return 0;
+    return ram + roffset;
 }
 
 /*===============================================*
@@ -313,20 +320,7 @@ static void
 pychronos_init_types(PyObject *mod)
 {
     int i;
-    PyObject *obj;
-
-    /* Register the raw memory mapping */
-    obj = PyMemoryView_FromBuffer(&fpga_regbuffer);
-    if (obj != NULL) {
-        Py_INCREF(obj);
-        PyModule_AddObject(mod, "reg",  obj);
-    }
-    obj = PyMemoryView_FromBuffer(&fpga_rambuffer);
-    if (obj == NULL) {
-        Py_INCREF(obj);
-        PyModule_AddObject(mod, "ram",  obj);
-    }
-
+    
     /* Register all public types. */
     for (i = 0; i < sizeof(pubtypes)/sizeof(pubtypes[0]); i++) {
         PyTypeObject *t = pubtypes[i]; 
@@ -375,10 +369,12 @@ PyInit_libpychronos(void)
 {
     PyObject *mod;
 
-    /* Initialize the FPGA register mapping and the Python objects. */
-    if (pychronos_init_maps()) {
-        return NULL;
-    }
+    /*
+     * Try opening the memory device at module import, but fail silently
+     * if it happens to be inaccessible. This will punt the error reporting
+     * over to the type constructors if memory is not actually accessible.
+     */
+    pychronos_try_maps();
 
     /* Load the module. */
     mod = PyModule_Create(&libpychronos_module);
@@ -398,10 +394,12 @@ initlibpychronos(void)
 {
     PyObject *mod;
 
-    /* Initialize the FPGA register mapping and the Python objects. */
-    if (pychronos_init_maps()) {
-        return;
-    }
+    /*
+     * Try opening the memory device at module import, but fail silently
+     * if it happens to be inaccessible. This will punt the error reporting
+     * over to the type constructors if memory is not actually accessible.
+     */
+    pychronos_try_maps();
 
     mod = Py_InitModule3("libpychronos", pychronos_methods, pychronos__doc__);
     if (mod == NULL) {

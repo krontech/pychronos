@@ -579,7 +579,10 @@ fpgamap_init(PyObject *self, PyObject *args, PyObject *kwargs)
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|kk", keywords, &fmap->roffset, &fmap->rsize)) {
         return -1;
     }
-    fmap->regs = (uint8_t *)fpga_regbuffer.buf + fmap->roffset;
+    fmap->regs = pychronos_reg_mmap(fmap->roffset, fmap->rsize);
+    if (!fmap->regs) {
+        return -1;
+    }
     return 0;
 }
 

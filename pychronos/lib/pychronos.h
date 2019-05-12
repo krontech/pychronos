@@ -20,10 +20,6 @@
 /* Default register map size. */
 #define FPGA_MAP_SIZE   0x100
 
-/* Naked memory mapping. */
-extern Py_buffer fpga_regbuffer;
-extern Py_buffer fpga_rambuffer;
-
 /* Types */
 extern PyTypeObject pychronos_arrayiter_type;
 extern PyTypeObject pychronos_arrayview_type;
@@ -35,5 +31,9 @@ extern PyTypeObject pychronos_pwm_type;
 extern PyObject *pychronos_read_raw(PyObject *self, PyObject *args);
 extern PyObject *pychronos_read_frame(PyObject *self, PyObject *args);
 extern PyObject *pychronos_write_frame(PyObject *self, PyObject *args);
+
+/* Internal Helpers. */
+void *pychronos_reg_mmap(unsigned long roffset, unsigned long rsize);
+void *pychronos_ram_mmap(unsigned long roffset, unsigned long rsize);
 
 #endif /* _PYCHRONOS_H */

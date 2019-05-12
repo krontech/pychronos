@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from distutils.core import setup, Extension
 import sysconfig
+import platform
 
 # Grab the package version from version.py
 try:
@@ -13,10 +14,12 @@ except:
 
 DESCRIPTION=("Python bindings for the Chronos High Speed Camera")
 
+# Tune CFLAGS for ARMv7 architecture builds.
 extra_cflags = sysconfig.get_config_var('CFLAGS').split()
-extra_cflags += ["-mfloat-abi=softfp", "-mcpu=cortex-a8", "-mfpu=neon"]
 extra_ldflags = sysconfig.get_config_var('LDFLAGS').split()
-extra_ldflags += ["-mfloat-abi=softfp", "-mcpu=cortex-a8", "-mfpu=neon"]
+if (platform.machine() == 'armv7l'):
+    extra_cflags += ["-mfloat-abi=softfp", "-mcpu=cortex-a8", "-mfpu=neon"]
+    extra_ldflags += ["-mfloat-abi=softfp", "-mcpu=cortex-a8", "-mfpu=neon"]
 
 libpychronos = Extension('libpychronos',
                         depends = [

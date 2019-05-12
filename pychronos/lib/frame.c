@@ -214,10 +214,15 @@ pychronos_read_alloc(volatile struct fpga_vram *vram, unsigned long address, uns
     }
     /* Readout via the old method. */
     else {
-        uint32_t *pageoffset = (uint32_t *)(fpga_regbuffer.buf + FPGA_PAGE_OFFSET_BASE);
-        *pageoffset = address;
-        memcpy(buffer, fpga_rambuffer.buf, length);
-        *pageoffset = 0;
+        uint32_t *pageoffset = pychronos_reg_mmap(FPGA_PAGE_OFFSET_BASE, sizeof(uint32_t));
+        uint32_t *rambuffer = pychronos_ram_mmap(0, length);
+        if (rambuffer) {
+            *pageoffset = address;
+            memcpy(buffer, rambuffer, length);
+            *pageoffset = 0;
+        } else {
+            memset(buffer, 0, length);
+        }
     }
 
     return buffer;
@@ -228,10 +233,13 @@ pychronos_write_ram(volatile struct fpga_vram *vram, unsigned long address, cons
 {
     /* If the fast VRAM block is unavailable, use the slow interface */
     if (vram->identifier != VRAM_IDENTIFIER) {
-        uint32_t *pageoffset = (uint32_t *)(fpga_regbuffer.buf + FPGA_PAGE_OFFSET_BASE);
-        *pageoffset = address;
-        memcpy(fpga_rambuffer.buf, data, len);
-        *pageoffset = 0;
+        uint32_t *pageoffset = pychronos_reg_mmap(FPGA_PAGE_OFFSET_BASE, sizeof(uint32_t));
+        uint32_t *rambuffer = pychronos_ram_mmap(0, len);
+        if (rambuffer) {
+            *pageoffset = address;
+            memcpy(rambuffer, data, len);
+            *pageoffset = 0;
+        }
     }
     /* Otherwise, write the data in bursts via the VRAM block. */
     else {
@@ -260,7 +268,7 @@ pychronos_write_ram(volatile struct fpga_vram *vram, unsigned long address, cons
 PyObject *
 pychronos_read_raw(PyObject *self, PyObject *args)
 {
-    struct fpga_vram *vram = (struct fpga_vram *)(fpga_regbuffer.buf + FPGA_VRAM_BASE);
+    struct fpga_vram *vram = pychronos_reg_mmap(FPGA_VRAM_BASE, sizeof(struct fpga_vram));
     unsigned long address, length;
     uint8_t *buffer;
     PyObject *obj;
@@ -282,7 +290,7 @@ pychronos_read_raw(PyObject *self, PyObject *args)
 PyObject *
 pychronos_read_frame(PyObject *self, PyObject *args)
 {
-    struct fpga_vram *vram = (struct fpga_vram *)(fpga_regbuffer.buf + FPGA_VRAM_BASE);
+    struct fpga_vram *vram = pychronos_reg_mmap(FPGA_VRAM_BASE, sizeof(struct fpga_vram));
     struct frame_object *frame;
     unsigned long address, length;
     uint8_t *buffer;
@@ -346,7 +354,7 @@ pychronos_read_frame(PyObject *self, PyObject *args)
 PyObject *
 pychronos_write_frame(PyObject *self, PyObject *args)
 {
-    struct fpga_vram *vram = (struct fpga_vram *)(fpga_regbuffer.buf + FPGA_VRAM_BASE);
+    struct fpga_vram *vram = pychronos_reg_mmap(FPGA_VRAM_BASE, sizeof(struct fpga_vram));
     unsigned long address;
     PyObject *frame;
     Py_buffer pbuffer;
