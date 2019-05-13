@@ -165,12 +165,18 @@ API to the `chronos-cli` program.
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
 |`state`            |`G`|   |`N`| enum   |       |       | One of `idle`, `recording`, `reset` and others???? TBD.
 |`error`            |   |   |`x`| string |       |       | Included in a notification dictionary if, and only if, an operation fails due to an error.
-|`networkInterfaces`|`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the network interfaces.
 |`externalStorage`  |`G`|   |   | dict   |       |       | Dictionary of dictionaries describing the external storage devices.
 |`dateTime`         |`G`|   |   | string |       |       | ISO-8601 formatted date and time string.
 |`externalPower`    |`x`|   |`x`| bool   |       |       | True when the AC adaptor is present, and False when on battery power.
 |`batteryCharge`    |`x`|   |   | float  | 0.0   | 1.0   | Estimated battery charge, with 0.0 being fully depleted and 1.0 for fully charged.
 |`batteryVoltage`   |`x`|   |   | float  |       |       | Mesured battery voltage in `V`
+
+### Camera Network Parameters
+| Parameter         | G | S | N | Type   | Min   | Max   | Description
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
+|`networkInterfaces`|`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the network interfaces.
+|`networkHostname`  |`G`|`S`|   | string |       |       | Hostname to be used for system calls, DHCP requests, etc.
+
 
 ### Color Space
 TODO: As a longer term plan, these parameters should be moved into the display
