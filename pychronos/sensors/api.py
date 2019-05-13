@@ -44,11 +44,9 @@ class api(ABC):
         This function returns no value, but may throw an exception if the initialization
         proceedure failed.
 
-        Parameters
-        ----------
-        fSize : frameGeometry (optional)
-            The initial video geometry to set after initializing the image sensor, or
-            use the default video geometry by default.
+        Args:
+            fSize (:obj:`frameGeometry`, optional): The initial video geometry to set after
+                initializing the image sensor, or use the maximum active video by default.
         """
         pass
 
@@ -58,42 +56,42 @@ class api(ABC):
     @property
     @abstractmethod
     def name(self):
-        """The name of the image sensor"""
+        """str: The name of the image sensor."""
         pass
     
     @property
     def cfaPattern(self):
-        """The color filter array pattern or None for monochrome sensors"""
+        """str: String describing the color filter array pattern, or `None` for monochrome sensors."""
         return None
     
     @property
     def baseIso(self):
-        """The base ISO of the image sensor at normal gain"""
+        """int: The ISO number of the image sensor at normal (0dB) gain."""
         return 100
 
     @property
     def maxGain(self):
-        """The maximum gain supported by the sensor"""
+        """int: The maximum gain supported by the sensor as a multiplier of baseIso."""
         return 1
     
     @property
     def hMin(self):
-        """The minimum horizontal resolution of the image sensor"""
+        """int: The minimum horizontal resolution, in pixels, of the image sensor"""
         return 1
     
     @property
     def hIncrement(self):
-        """The minimum step size for changes in horizontal resolution"""
+        """int: The minimum step size, in pixels, for changes in horizontal resolution"""
         return 1
 
     @property
     def vMin(self):
-        """The minimum vertical resolution of the image sensor"""
+        """int: The minimum vertical resolution, in pixels, of the image sensor"""
         return 1
     
     @property
     def vIncrement(self):
-        """The minimum step size for changes in vertical resolution"""
+        """int: The minimum step size, in pixels, for changes in vertical resolution"""
         return 1
     
     #--------------------------------------------
@@ -103,9 +101,8 @@ class api(ABC):
     def getMaxGeometry(self):
         """Return the maximum frame geometry supported by the image sensor
         
-        Returns
-        -------
-        frameGeometry
+        Returns:
+            :obj:`frameGeometry`
         """
         pass
     
@@ -113,14 +110,20 @@ class api(ABC):
     def getCurrentGeometry(self):
         """Return the current frame size of the image sensor
         
-        Returns
-        -------
-        frameGeometry
+        Returns:
+            :obj:`frameGeometry`
         """
         pass
     
-    def isValidResolution(self, size):
-        """Test if the provided geometry is supported by the iamge sensor"""
+    def isValidResolution(self, fSize):
+        """Test if the provided geometry is supported by the iamge sensor.
+        
+        Args:
+            fSize (:obj:`frameGeometry`): The resolution to test for support.
+
+        Returns:
+            bool: `True` if `fSize` is a supported resolution, and `False` otherwise.
+        """
         # Default implementation only checks agianst the maximums. Sensors
         # should normally override this with some more accurate sanity checks.
         limits = self.getMaxGeometry()
@@ -135,8 +138,15 @@ class api(ABC):
         return True
 
     @abstractmethod
-    def setResolution(self, size):
-        """Configure the resolution and frame geometry of the image sensor"""
+    def setResolution(self, fSize):
+        """Configure the resolution and frame geometry of the image sensor.
+        
+        Args:
+            fSize (:obj:`frameGeometry`): Frame size and geometry to configure.
+        
+        Raises:
+            ValueError: If `fSize` is not a valid resolution for the image sensor.
+        """
         pass
 
     #--------------------------------------------
@@ -146,25 +156,25 @@ class api(ABC):
     def getPeriodRange(self, fSize):
         """Return a tuple with the minimum and maximum frame periods at a given frame size
         
-        Parameters
-        ----------
-        fSize : `frameGeometry`
-            The frame size for which the frame period limits are being requested.
+        Args:
+            fSize (:obj:`frameGeometry`): The frame size for which the frame period limits
+                are being requested.
 
-        Returns
-        -------
-        (float, float) : A tuple of (min, max) frame periods in seconds, or zero to
-            indicate that the frame period is not limited.
+        Returns:
+            (float, float): A tuple of (min, max) frame periods in seconds, or zero to
+                indicate that the frame period is not limited.
+
+        Raises:
+            ValueError: If `fSize` is not a valid resolution for the image sensor.
         """
         pass
 
     @abstractmethod
     def getCurrentPeriod(self):
-        """Return the current frame period of the image sensor
+        """Return the current frame period of the image sensor.
         
-        Returns
-        -------
-        float : Current frame period in seconds
+        Returns:
+            float: Current frame period in seconds
         """
         pass
     
@@ -172,10 +182,11 @@ class api(ABC):
     def setFramePeriod(self, fPeriod):
         """Configure the frame minumum period of the image sensor
         
-        Parameters
-        ----------
-        fPeriod : `float`
-            The frame period to configure on the image sensor.
+        Args:
+            fPeriod (float): The frame period to configure on the image sensor.
+        
+        Raises:
+            ValueError: If `fPeriod` is not a valid frame period at the current resolution. 
         """
         pass
 
@@ -183,33 +194,31 @@ class api(ABC):
     def getExposureRange(self, fSize, fPeriod):
         """Return a tuple with the minimum and maximum exposure at a given frame size
         
-        Parameters
-        ----------
-        fSize : `frameGeometry`
-            The frame size at which the exposure range is being requested.
-        fPeriod : `float`
-            The frame period for which the exposure range is being requested.
+        Args:
+            fSize (:obj:`frameGeometry`): The frame size at which the exposure range is being requested.
+            fPeriod (float): The frame period for which the exposure range is being requested.
 
-        Returns
-        -------
-        (float, float) : A tuple of (min, max) exposure periods in seconds, or zero to
-            indicate that te exposure period is not limited.
+        Returns:
+            (float, float) : A tuple of (min, max) exposure periods in seconds, or zero to
+                indicate that te exposure period is not limited.
+        
+        Raises:
+            ValueError: If `fSize` is not a valid resolution for the image sensor.
         """
         pass
     
     @abstractmethod
     def getCurrentExposure(self):
-        """Return the current image sensor exposure time
+        """Return the current image sensor exposure time.
         
-        Returns
-        -------
-        float : The current exposure time in seconds.
+        Returns:
+            float: The current exposure time in seconds.
         """
         pass
     
     @abstractmethod
     def setExposureProgram(self, expPeriod):
-        """Configure the sensor to operate in normal exposure mode
+        """Configure the sensor to operate in normal exposure mode.
 
         When in normal exposure mode, the image sensor is free running
         and will capture frames continuously  with the desired exposure
@@ -218,10 +227,8 @@ class api(ABC):
 
         This function is mandatory for all image sensors.
 
-        Parameters
-        ----------
-        expPeriod : `float`
-           The exposure time of each frame, in seconds.
+        Args:
+            expPeriod (float): The exposure time of each frame, in seconds.
         """
         pass
 
@@ -229,11 +236,11 @@ class api(ABC):
     # Advanced Exposure and Timing Functions
     #--------------------------------------------
     def getSupportedExposurePrograms():
-        """Return a tuple of the supported exposure programs"""
+        """Return a tuple of the supported exposure programs."""
         return ("normal")
 
     def setShutterGatingProgram(self):
-        """Configure the sensor to operate in shutter gating mode
+        """Configure the sensor to operate in shutter gating mode.
 
         When in shutter gating mode, the image sensor is inactive until
         the trigger signal is asserted. Once asserted the exposure duration
@@ -241,23 +248,27 @@ class api(ABC):
         readout begins on the falling edge of the trigger signal, after
         which the sensor becomes idle again until the next rising edge
         of the trigger.
+
+        Raises:
+            NotImplementedError: If shutter gating is not supported by the image sensor.
         """
         raise NotImplementedError()
 
     def setFrameTriggerProgram(self, expPeriod, numFrames=1):
-        """Configure the sensor to operate in frame trigger mode
+        """Configure the sensor to operate in frame trigger mode.
 
         When in frame trigger mode, the image sensor is inactive until a
         rising edge of the frame trigger is detected, after which the
         image sensor will capture a fixed number of frames and then return
         to an idle state until the next rising edge is detected.
         
-        Parameters
-        ----------
-        expPeriod : `float`
-            The exposure time of each frame, in seconds.
-        numFrames : `int`, optional
-            The number of frames to acquire after each risng edge (default: 1)
+        Args:
+            expPeriod (float): The exposure time of each frame, in seconds.
+            numFrames (int, optional): The number of frames to acquire after each risng edge (default: 1)
+        
+        Raises:
+            ValueError: If `expPeriod` is not a valid exposure time at the current resolution.
+            NotImplementedError: If frame trigger mode is not supported by the image sensor.
         """
         raise NotImplementedError()
     
@@ -268,13 +279,14 @@ class api(ABC):
         integration periods to achieve a non-linear response to incoming
         sensitivities. 
         
-        Parameters
-        ----------
-        expPeriod : `float`
-            The exposure time of each frame, in seconds.
-        numIntegrations : `int`, optional
-            The number of integration periods to apply for HDR mode.
-            (default: 2)
+        Args:
+            expPeriod (float): The total exposure time of each frame, in seconds.
+            numIntegrations (int, optional): The number of integration periods to apply for HDR mode. (default: 2)
+
+        Raises:
+            ValueError: If `expPeriod` is not a valid exposure time at the current resolution.
+            ValueError: If `numIntegration` is not supported by the image sensor.
+            NotImplementedError: If high dynamic range mode is not supported by the image sensor.
         """
         raise NotImplementedError()
 
@@ -289,16 +301,13 @@ class api(ABC):
         conditions, the matrix which best matches the provided color temperature should
         be returned.
         
-        Parameters
-        ----------
-        cTempK: int, optional
-            The color temperature (degrees Kelvin) of the CIE D-series illuminant under
-            which the color matrix will be used (default 5500K).
+        Args:
+            cTempK (int, optional): The color temperature (degrees Kelvin) of the CIE
+                D-series illuminant under which the color matrix will be used (default 5500K).
 
-        Returns
-        -------
-        [float] : An array of 9 of floats converting the camera color space to sRGB. The
-            array should contain the 3x3 matrix coefficients in row-scan order.
+        Returns:
+            List[float]: The matrix coefficients for the 3x3 matrix converting the camera
+                color space into sRGB. The matrix coefficients are stored in row-scan order.
         """
         ## Return an identity matrix if not implemented.
         return [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]]
@@ -311,15 +320,13 @@ class api(ABC):
         multiple lighting conditions, the white balance which best matches the provided
         color temperature should be returned.
         
-        Parameters
-        ----------
-        cTempK: int, optional
-            The color temperature (degrees Kelvin) of the CIE D-series illuminant under
-            which the white balance will be used (default 5500K).
+        Args:
+            cTempK (int, optional): The color temperature (degrees Kelvin) of the CIE
+                D-series illuminant under which the white balance will be used (default 5500K).
 
-        Returns
-        -------
-        [float] : An array of 3 floats to balance the Red, Green and Blue channels.
+        Returns:
+            List[float]: An array containing the gains for the Red, Green and Blue channels
+                to achieve white balance at the desired lighting temperature.
         """
         ## Return a do-nothing white balance if not implemented.
         return [1.0, 1.0, 1.0]
@@ -332,20 +339,17 @@ class api(ABC):
         extern user setup, such as covering the lens cap or attaching calibration
         jigs, should be performed by this call.
 
-        Yields
-        ------
-        float :
-            The leep time, in seconds, between steps of the calibration proceedure.
+        Yields:
+            float: The sleep time, in seconds, between steps of the calibration proceedure.
         
-        Examples
-        --------
-        This function returns a generator iterator with the sleep time between the
-        steps of the analog calibration proceedure. The caller may use this for
-        cooperative multithreading, or can complete the calibration sychronously
-        as follows:
+        Examples:
+            This function returns a generator iterator with the sleep time between the
+            steps of the analog calibration proceedure. The caller may use this for
+            cooperative multithreading, or can complete the calibration sychronously
+            as follows:
 
-        for delay in sensor.startAnalogCal():
-            time.sleep(delay)
+            >>> for delay in sensor.startAnalogCal():
+            >>>    time.sleep(delay)
         """
         pass
     
