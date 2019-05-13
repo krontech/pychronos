@@ -144,6 +144,14 @@ class camera:
             raise CameraError("Camera busy in state '%s'" % (self.__state))
 
     def setOnChange(self, handler):
+        """Install an on-change handler to be called whenever properties are modified.
+
+        To report changes in state or configuration, properties with the `notify` attribute
+        set will invoke a callback handler with the name of the property and its new value.
+
+        Args:
+            handler (callable): Callback method to invoke whenever a property is changed.
+        """
         self.onChange = handler
 
     #===============================================================================================
@@ -151,26 +159,21 @@ class camera:
     #===============================================================================================
     def softReset(self, bitstream=None):
         """Reset the camera and initialize the FPGA and image sensor.
-        
-        Parameters
-        ----------
-        bitstream : str, optional
-            File path to the FPGA bitstream to load, or None to perform
-            only a soft-reset of the FPGA.
-        
-        Yields
-        ------
-        float :
-            The sleep time, in seconds, between steps of the reset proceedure.
-        
-        Examples
-        --------
-        This function returns a generator iterator with the sleep time between steps
-        of the reset proceedure. The caller can perform a complete reset as follows:
 
-        state = camera.softReset()
-        for delay in state:
-            time.sleep(delay)
+        Args:
+            bitstream (str, optional): File path to the FPGA bitstream to load,
+                or None to perform only a soft-reset of the FPGA.
+
+        Yields:
+            float: The sleep time, in seconds, between steps of the reset proceedure.
+
+        Examples:
+            This function returns a generator iterator with the sleep time between steps
+            of the reset proceedure. The caller can perform a complete reset as follows:
+
+            >>> state = camera.softReset()
+            >>> for delay in state:
+            >>>    time.sleep(delay)
         """
         # If the current state is neither `idle` nor `recording`, then switch
         # to the `reset` state to force any outstanding generators to complete.
@@ -281,25 +284,21 @@ class camera:
         `seqprogram` classes describing the steps for the recording sequencer
         to takes as frames are acquired from the image sensor.
 
-        Parameters
-        ----------
-        program : `list` of `seqprogram`
-            List of recording sequencer commands to execute for this recording.
+        Args:
+            program (:obj:`list` of :obj:`seqprogram`): List of recording sequencer
+                commands to executed for this recording.
 
-        Yields
-        ------
-        float :
-            The sleep time, in seconds, between steps of the recording.
+        Yields:
+            float: The sleep time, in seconds, between steps of the recording program.
         
-        Examples
-        --------
-        This function returns a generator iterator with the sleep time between the
-        steps of the recording proceedure. The caller may use this for cooperative
-        multithreading, or can complete the calibration sychronously as follows:
+        Example:
+            This function returns a generator iterator with the sleep time between the
+            steps of the recording proceedure. The caller may use this for cooperative
+            multithreading, or can complete the calibration sychronously as follows:
         
-        state = camera.startRecording()
-        for delay in state:
-            time.sleep(delay)
+            >>> state = camera.startRecording()
+            >>> for delay in state:
+            >>>    time.sleep(delay)
         """
         seq = regmaps.sequencer()
         # Setup the nextStates into a loop, just in case the caller forgot and then
@@ -322,25 +321,21 @@ class camera:
     def startRecording(self, mode=None):
         """Program the recording sequencer and start recording.
 
-        Parameters
-        ----------
-        mode : `string`, optional
-            One of 'normal', 'segmented' or 'burst'.
+        Args:
+            mode (str, optional): One of 'normal', 'segmented' or 'burst' to override
+                the current `recMode` property when starting the recording.
 
-        Yields
-        ------
-        float :
-            The sleep time, in seconds, between steps of the recording.
+        Yields:
+            float: The sleep time, in seconds, between steps of the recording.
         
-        Examples
-        --------
-        This function returns a generator iterator with the sleep time between the
-        steps of the recording proceedure. The caller may use this for cooperative
-        multithreading, or can complete the calibration sychronously as follows:
-        
-        state = camera.startRecording()
-        for delay in state:
-            time.sleep(delay)
+        Example:
+            This function returns a generator iterator with the sleep time between the
+            steps of the recording proceedure. The caller may use this for cooperative
+            multithreading, or can complete the calibration sychronously as follows:
+            
+            >>> state = camera.startRecording()
+            >>> for delay in state:
+            >>>     time.sleep(delay)
         """
         if not mode:
             mode = self.__recMode
@@ -388,27 +383,21 @@ class camera:
         Take a white reference sample from the live video stream, and compute the
         white balance coefficients for the current lighting conditions.
 
-        Parameters
-        ----------
-        hStart : `int`, optional
-            Horizontal position at which the white reference should be taken.
-        vStart : `int`, optional
-            Veritcal position at which the white reference should be taken.
+        Args:
+            hStart (int, optional): Horizontal position at which the white reference should be taken.
+            vStart (int, optional): Veritcal position at which the white reference should be taken.
         
-        Yields
-        ------
-        float :
-            The sleep time, in seconds, between steps of the white balance proceedure.
+        Yields:
+            float: The sleep time, in seconds, between steps of the white balance proceedure.
         
-        Examples
-        --------
-        This function returns a generator iterator with the sleep time between the
-        steps of the white balance proceedure. The caller may use this for cooperative
-        multithreading, or can complete the calibration sychronously as follows:
+        Example:
+            This function returns a generator iterator with the sleep time between the
+            steps of the white balance proceedure. The caller may use this for cooperative
+            multithreading, or can complete the calibration sychronously as follows:
 
-        state = camera.startWhiteBalance()
-        for delay in state:
-            time.sleep(delay)
+            >>> state = camera.startWhiteBalance()
+            >>> for delay in state:
+            >>>     time.sleep(delay)
         """
         hSamples = 32
         vSamples = 32
@@ -597,31 +586,26 @@ class camera:
         that can be performed quickly and autonomously without any setup from
         the user (eg: no closing of the aperture or calibration jigs).
 
-        Parameters
-        ----------
-        blackCal : bool, optional
-            Perform a full black calibration assuming the user has closed the
-            aperture or lens cap. (default: false)
-        analogCal : bool, optional
-            Perform autonomous analog calibration. (default: false)
-        zeroTimeBlackCal : bool, optional
-            Perform a fast black calibration by reducing the exposure time and
-            aperture to their minimum values. (default: false)
+        Args:
+            blackCal (bool, optional): Perform a full black calibration assuming
+                the user has closed the aperture or lens cap. (default: false)
+            analogCal (bool, optional): Perform autonomous analog calibration of
+                the image sensor. (default: false)
+            zeroTimeBlackCal (bool, optional): Perform a fast black calibration
+                by reducing the exposure time and aperture to their minimum values.
+                (default: false)
         
-        Yields
-        ------
-        float :
-            The sleep time, in seconds, between steps of the calibration proceedure.
+        Yields:
+            float : The sleep time, in seconds, between steps of the calibration proceedure.
         
-        Examples
-        --------
-        This function returns a generator iterator with the sleep time between steps
-        of the calibration proceedures. The caller may use this for cooperative
-        multithreading, or can complete the calibration sychronously as follows:
+        Example:
+            This function returns a generator iterator with the sleep time between steps
+            of the calibration proceedures. The caller may use this for cooperative
+            multithreading, or can complete the calibration sychronously as follows:
 
-        state = camera.startCalibration(blackCal=True)
-        for delay in state:
-            time.sleep(delay)
+            >>> state = camera.startCalibration(blackCal=True)
+            >>> for delay in state:
+            >>>    time.sleep(delay)
         """
         # Perform autonomous sensor calibration first.
         if analogCal:
@@ -658,24 +642,29 @@ class camera:
     # API Parameters: Camera Info Group
     @camProperty()
     def cameraApiVersion(self):
+        """str: Version string of the pychronos module"""
         return pychronos.__version__
     
     @camProperty()
     def cameraFpgaVersion(self):
+        """str: Version string of the FPGA bitstream that is currently running"""
         config = regmaps.config()
         return "%d.%d" % (config.version, config.subver)
     
     @camProperty()
     def cameraMemoryGB(self):
+        """int: Amount of video memory attached to the FPGA in GiB"""
         return (self.dimmSize[0] + self.dimmSize[1]) / (1 << 30)
     
     @camProperty()
     def cameraModel(self):
+        """str: Camera model number"""
         ## HACK: This needs to be updated from somewhere.
         return "CR14-1.0"
     
     @camProperty()
     def cameraSerial(self):
+        """str: Unique camera serial number"""
         I2C_SLAVE = 0x0703 # From linux/i2c-dev.h
         EEPROM_ADDR = 0x54 # From the C++ app
 
@@ -694,6 +683,7 @@ class camera:
     
     @camProperty(notify=True, save=True)
     def cameraDescription(self):
+        """str: Descriptive string assigned by the user"""
         return self.description
     @cameraDescription.setter
     def cameraDescription(self, value):
@@ -704,6 +694,7 @@ class camera:
 
     @camProperty(notify=True, save=True)
     def cameraIdNumber(self):
+        """int: Unique camera number assigned by the user"""
         return self.idNumber
     @cameraIdNumber.setter
     def cameraIdNumber(self, value):
@@ -714,6 +705,13 @@ class camera:
     
     @camProperty(notify=True, save=True)
     def cameraTallyMode(self):
+        """str: Mode in which the recording LEDs should operate.
+        
+        Args:
+            'on': All recording LEDs on the camera are turned on.
+            'off': All recording LEDs on the camera are turned off.
+            'auto': The recording LEDs on the camera are on whenever the `status` property is equal to 'recording'.
+        """
         return self.__tallyMode
     @cameraTallyMode.setter
     def cameraTallyMode(self, value):
@@ -739,10 +737,17 @@ class camera:
     # API Parameters: Sensor Info Group
     @camProperty()
     def sensorName(self):
+        """str: Descriptive name of the image sensor."""
         return self.sensor.name
     
     @camProperty()
     def sensorColorPattern(self):
+        """str: String describing the color filter array pattern of the image sensor.
+        
+        Example:
+            A typical 2x2 Bayer pattern sensor would have a value of 'GRBG'.
+            Meanhile, monochrome image sensors should have a value of 'mono'.
+        """ 
         if self.sensor.cfaPattern:
             return self.sensor.cfaPattern
         else:
@@ -750,50 +755,61 @@ class camera:
 
     @camProperty()
     def sensorBitDepth(self):
+        """int: Number of bits per pixel sampled by the image sensor."""
         fSize = self.sensor.getMaxGeometry()
         return fSize.bitDepth
     
     @camProperty()
     def sensorPixelRate(self):
+        """int: Maximum throughput of the image sensor in pixels per second."""
         fSize = self.sensor.getMaxGeometry()
         return (fSize.vRes + fSize.vDarkRows) * fSize.hRes / fSize.minFrameTime
     
     @camProperty()
     def sensorIso(self):
+        """int: ISO number of the image sensor with nominal (0dB) gain applied."""
         return self.sensor.baseIso
     
     @camProperty()
     def sensorMaxGain(self):
+        """int: Maximum gain of the image sensor as a linear muliplier of the `sensorISO`."""
         return self.sensor.maxGain
     
     @camProperty()
     def sensorVMax(self):
+        """int: Maximum vertical resolution, in pixels, of the active area of the image sensor."""
         fSize = self.sensor.getMaxGeometry()
         return fSize.vRes
     
     @camProperty()
     def sensorVMin(self):
+        """int: Minimum vertical resolution, in pixels, of the active area of the image sensor."""
         return self.sensor.vMin
 
     @camProperty()
     def sensorVIncrement(self):
+        """int: Minimum step size allowed, in pixels, for changes in the vertical resolution of the image sensor."""
         return self.sensor.vIncrement
 
     @camProperty()
     def sensorHMax(self):
+        """int: Maximum horizontal resolution, in pixels, of the active area of the image sensor."""
         fSize = self.sensor.getMaxGeometry()
         return fSize.hRes
     
     @camProperty()
     def sensorHMin(self):
+        """int: Minimum horizontal resolution, in pixels, of the active area of the image sensor."""
         return self.sensor.hMin
 
     @camProperty()
     def sensorHIncrement(self):
+        """int: Minimum step size allowed, in pixels, for changes in the horizontal resolution of the image sensor."""
         return self.sensor.hIncrement
 
     @camProperty()
     def sensorVDark(self):
+        """int: Maximum vertical resolution, in pixels, of the optical black regions of the sensor."""
         fSize = self.sensor.getMaxGeometry()
         return fSize.vDarkRows
     
@@ -819,6 +835,7 @@ class camera:
 
     @camProperty(notify=True, save=True, prio=PARAM_PRIO_EXPOSURE)
     def exposurePeriod(self):
+        """int: Minimum period, in nanoseconds, that the image sensor is currently exposing frames for."""
         return int(self.__exposurePeriod * 1000000000)
     @exposurePeriod.setter
     def exposurePeriod(self, value):
@@ -828,6 +845,7 @@ class camera:
 
     @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def exposurePercent(self):
+        """float: The current exposure time as a percentage between `exposureMin` and `exposureMax`."""
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
@@ -844,6 +862,7 @@ class camera:
 
     @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def shutterAngle(self):
+        """float: The angle in degrees for which frames are being exposed relative to the frame time."""
         fPeriod = self.sensor.getCurrentPeriod()
         return self.sensor.getCurrentExposure() * 360 / fPeriod
     @shutterAngle.setter
@@ -856,6 +875,8 @@ class camera:
 
     @camProperty(notify=True)
     def exposureMin(self):
+        """int: The minimum possible time, in nanoseconds, that the image sensor is capable of exposing
+        a frame for at the current `resolution` and `framePeriod`.""" 
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
@@ -863,6 +884,8 @@ class camera:
     
     @camProperty(notify=True)
     def exposureMax(self):
+        """int: The maximum possible time, in nanoseconds, that the image sensor is capable of exposing
+        a frame for at the current `resolution` and `framePeriod`.""" 
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
@@ -870,7 +893,21 @@ class camera:
     
     @camProperty(notify=True, save=True)
     def exposureMode(self):
-        """Selects the exposure timing program."""
+        """str: Mode in which frame timing and exposure should operate.
+        
+        Args:
+            'normal': Frame and exposure timing operate on fixed periods and are free-running.
+            'frameTrigger': Frame starts on the rising edge of the trigger signal, and exposes
+                the frame for a fixed exposure period. Once readout completes, the camera will
+                wait for another rising edge before starting the next frame. In this mode, the
+                `framePeriod` property constrains the minimum time between frames.
+            'shutterGating': Frame starts on the rising edge of the trigger signal, and exposes
+                the frame for as long as the trigger signal is held high. Once readout completes,
+                the camera will wait for another rising edge before starting the next frame. In
+                this mode the `exposurePeriod` property has no effect and the `framePeriod`
+                property constrains the minimum time between frames. 
+        """
+        ## TODO: The docstring needs some help to explain the 2 and 3-slope HDR modes.
         return self.__exposureMode
     @exposureMode.setter
     def exposureMode(self, value):
@@ -885,30 +922,67 @@ class camera:
     # API Parameters: Gain Group
     @camProperty(notify=True)
     def currentGain(self):
+        """int: The current gain of the image sensor as a linear multiplier of `sensorIso`."""
         return self.sensor.getCurrentGain()
     
     @camProperty()
     def currentIso(self):
+        """int: The ISO number of the image sensor at the current current gain."""
         return self.sensor.getCurrentGain() * self.sensor.baseIso
 
     #===============================================================================================
     # API Parameters: Camera Status Group
     @camProperty(notify=True)
     def state(self):
+        """str: The current operating state of the camera.
+        
+        Args:
+            'idle': The camera is powered up and operating, but not doing anything.
+            'reset: The camera is in the process of resetting the FPGA and image sensor.
+            'blackCal': The camera is currently calibrating using a dark reference image.
+            'analogCal': The camera is currently performing analog calibration of the image sensor.
+            'recording': The camera is running a recording program to save images into video memory. 
+        """
         return self.__state
     
     @camProperty()
     def dateTime(self):
+        """str: The current date and time in ISO-8601 format."""
         return datetime.datetime.now().isoformat()
     
     @camProperty()
     def externalStorage(self):
+        """dict: The currently attached external storage devices and their status. The sizes
+        of the reported storage devices are in units of kB.
+        
+        Examples:
+            >>> print(json.dumps(camera.externalStorage, indent=3))
+            {
+                \"mmcblk1p1\": {
+                    \"available\": 27831008,
+                    \"mount\": \"/media/mmcblk1p1\",
+                    \"used\": 3323680,
+                    \"device\": \"/dev/mmcblk1p1\",
+                    \"size\": 31154688
+                }
+            }
+        """
         return utils.getStorageDevices()
 
     #===============================================================================================
     # API Parameters: Recording Group
     @camProperty(notify=True, save=True)
     def recMode(self):
+        """str: Mode in which the recording sequencer stores frames into video memory.
+        
+        Args:
+            'normal': Frames are saved continuously into a ring buffer of up to `recMaxFrames` in
+                length until the recording is terminated by the recording end trigger.
+            'segmented': Up to `recMaxFrames` of video memory is divided into `recSegments` number
+                of ring buffers. The camera saves video into one ring buffer at a time, switching
+                to the next ring buffer at each recording trigger.
+            'burst': Frames are saved continuously as long as the recording trigger is active.
+        """
         return self.__recMode
     @recMode.setter
     def recMode(self, value):
@@ -920,7 +994,7 @@ class camera:
 
     @camProperty(notify=True, save=True)
     def recMaxFrames(self):
-        """Maximum number of frames to use in the recording buffer."""
+        """int: A limit on the maximum number of frames for the recording sequencer to use."""
         currentMaxFrames = self.cameraMaxFrames
         if not self.__recMaxFrames:
             return currentMaxFrames
@@ -940,6 +1014,7 @@ class camera:
 
     @camProperty(notify=True, save=True)
     def recSegments(self):
+        """int: The number of segments used by the recording sequencer when in 'segmented' recording mode."""
         return self.__recSegments
     @recSegments.setter
     def recSegments(self, value):
@@ -953,6 +1028,7 @@ class camera:
     
     @camProperty(notify=True, save=True)
     def recPreBurst(self):
+        """int: The number of frames leading up to the trigger rising edge to save when in 'burst' recording mode."""
         return self.__recPreBurst
     @recPreBurst.setter
     def recPreBurst(self, value):
@@ -966,13 +1042,35 @@ class camera:
 
     @camProperty(notify=True)
     def cameraMaxFrames(self):
-        """Maximum number of frames the camera's memory can save at the current resolution."""
+        """int: The maximum number of frames the camera's memory can save at the current resolution."""
         fSize = self.sensor.getCurrentGeometry()
         return self.getRecordingMaxFrames(fSize)
     
     @camProperty(notify=True, save=True, prio=PARAM_PRIO_RESOLUTION)
     def resolution(self):
-        """Dictionary describing the current resolution settings."""
+        """dict: Resolution geometry at which the image sensor should capture frames.
+        
+        The optional `hOffset` and `vOffset` parameters allow the user to select where on
+        the sensor to position the frame when operating at a cropped resolution. If not
+        provided when setting, the camera will attempt to centre the cropped image on the
+        image sensor.
+
+        When setting resolution, the `minFrameTime` may be optionally provided to allow
+        the image sensor to better tune itself for the desired frame period. When omitted,
+        it is assumed that the sensor will tune itself for its maximum framerate.
+
+        Args:
+            hRes (int): Horizontal resolution of the catpured image, in pixels.
+            vRes (int): Vertical resolution of the captured image, in pixels.
+            hOffset (int, optional): Horizontal offset, in pixels, from the top left of the
+                full frame at which the first pixel will be read out.
+            vOffset (int, optional): Vertical offset, in pixels, from the top left of the
+                full frame at which the first pixel will be read out.
+            vDark (int, optional): The number of vertical dark rows to read out.
+            minFrameTime (float, optional): The minimum frame time, in seconds, that the
+                image sensor is capable of recording frames when at this resolution
+                configuration.
+        """
         fSize = self.sensor.getCurrentGeometry()
         return {
             "hRes": fSize.hRes,
@@ -1004,14 +1102,14 @@ class camera:
     
     @camProperty(notify=True)
     def minFramePeriod(self):
-        """Minimum frame period at the current resolution settings."""
+        """int: The minimum frame period, in nanoseconds, at the current resolution settings."""
         fSize = self.sensor.getCurrentGeometry()
         fpMin, fpMax = self.sensor.getPeriodRange(fSize)
         return int(fpMin * 1000000000)
 
     @camProperty(notify=True, save=True, prio=PARAM_PRIO_FRAME_TIME)
     def framePeriod(self):
-        """Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating)."""
+        """int: The time, in nanoseconds, to record a single frame."""
         return int(self.sensor.getCurrentPeriod() * 1000000000)
     @framePeriod.setter
     def framePeriod(self, value):
@@ -1025,7 +1123,7 @@ class camera:
 
     @camProperty(prio=PARAM_PRIO_FRAME_TIME)
     def frameRate(self):
-        """Estimated recording frame rate in frames per second (reciprocal of framePeriod)."""
+        """float: The estimated estimated recording rate in frams per second (reciprocal of `framePeriod`)."""
         return 1 / self.sensor.getCurrentPeriod()
     @frameRate.setter
     def frameRate(self, value):
@@ -1041,7 +1139,7 @@ class camera:
     # API Parameters: Color Space Group
     @camProperty(notify=True, save=True)
     def wbMatrix(self):
-        """Array of Red, Green, and Blue gain coefficients to achieve white balance."""
+        """list(float): The Red, Green and Blue gain coefficients to achieve white balance."""
         display = regmaps.display()
         return [
             display.whiteBalance[0] / display.WHITE_BALANCE_DIV,
@@ -1058,7 +1156,7 @@ class camera:
     
     @camProperty(notify=True, save=True)
     def wbCustom(self):
-        """Array of Red, Green, and Blue gain coefficients to achieve white balance."""
+        """list(float): The Red, Green and Blue gain coefficients last computed by `startWhiteBalance()`."""
         return self.__wbCustom
     @wbCustom.setter
     def wbCustom(self, value):
@@ -1069,7 +1167,8 @@ class camera:
 
     @camProperty(notify=True, save=True)
     def colorMatrix(self):
-        """Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order."""
+        """list(float): The 9 matrix coefficients for the 3x3 color matrix converting the image sensor
+        color space into sRGB. The coefficient values are stored in row-scan order."""
         display = regmaps.display()
         return [
             display.colorMatrix[0] / display.COLOR_MATRIX_DIV,

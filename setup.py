@@ -4,13 +4,9 @@ import sysconfig
 import platform
 
 # Grab the package version from version.py
-try:
-    results = {}
-    with open("pychronos/version.py") as fp:
-        exec(fp.read(), results)
-    VERSION=results['__version__']
-except:
-    VERSION="unknown"
+about = {}
+with open("pychronos/about.py") as fp:
+    exec(fp.read(), about)
 
 DESCRIPTION=("Python bindings for the Chronos High Speed Camera")
 
@@ -34,11 +30,11 @@ libpychronos = Extension('libpychronos',
                         extra_link_args=extra_ldflags)
 
 setup (name='PyChronos',
-       version=VERSION,
+       version=about['__version__'],
        description=DESCRIPTION,
        license='GPL',
        url = 'https://github.com/krontech/pychronos',
-       author = 'Owen Kirby',
+       author = about['__author__'],
        author_email = 'oskirby@gmail.com',
        provides=['pychronos'],
        packages=['pychronos', 'pychronos/regmaps', 'pychronos/sensors'],

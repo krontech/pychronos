@@ -11,5 +11,5 @@ from pychronos.camera import camera
 from pychronos.camera import camProperty
 from pychronos.camera import CameraError
 
-# module version
-from pychronos.version import __version__
+# module information
+from pychronos.about import __version__
