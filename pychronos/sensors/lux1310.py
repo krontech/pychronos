@@ -581,7 +581,7 @@ class lux1310(api):
             fAverage += numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
         
         # Train the ADC offsets for a target of Average = Footroom + StandardDeviation
-        fAverage /= numFrames
+        fAverage //= numFrames
         adcAverage = numpy.average(fAverage, 0)
         adcStdDev = numpy.std(fAverage, 0)
         for col in range(0, self.ADC_CHANNELS):

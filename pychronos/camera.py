@@ -698,6 +698,10 @@ class camera:
         return self.idNumber
     @cameraIdNumber.setter
     def cameraIdNumber(self, value):
+        try:
+            value = int(value)
+        except:
+            pass
         if not isinstance(value, int):
             raise TypeError("cameraIdNumber must be an integer got %s instead" % (type(value)))
         self.idNumber = value
