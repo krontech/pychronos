@@ -343,8 +343,8 @@ class camera:
         if mode == 'normal':
             # Record into a single segment until the trigger event.
             cmd = regmaps.seqcommand(blockSize=self.recMaxFrames,
-                            blkTermFull=True, blkTermRising=True,
-                            recTermMemory=True, recTermBlockEnd=True)
+                            blkTermFull=False, blkTermRising=True,
+                            recTermMemory=False, recTermBlockEnd=True)
             yield from self.startCustomRecording([cmd])
         elif mode == 'segmented':
             # Record into segments 
