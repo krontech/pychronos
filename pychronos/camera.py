@@ -413,6 +413,10 @@ class camera:
         self.__setState('whitebal')
         seq = regmaps.sequencer()
         yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+        if not seq.liveResult:
+            logging.error("Failed to get a frame during cal")
+            self.__setState('idle')
+            return
         frame = numpy.asarray(seq.liveResult)
 
         # Apply calibration to the averaged frames.
@@ -471,6 +475,10 @@ class camera:
                     return
                 logging.debug('waiting for frame %d of %d', i+1, numFrames)
                 yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("Failed to get a frame during cal")
+                    self.__setState('idle')
+                    return
                 fAverage += numpy.asarray(seq.liveResult)
         else:
             # Take a recording and read the results from the live buffer.
