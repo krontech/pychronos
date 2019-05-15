@@ -969,6 +969,20 @@ class camera:
         """
         return utils.getStorageDevices()
 
+
+    
+    #===============================================================================================
+    # API Parameters: Camera Network Group
+    @camProperty()
+    def networkHostname(self):
+        """str: hostname to be used for dhcp requests and to be displayed on the command line.
+        """
+        return utils.getHostname()
+    @networkHostname.setter
+    def networkHostname(self, name):
+        utils.setHostname(name)
+
+    
     #===============================================================================================
     # API Parameters: Recording Group
     @camProperty(notify=True, save=True)

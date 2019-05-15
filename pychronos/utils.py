@@ -3,6 +3,7 @@
 import os
 import subprocess
 import json
+import re
 
 def __readsysfile(name):
     with open(name, 'r') as fp:
@@ -40,6 +41,24 @@ def getNetworkDevices():
             }
 
     return results
+
+
+# hostname utility
+def getHostname():
+    """Gets the current hostname from /etc
+    """
+    with open('/etc/hostname', 'r') as fp:
+        return fp.read().strip()
+
+setHostnameMask = re.compile('chronos-', re.IGNORECASE)
+def setHostname(name):
+    """Sets the hostname in /etc
+    Note: this enforces a hostname that starts with Chronos- to limit possible abuse
+    """
+    with open('/etc/hostname', 'w') as fp:
+        newHostname = setHostnameMask.sub('', name)
+        fp.write('Chronos-%s\n' % newHostname)
+
 
 if __name__ == '__main__':
     print("externalStorage = " + json.dumps(getStorageDevices(), sort_keys=True, indent=4))
