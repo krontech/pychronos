@@ -318,7 +318,6 @@ class controlApi(dbus.service.Object):
             }
             for elem in dir(self.camera)
             if elem[0] != '_'
-            and elem not in {'config'} #Keys which don't work.
             and isinstance(getattr(type(self.camera), elem, None), property) #is a getter, maybe a setter
         }
     

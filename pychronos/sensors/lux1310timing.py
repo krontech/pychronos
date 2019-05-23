@@ -7,6 +7,7 @@ from pychronos.regmaps import timing, ioInterface
 class lux1310timing(timing):
     TIMING_HZ = 90000000
 
+    PROGRAM_NONE           = -1
     PROGRAM_STANDARD       = 0
     PROGRAM_SHUTTER_GATING = 1
     PROGRAM_2POINT_HDR     = 2
@@ -25,6 +26,7 @@ class lux1310timing(timing):
         self.__disableFrameTrig = False
         self.__disableIoDrive   = False
         self.__nFrames          = 5
+        self.__program          = self.PROGRAM_NONE
         
         self.io = ioInterface()
 
@@ -111,9 +113,11 @@ class lux1310timing(timing):
             integrationTime = int(frameTime * 0.95)
 
         logging.debug('TriggerFrames: %d, %d', frameTime, integrationTime)
-        # make sure the readout completes
-        self.programInterm(readoutTime, timeout)
-        self.io.shutterTriggersFrame = False
+
+        if self.__program != self.PROGRAM_FRAME_TRIG:
+            # make sure the readout completes
+            self.programInterm(readoutTime, timeout)
+            self.io.shutterTriggersFrame = False
 
         self.__program          = self.PROGRAM_FRAME_TRIG
         self.__frameTime        = frameTime
@@ -147,10 +151,12 @@ class lux1310timing(timing):
             integrationTime = int(frameTime * 0.95)
 
         logging.debug('ProgramStandard: %d, %d', frameTime, integrationTime)
-        # make sure the readout completes
-        self.programInterm(readoutTime, timeout)
+
         origShutterTriggersFrame = self.io.shutterTriggersFrame
-        self.io.shutterTriggersFrame = False
+        if self.__program != self.PROGRAM_STANDARD:
+            # make sure the readout completes
+            self.programInterm(readoutTime, timeout)
+            self.io.shutterTriggersFrame = False
 
         self.__program          = self.PROGRAM_STANDARD
         self.__frameTime        = frameTime
@@ -211,6 +217,7 @@ class lux1310timing(timing):
             integrationTime = frameTime * 0.95
 
         logging.debug('ProgramHDR_2slope: %d, %d, %d', frameTime, integration1, integration2)
+
         # make sure the readout completes
         self.programInterm(readoutTime, timeout)
         origShutterTriggersFrame = self.io.shutterTriggersFrame

@@ -12,7 +12,6 @@ import pychronos.spd as spd
 
 from . import utils
 
-__propertiesACameraPropertyCanHave = {'notify', 'save'}
 def camProperty(notify=False, save=False, prio=0):
     """@camProperty: Like @property, but include metadata.
         
@@ -50,7 +49,7 @@ def camProperty(notify=False, save=False, prio=0):
         setattr(fn, 'saveable', save)
         setattr(fn, 'prio', prio)
         return property(fn, *args, **kwargs)
-    
+
     return camPropertyAnnotate
 
 class CameraError(RuntimeError):
@@ -92,6 +91,7 @@ class camera:
         self.__exposurePeriod = self.sensor.getCurrentExposure()
         self.__tallyMode = 'auto'
         self.__wbCustom = [1.0, 1.0, 1.0]
+        self.__miscScratchPad = {}
 
         # Probe the SODIMMs
         for slot in range(0, len(self.dimmSize)):
@@ -104,6 +104,8 @@ class camera:
         self.idNumber = 0
 
         self.ioInterface = regmaps.ioInterface()
+
+        
         
     def __propChange(self, name):
         """Quick and dirty wrapper to throw an on-change event by name"""
@@ -639,11 +641,15 @@ class camera:
     @camProperty()
     def config(self):
         """Return a configuration dictionary of all saveable parameters"""
+        logging.debug('Config getter called')
         result = {}
         for name in dir(type(self)):
-            prop = getattr(type(self), name, None)
-            if (isinstance(prop, property) and getattr(prop.fget, 'saveable', False)):
-                result[name] = getattr(self, name)
+            try:
+                prop = getattr(type(self), name, None)
+                if (isinstance(prop, property) and getattr(prop.fget, 'saveable', False)):
+                    result[name] = getattr(self, name)
+            except AttributeError:
+                logging.error('AttributeError while accessing: %s', name)
         return result
 
     #===============================================================================================
@@ -1230,6 +1236,7 @@ class camera:
     @ioMapping.setter
     def ioMapping(self, value):
         self.ioInterface.setConfiguration(value)
+        self.__propChange("ioMapping")
 
     @camProperty()
     def ioDelayTime(self):
@@ -1254,6 +1261,10 @@ class camera:
         return prop
 
     def __camIoMapping(ioname, docstring, notify=True, save=True, prio=0):
+        def localSetter(self, config):
+            self.ioInterface.setSourceConfiguration(ioname, config)
+            if notify or save:
+                self.__propChange("")
         prop = property(fget=lambda self: self.ioInterface.getSourceConfiguration(ioname),
                         fset=lambda self, config: self.ioInterface.setSourceConfiguration(ioname, config),
                         doc=docstring)
@@ -1296,3 +1307,23 @@ class camera:
     @camProperty(notify=False, save=False)
     def ioDetailedStatus(self):
         return self.ioInterface.getIoStatus()
+
+    #===============================================================================================
+    # API Parameters: Misc
+    @camProperty(notify=True, save=True)
+    def miscScratchPad(self):
+        if self.__miscScratchPad == {}:
+            return {"empty":True}
+        else:
+            return self.__miscScratchPad
+    @miscScratchPad.setter
+    def miscScratchPad(self, value):
+        for key,value in value.items():
+            if value is None or value == 'null':
+                if key in self.__miscScratchPad:
+                    del self.__miscScratchPad[key]
+            else:
+                self.__miscScratchPad[key] = value
+
+        self.__propChange('miscScratchPad')
+    
