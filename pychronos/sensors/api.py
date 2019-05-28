@@ -1,6 +1,17 @@
 from abc import ABC, abstractmethod
 
 class frameGeometry:
+    """Container to express the geometry of images recorded from an image sensor.
+
+    Attributes:
+        hRes (int): Horizontal resolution, in pixels, of the recorded image.
+        vRes (int): Vertical resolution, in pixels, of the recorded image.
+        hOffset (int): Horizontal offset from the top left of the sensor to the first recorded pixel.
+        vOffset (int): Vertical offset from the top left of the sensor to the first recorded pixel.
+        vDarkRows (int): Number of optical dark rows to be recorded and appended to the top of the image.
+        bitDepth (int): Number of bits recorded per pixel from the image sensor.
+        minFrameTime (float): Minimum time recording time per frame at this resolution settings.
+    """
     def __init__(self, hRes, vRes, hOffset=0, vOffset=0, vDarkRows=0, bitDepth=12, minFrameTime=None):
         self.hRes = hRes
         self.vRes = vRes
@@ -19,13 +30,24 @@ class frameGeometry:
         return rstr + ")"
 
     def pixels(self):
+        """Compute the number of pixels in a recorded image.
+        
+        Returns:
+            int: Number of pixels in the image.
+        """
         return self.hRes * (self.vRes + self.vDarkRows)
     
     def size(self):
+        """Compute the size in bytes of a recorded image.
+        
+        Returns:
+            int: Size of bytes of a recorded image.
+        """
         return self.pixels() * self.bitDepth // 8
 
 # Abstract Sensor class
 class api(ABC):
+    """Abstract class defining the API to an image sensor."""
     def __init__(self):
         super().__init__()
     
