@@ -79,7 +79,7 @@ Each parameter also defines a type as follows:
 
 | API Type | D-Bus Signatures   | Python Types | Description
 |:---------|:-------------------|:-------------|:-----------
-| `bool`   | `b`                | `boolean`    | Either `true` or `false`
+| `bool`   | `b`                | `boolean`    | Either `true` or `false`.
 | `float`  | `t`                | `float`      | Floating-point number.
 | `int`    | `i`                | `int`        | Integer type, supporting up to 32-bit precision.
 | `enum`   | `s`                | `str`        | The description of each type must specify the allowed values.
@@ -92,25 +92,27 @@ This is pure speculation - nothing is really implemented here until we get
 electronic lens control up and running.
 
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
-|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
-| `focusPercent`    | x | x | x | float  | 0.0   | 100.0 | 0.0 for the nearest possible focus and 100.0 for furthest focus (infinity)
-| `focusDistance`   | x | x |   | float  |       |       | Distance to the focus subject in meters
-| `apertureFStop`   | x | x | x | float  |       |       | Aperture value where Fnumber = sqrt(2^AV)
-| `aperturePercent` | x | x |   | float  | 0.0   | 100.0 | Aperture size as a percentage from 0 (smallest), to 100 (widest)
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
+| `focusPercent`    | x | x | x | float  | 0.0   | 100.0 | 0.0 for the nearest possible focus and 100.0 for furthest focus (infinity).
+| `focusNormalized` | x | x |   | float  | 0.0   | 1.0   | 0.0 for the nearest possible focus and 1.0 for furthest focus (infinity).
+| `focusDistance`   | x | x |   | float  |       |       | Distance to the focus subject in meters.
+| `apertureFStop`   | x | x | x | float  |       |       | Aperture value where Fnumber = sqrt(2^AV).
+| `aperturePercent` | x | x |   | float  | 0.0   | 100.0 | Aperture size as a percentage from 0 (smallest), to 100 (widest).
 
 ### Exposure Control Parameters
-| Parameter         | G | S | N | Type   | Min   | Max   | Description
-|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
-| `exposurePeriod`  |`G`|`S`|`N`| int    |       |       | Exposure time in nanoseconds.
-| `exposurePercent` |`G`|`S`|   | float  |       |       |
-| `shutterAngle`    |`G`|`S`|   | int    | 0     | 36000 | Exposure time relative to frame period in hundredths of degrees.
-| `exposureMin`     |`G`|   |`N`| int    |       |       | Minimum exposure time at the current resolution and frame period.
-| `exposureMax`     |`G`|   |`N`| int    |       |       | Maximum exposure time at the current resolution and frame period.
-| `exposureMode`    |`G`|`G`|`G`| enum   |       |       | Frame exposure mode as one of `normal`, `frameTrigger`, `shutterGating`, `hdr2slope`, `hdr3slope`.
+| Parameter            | G | S | N | Type   | Min   | Max   | Description
+|:---------------------|:--|:--|:--|:-------|:------|:------|:-----------
+| `exposurePeriod`     |`G`|`S`|`N`| int    |       |       | Exposure time in nanoseconds.
+| `exposurePercent`    |`G`|`S`|   | float  | 0.0   | 100.0 | Exposure time as a percentage of way between the minimum (0%) and maximum (100%) exposures, at the current resolution.
+| `exposureNormalized` |`G`|`S`|   | float  | 0.0   | 1.0   | As with `exposurePercent`, but between 0 and 1 instead of 0 and 100.
+| `shutterAngle`       |`G`|`S`|   | int    | 0     | 36000 | Exposure time relative to frame period in hundredths of degrees.
+| `exposureMin`        |`G`|   |`N`| int    |       |       | Minimum exposure time at the current resolution and frame period.
+| `exposureMax`        |`G`|   |`N`| int    |       |       | Maximum exposure time at the current resolution and frame period.
+| `exposureMode`       |`G`|`G`|`G`| enum   |       |       | Frame exposure mode as one of `normal`, `frameTrigger`, `shutterGating`, `hdr2slope`, `hdr3slope`.
 
 ### Gain Control Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
-|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
 | `currentIso`      |`G`|`x`|   | int    |       |       | ISO number of the sensor at the current gain setting.
 | `currentGain`     |`G`|`x`|`x`| int    |       |       | The gain as a multiplier of the `sensorIso` parameter.
 
@@ -119,29 +121,29 @@ These API parameters are proxy values for the equivalent parameters in the D-Bus
 API to the `chronos-cli` program.
 
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
-|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
 | `overlayEnable`   |`G`|`x`|`x`| bool   |       |       |
 | `overlayFormat`   |`G`|`x`|`x`| string |       |       | A `printf`-style format string to set the overlay text.
 | `zebraLevel`      |`x`|`x`|`x`| float  | 0.0   | 1.0   | Fraction of the pixel's full scale value at which to apply zebra stripes.
 | `focusPeakLevel`  |`x`|`x`|`x`| float  | 0.0   | 1.0   | Focus peaking edge detection sensitivity (0 to disable, or 1.0 for maximum).
 | `focusPeakColor`  |`G`|`x`|`x`| enum   |       |       | One of Red, Green, Blue, Cyan, Magenta, Yellow, White and Black.
-| `videoState`      |`G`|   |`x`| enum   |       |       | One of `paused`, `live`, `playback` or `filesave`
-| `playbackRate`    |`G`|`x`|`x`| int    |       |       | Framerate for plabyack when `videoState` is in `playback`
+| `videoState`      |`G`|   |`x`| enum   |       |       | One of `paused`, `live`, `playback` or `filesave`.
+| `playbackRate`    |`G`|`x`|`x`| int    |       |       | Framerate for plabyack when `videoState` is in `playback`.
 | `playbackPosition`|`G`|`S`|   | int    |       |       | Current frame number being displayed.
-| `playbackStart`   |`G`|`S`|`N`| int    |       |       | Initial frame to display when `videoStart` enters `playback`
-| `playbackLength`  |`G`|`S`|`N`| int    |       |       | Number of frames to play back before returning to `playbackStart`
+| `playbackStart`   |`G`|`S`|`N`| int    |       |       | Initial frame to display when `videoStart` enters `playback`.
+| `playbackLength`  |`G`|`S`|`N`| int    |       |       | Number of frames to play back before returning to `playbackStart`.
 
 ### Camera Info Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
-|:----------------- |:--|:--|:--|:-------|:------|:------|:-----------
+|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
 |`cameraApiVersion` |`G`|   |   | string |       |       | The string "0.9" for this release of the API specification.
 |`cameraFpgaVersion`|`G`|   |   | string |       |       | The major and minor version numbers of the FPGA image.
-|`cameraMemoryGB`   |`G`|   |   | float  |       |       | Amount of RAM installed, in units of `GiB`
-|`cameraModel`      |`G`|   |   | string |       |       | Camera model number (eg: "CR14-1.0")
+|`cameraMemoryGB`   |`G`|   |   | float  |       |       | Amount of RAM installed, in units of `GiB`.
+|`cameraModel`      |`G`|   |   | string |       |       | Camera model number (eg: "CR14-1.0").
 |`cameraSerial`     |`G`|   |   | string |       |       | Camera unique serial number.
 |`cameraDescription`|`G`|`S`|`N`| string |       |       | User description of camera.
 |`cameraIdNumber`   |`G`|`S`|`N`| int    |       |       | User-assigned camera number for ordering and identification.
-|`cameraTallyMode`  |`G`|`S`|`N`| enum   |       |       | Control of the recording LEDs as one of `auto`, `off`, `top`, `back` or `on`
+|`cameraTallyMode`  |`G`|`S`|`N`| enum   |       |       | Control of the recording LEDs as one of `auto`, `off`, `top`, `back` or `on`.
 
 ### Sensor Info Parameters
 | Parameter           | G | S | N | Type   | Min   | Max   | Description
@@ -149,8 +151,8 @@ API to the `chronos-cli` program.
 |`sensorName`         |`G`|   |   | string |       |       | Descriptive string of the image sensor.
 |`sensorColorPattern` |`G`|   |   | string |       |       | String of ‘R’ ‘G’ and ‘B’ that defines the color filter pattern in left-to-right and top-to-bottom order or ‘mono’ for monochrome sensors.
 |`sensorBitDepth`     |`G`|   |   | int    |       |       | Number of bits per pixel as recorded by the image sensor.
-|`sensorIso`          |`G`|   |   | int    |       |       | Base ISO of the image sensor at a gain of 1x (or 0 dB)
-|`sensorMaxGain`      |`G`|   |   | int    |       |       | Maximum gain of the image sensor as a multiple of `sensorIso`
+|`sensorIso`          |`G`|   |   | int    |       |       | Base ISO of the image sensor at a gain of 1x (or 0 dB).
+|`sensorMaxGain`      |`G`|   |   | int    |       |       | Maximum gain of the image sensor as a multiple of `sensorIso`.
 |`sensorPixelRate`    |`G`|   |   | int    |       |       | Approximate pixel rate of the image sensor in pixels per second.
 |`sensorVMax`         |`G`|   |   | int    |       |       | Maximum vertical resolution of the image sensor.
 |`sensorVMin`         |`G`|   |   | int    |       |       | Minimum vertical resolution of the image sensor.
@@ -158,7 +160,7 @@ API to the `chronos-cli` program.
 |`sensorHMax`         |`G`|   |   | int    |       |       | Maximum horizontal resolution of the image sensor.
 |`sensorHMin`         |`G`|   |   | int    |       |       | Minimum horizontal resolution of the image sensor.
 |`sensorHIncrement`   |`G`|   |   | int    |       |       | Minimum quantization of horizontal resolutions.
-|`sensorVDark`        |`G`|   |   | int    |       |       | Number of vertical dark rows (not included in sensorVMax)
+|`sensorVDark`        |`G`|   |   | int    |       |       | Number of vertical dark rows (not included in sensorVMax).
 
 ### Camera Status Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
@@ -169,7 +171,7 @@ API to the `chronos-cli` program.
 |`dateTime`         |`G`|   |   | string |       |       | ISO-8601 formatted date and time string.
 |`externalPower`    |`x`|   |`x`| bool   |       |       | True when the AC adaptor is present, and False when on battery power.
 |`batteryCharge`    |`x`|   |   | float  | 0.0   | 1.0   | Estimated battery charge, with 0.0 being fully depleted and 1.0 for fully charged.
-|`batteryVoltage`   |`x`|   |   | float  |       |       | Mesured battery voltage in `V`
+|`batteryVoltage`   |`x`|   |   | float  |       |       | A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos.
 
 ### Camera Network Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
@@ -301,10 +303,10 @@ of the supported methods are as follows:
 |:-------------------------|:--|:-----------------|:-------------|:-----------
 | `get`                    |`G`| array of names   |              | Retrieve one or more parameters from the control API.
 | `set`                    |`S`| dict(parameters) |              | Modify one or more parameters in the control API.
-| `startAutoWhiteBalance`  |`S`| none             | `whitebal`   | Take a reference image from the live display and compute the white balance.
+| `startAutoWhiteBalance`  |`S`| dict(none)       | `whitebal`   | Take a reference image from the live display and compute the white balance.
 | `revertAutoWhiteBalance` |`S`| none             |              | This copies the contents of `wbCustom` into `wbMatrix`.
 | `startAutoFocus`         |   | dict(location)   |              | Attempt to automatically focus the camera on a subject.
-| `startCalibration`       |`S`| dict(calTypes)   | varies       | Perform full calibration operations.
+| `startCalibration`       |`S`| dict(calTypes)   | varies       | Perform full calibration operations. Dict can have `blackCal`, `analogCal`, ior `zeroTimeBlackCal` set to true or false.
 | `startRecording`         |`S`| none             | `recording`  | Begin recording video data to memory.
 | `stopRecording`          |`S`| none             | `idle`       | Terimnate recording of video data to memory.
 | `flushRecording`         |`S`| none             |              | Flush recoreded video data from memory.

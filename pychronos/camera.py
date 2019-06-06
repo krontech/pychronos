@@ -879,6 +879,23 @@ class camera:
         self.__propChange("exposurePeriod")
 
     @camProperty(prio=PARAM_PRIO_EXPOSURE)
+    def exposureNormalized(self):
+        """float: The current exposure time as a percentage between `exposureMin` and `exposureMax`."""
+        fSize = self.sensor.getCurrentGeometry()
+        fPeriod = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        return (self.sensor.getCurrentExposure() - expMin) * 1 / (expMax - expMin)
+    @exposureNormalized.setter
+    def exposureNormalized(self, value):
+        self.__checkState('idle', 'recording')
+        fSize = self.sensor.getCurrentGeometry()
+        fPeriod = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+
+        self.__setupExposure((value * (expMax - expMin) / 1) + expMin, self.__exposureMode)
+        self.__propChange("exposurePeriod")
+
+    @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def shutterAngle(self):
         """float: The angle in degrees for which frames are being exposed relative to the frame time."""
         fPeriod = self.sensor.getCurrentPeriod()
