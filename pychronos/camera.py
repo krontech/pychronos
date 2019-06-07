@@ -989,6 +989,95 @@ class camera:
         """str: The current date and time in ISO-8601 format."""
         return datetime.datetime.now().isoformat()
     
+    
+    @camProperty(notify=True)
+    def externalPower(self):
+        """bool: True when the AC adaptor is present, and False when on battery power."""
+        logging.warn('Value not implemented, using dummy.')
+        return True
+    
+    @camProperty()
+    def batteryChargePercent(self):
+        """float: Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged."""
+        logging.warn('Value not implemented, using dummy.')
+        return self.batteryChargeNormalized * 100
+    
+    @camProperty()
+    def batteryChargeNormalized(self):
+        """float: Estimated battery charge, with 0% being fully depleted and 100% being fully charged."""
+        logging.warn('Value not implemented, using dummy.')
+        return [1.0, 0.99, 0.98][datetime.datetime.now().microsecond % 3]
+    
+    @camProperty()
+    def batteryVoltage(self):
+        """float: A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
+        logging.warn('Value not implemented, using dummy.')
+        return [12.45, 12.50, 12.55][datetime.datetime.now().microsecond % 3]
+        
+    @camProperty(notify=True, save=True, derivedFrom='saveAndPowerDownLowBatteryLevelPercent')
+    def saveAndPowerDownLowBatteryLevelNormalized(self):
+        """float: Equivalent to `saveAndPowerDownLowBatteryLevelPercent`, but based against `batteryChargeNormalized` which is always 1% of `batteryChargePercent`."""
+        return self.saveAndPowerDownLowBatteryLevelPercent / 100
+        
+    @saveAndPowerDownLowBatteryLevelNormalized.setter
+    def saveAndPowerDownLowBatteryLevelNormalized(self, val):
+        self.saveAndPowerDownLowBatteryLevelPercent = val * 100
+    
+    _saveAndPowerDownLowBatteryLevelPercent = 4
+    @camProperty(notify=True, save=True)
+    def saveAndPowerDownLowBatteryLevelPercent(self):
+        """float Turn off the camera if the battery charge level, reported by `batteryChargePercent`, falls below this level. The camera will start saving any recorded footage before it powers down. If this level is too low, the camera may run out of battery and stop before it finishes saving."""
+        logging.warn('Value not implemented, using dummy.')
+        return self._saveAndPowerDownLowBatteryLevelPercent
+        
+    @saveAndPowerDownLowBatteryLevelPercent.setter
+    def saveAndPowerDownLowBatteryLevelPercent(self, val):
+        logging.warn('Value not implemented, using dummy.')
+        self._saveAndPowerDownLowBatteryLevelPercent = val
+        self.__propChange("saveAndPowerDownLowBatteryLevelNormalized")
+        self.__propChange("saveAndPowerDownLowBatteryLevelPercent")
+    
+    _saveAndPowerDownWhenLowBattery = False
+    @camProperty(notify=True, save=True)
+    def saveAndPowerDownWhenLowBattery(self):
+        """bool: Should the camera try to turn off gracefully when the battery is low? The low level is set by `saveAndPowerDownLowBatteryLevelPercent` (or `saveAndPowerDownLowBatteryLevelNormalized`). The opposite of `powerOnWhenMainsConnected`. See `powerOnWhenMainsConnected` for an example which sets the camera to turn on and off when external power is supplied."""
+        logging.warn('Value not implemented, using dummy.')
+        return self._saveAndPowerDownWhenLowBattery
+        
+    @saveAndPowerDownWhenLowBattery.setter
+    def saveAndPowerDownWhenLowBattery(self, val):
+        logging.warn('Value not implemented, using dummy.')
+        self._saveAndPowerDownWhenLowBattery = val
+        self.__propChange("saveAndPowerDownWhenLowBattery")
+    
+    _powerOnWhenMainsConnected = False
+    @camProperty(notify=True, save=True)
+    def powerOnWhenMainsConnected(self):
+        """bool: Set to `True` to have the camera turn itself on when it is plugged in. The inverse of this, turning off when the charger is disconnected, is achieved by setting the camera to turn off at any battery percentage. For example, to make the camera turn off when it is unpowered and turn on when it is powered again - effectively only using the battery to finish saving - you could make the following call: `api.set({ 'powerOnWhenMainsConnected':True, 'saveAndPowerDownWhenLowBattery':True, 'saveAndPowerDownLowBatteryLevelPercent':100.0 })`."""
+        logging.warn('Value not implemented, using dummy.')
+        return self._powerOnWhenMainsConnected
+        
+    @powerOnWhenMainsConnected.setter
+    def powerOnWhenMainsConnected(self, val):
+        logging.warn('Value not implemented, using dummy.')
+        self._powerOnWhenMainsConnected = val
+        self.__propChange("powerOnWhenMainsConnected")
+    
+    
+    _backlightEnabled = True
+    @camProperty(notify=True, save=False) #Don't save, default to True so the camera is reasonably recoverable if the light was off. UI will reconfigure this for us.
+    def backlightEnabled(self):
+        """bool: True if the LCD on the back of the camera is lit. Can be set to False to dim the screen and save a small amount of power."""
+        logging.warn('Value not implemented, using dummy.')
+        return self._backlightEnabled
+    @backlightEnabled.setter
+    def backlightEnabled(self, isEnabled: bool):
+        logging.warn('Value not implemented, using dummy.')
+        self._backlightEnabled = isEnabled
+        self.__propChange("backlightEnabled")
+    
+    
+    
     @camProperty()
     def externalStorage(self):
         """dict: The currently attached external storage devices and their status. The sizes
