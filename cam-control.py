@@ -136,21 +136,29 @@ class controlApi(dbus.service.Object):
             GLib.timeout_add(100, self.notifyChanges)
         else:
             self.changeset[pName] = self.dbusifyTypes(pValue)
-
+        
         # Check if this is a saved property.
         prop = getattr(type(self.camera), pName, None)
-        if prop and isinstance(prop, property) and getattr(prop.fget, 'saveable', False):
+        if prop is not None and isinstance(prop, property) and getattr(prop.fget, 'saveable', False):
             self.changecfg = True
 
     def notifyChanges(self):
         # Generate the DBus notify signal.
         self.notify(self.changeset)
         self.changeset = None
-
+        
         # Save configuration changes to disk.
         if (self.changecfg and self.configFile):
+            camType = type(self.camera)
+            savableConfig = {
+                key: value
+                for key, value in self.camera.config.items()
+                if isinstance(getattr(camType, key), property)
+                and getattr(getattr(camType, key).fget, 'saveable', False) #Only save values marked as savable.
+                and not getattr(getattr(camType, key).fget, 'derivedFrom', False) #Don't save any derived values.
+            }
             with open(self.configFile, 'w') as outFile:
-                json.dump(self.camera.config, outFile, sort_keys=True, indent=4, separators=(',', ': '))
+                json.dump(savableConfig, outFile, sort_keys=True, indent=4, separators=(',', ': '))
             self.changecfg = False
         
         return False
@@ -268,8 +276,9 @@ class controlApi(dbus.service.Object):
             if isinstance(camprop, property):
                 try:
                     setattr(self.camera, name, value)
+                    logging.debug("Set %s -> %s", name, value)
                 except Exception as e:
-                    logging.info("Setting %s failed: %s", name, e)
+                    logging.debug("Setting %s failed: %s", name, e)
                     logging.debug(traceback.format_exc())
                     failedAttributes[name] = str(e)
             # Otherwise, try setting the property in the video interface.
@@ -283,8 +292,8 @@ class controlApi(dbus.service.Object):
         # caller, but for now we just assume that everything succeeded.
         if videoAttributes:
             self.video.set(self.dbusifyTypes(videoAttributes),
-                    reply_handler=self.dbusReplyHandler,
-                    error_handler=self.dbusErrorHandler)
+                reply_handler=self.dbusReplyHandler,
+                error_handler=self.dbusErrorHandler)
         
         #HACK: Manually poke the video pipeline back into live display after changing
         # the display resolution. This should eventually go away by making the video
@@ -313,6 +322,7 @@ class controlApi(dbus.service.Object):
                 'get': getattr(type(self.camera), elem).fget is not None,
                 'set': getattr(type(self.camera), elem).fset is not None,
                 'notifies': getattr(getattr(type(self.camera), elem).fget, 'notifies', False), #set with camProperty
+                'derivedFrom': getattr(getattr(type(self.camera), elem).fget, 'derivedFrom', False), #set with camProperty
             }
             for elem in dir(self.camera)
             if elem[0] != '_'

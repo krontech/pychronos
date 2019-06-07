@@ -11,7 +11,7 @@ import pychronos.spd as spd
 
 from . import utils
 
-def camProperty(notify=False, save=False, prio=0):
+def camProperty(notify=False, save=False, derivedFrom=None, prio=0):
     """@camProperty: Like @property, but include metadata.
         
         The camera properties, themselves, have certain
@@ -29,6 +29,10 @@ def camProperty(notify=False, save=False, prio=0):
         'save':   The property can be saved to disk to
                   preserve the configuration of the camera
                   class (default: False)
+        'derivedFrom': The name of the backing property to save.
+                  Needed, because aliased properties need to
+                  save their master's value, or one of the
+                  values will get overwritten.
         'prio':   The sort order to apply when setting multiple
                   properties at once. High numbers should be
                   set first (default: 0)
@@ -46,6 +50,7 @@ def camProperty(notify=False, save=False, prio=0):
         """Helper function for camProperty decorator."""
         setattr(fn, 'notifies', notify)
         setattr(fn, 'saveable', save)
+        setattr(fn, 'derivedFrom', derivedFrom)
         setattr(fn, 'prio', prio)
         return property(fn, *args, **kwargs)
 
