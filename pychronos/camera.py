@@ -1,6 +1,5 @@
 # Chronos High-Speed Camera class
 import fcntl
-import time
 import os
 import numpy
 import logging

@@ -4,7 +4,6 @@ import os, sys, pdb
 import json
 import argparse
 from functools import lru_cache
-from pathlib import Path
 
 import inspect
 import logging
@@ -16,7 +15,6 @@ import dbus.service
 import dbus.mainloop.glib
 from gi.repository import GLib
 
-import pychronos
 from pychronos import camera, CameraError
 from pychronos.sensors import lux1310, frameGeometry
 import pychronos.regmaps as regmaps
