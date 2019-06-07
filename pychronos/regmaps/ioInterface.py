@@ -319,7 +319,7 @@ class ioInterface(pychronos.fpgamap):
         if thresholdPercent < 0.001: thresholdPercent = 0.001
         if thresholdPercent > 0.999: thresholdPercent = 0.999
         if   name == 'io1In': self.io1Pwm.duty = thresholdPercent
-        elif name == 'io2In': pychronos.pwm(2, 10000, thresholdPercent)
+        elif name == 'io2In': self.io2Pwm.duty = thresholdPercent
         
     def getIoThreshold(self, name):
         '''Basic implementation

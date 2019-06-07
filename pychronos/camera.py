@@ -1401,7 +1401,7 @@ class camera:
     ioMappingCombOr1     = __camIoMapping('combOr1',     'combinatorial block OR input 1 (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
     ioMappingCombOr2     = __camIoMapping('combOr2',     'combinatorial block OR input 2 (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
     ioMappingCombOr3     = __camIoMapping('combOr3',     'combinatorial block OR input 3 (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
-    ioMappingCombXOr     = __camIoMapping('combXOr',     'combinatorial block XOR input (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
+    ioMappingCombXor     = __camIoMapping('combXOr',     'combinatorial block XOR input (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
     ioMappingCombAnd     = __camIoMapping('combAnd',     'combinatorial block AND input (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
     ioMappingDelay       = __camIoMapping('delay',       'delay block configuration')
     ioMappingToggleSet   = __camIoMapping('toggleSet',   'Toggle block Set configuration (out = True on rising edge of input)')
@@ -1409,7 +1409,7 @@ class camera:
     ioMappingToggleFlip  = __camIoMapping('toggleFlip',  'Toggle block configuration (out = not out on rising edge of input)')
     ioMappingShutter     = __camIoMapping('shutter',     'Shutter (signal to timing block) configuration')
     ioMappingStartRec    = __camIoMapping('start',       'Start recording (signal to record sequencer) configuration')
-    ioMappingStartRec    = __camIoMapping('stop',        'Stop or end recording (signal to record sequencer) configuration')
+    ioMappingStopRec     = __camIoMapping('stop',        'Stop or end recording (signal to record sequencer) configuration')
 
     ioInputConfigIo1     = __camIoInputConfig('io1In', 'Input 1 config such as threshhold')
     ioInputConfigIo2     = __camIoInputConfig('io2In', 'Input 2 config such as threshhold')
