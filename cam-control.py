@@ -235,7 +235,7 @@ class controlApi(dbus.service.Object):
                 if name not in controlAttrs
             ]
             
-            data = self.video.get(videoAttrs) if videoAttrs else {}
+            data = self.video.get(videoAttrs, timeout=150) if videoAttrs else {}
             for name in controlAttrs:
                 data[name] = self.dbusifyTypes(getattr(self.camera, name))
             return data
@@ -293,7 +293,8 @@ class controlApi(dbus.service.Object):
         if videoAttributes:
             self.video.set(self.dbusifyTypes(videoAttributes),
                 reply_handler=self.dbusReplyHandler,
-                error_handler=self.dbusErrorHandler)
+                error_handler=self.dbusErrorHandler,
+                timeout=150)
         
         #HACK: Manually poke the video pipeline back into live display after changing
         # the display resolution. This should eventually go away by making the video
@@ -304,7 +305,7 @@ class controlApi(dbus.service.Object):
             self.video.livedisplay({
                 'hres':dbus.types.Int32(res['hRes'], variant_level=1),
                 'vres':dbus.types.Int32(res['vRes'], variant_level=1)
-            }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
+            }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler, timeout=150)
         
         # Return the settings as they've been applied.
         result = self.get(keys)
@@ -341,7 +342,7 @@ class controlApi(dbus.service.Object):
         
         #Video API doesn't know which keys it owns; hack it in here for now. (DDR 2019-05-06)
         try:
-            videoKeys = self.video.availableKeys()
+            videoKeys = self.video.availableKeys(timeout=150)
         except dbus.exceptions.DBusException:
             logging.error('could not load video available keys')
             videoKeys = {
@@ -413,7 +414,7 @@ class controlApi(dbus.service.Object):
         self.video.livedisplay({
             'hres':dbus.types.Int32(res['hRes'], variant_level=1),
             'vres':dbus.types.Int32(res['vRes'], variant_level=1)
-        }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
+        }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler, timeout=150)
 
     #===============================================================================================
     #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),
@@ -485,7 +486,7 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
     def flushRecording(self, onReply=None, onError=None):
-        self.video.flush(reply_handler=onReply, error_handler=onError)
+        self.video.flush(reply_handler=onReply, error_handler=onError, timeout=150)
 
     #===============================================================================================
     #Method('testResolution', arguments='a{sv}', returns='a{sv}'),
