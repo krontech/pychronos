@@ -279,7 +279,7 @@ The input configuration has a single parameter:
 |`recMaxFrames`     |`G`|`S`|`N`| int    |       |       | Maximum number of frames available for the recording buffer.
 |`recSegments`      |`G`|`S`|`N`| int    | 1     |       | Number of memory segments supported when in segmented recording mode.
 |`recPreBurst`      |`G`|`S`|`N`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
-|`resolution`       |`G`|`S`|`N`| dict   |       |       | Dict describing the resolution settings.
+|`resolution`       |`G`|`S`|`N`| dict   |       |       | Dict describing the resolution settings. For example, `gdbus call --system --dest ca.krontech.chronos.control  --object-path /ca/krontech/chronos/control --method ca.krontech.chronos.control.get "['resolution']"` yields `({'resolution': <{'vOffset': <4>, 'hRes': <1280>, 'vDarkRows': <4>, 'bitDepth': <12>, 'hOffset': <0>, 'minFrameTime': <0.00093492222222222221>, 'vRes': <1020>}>},)`. `bitDepth` is min and max 12 at the moment. The optional `minFrameTime` is used to select the optimal wavetable when switching resolutions. This is useful when dialing the camera back, such as when recording at 500fps full-frame instead of 1000fps.
 |`minFramePeriod`   |`G`|   |`N`| int    |       |       | Minimum frame period at the current resolution settings.
 |`cameraMaxFrames`  |`G`|   |`N`| int    |       |       | Maximum number of frames the camera's memory can save at the current resolution.
 |`framePeriod`      |`G`|`S`|`N`| int    |       |       | Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating).
@@ -324,7 +324,7 @@ of the supported methods are as follows:
 | `softTrigger`            |`S`| none             |              | Generate a software trigger event.
 | `revertToDefaults`       |   | none             |              | Revert all settings to their default values (with optional parameter overrides).
 | `softReset`              |`S`| none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
-| `testResolution`         |`S`| dict(resolution) |              | Test if a resolution is valid and return the timing limits at that resolution.
+| `testResolution`         |`S`| dict(resolution) |              | Test if a resolution is valid and return the timing limits (framerate) at that resolution. Example: `call --system --dest ca.krontech.chronos.control --object-path /ca/krontech/chronos/control --method ca.krontech.chronos.control.testResolution "{'hRes': <1280>, 'vRes': <1020>}"` → `({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMaxFrames': <17542>, 'exposureMax': <925722>},)`. Maximum framerate is `1e9 / minFramePeriod`.
 
 All methods return a dictionary of parameters, normally this will just include
 the status dictionary, which minimally includes `state`, but may also include an
