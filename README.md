@@ -41,7 +41,7 @@ cooperative multithreading for long-running tasks.
 **To build the documentation**, you will need the following prereqs installed on your
 computer. For example, on linux,
 ```
-sudo apt install python3 build-essentials python3-sphinx sphinx-doc python3-numpy
+sudo apt install python3 build-essential python3-sphinx sphinx-doc python3-numpy
 ```
 
 In the base folder of the project, you can then build the documentation. This
