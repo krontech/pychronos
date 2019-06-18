@@ -1,0 +1,634 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Sensor API Class &#8212; PyChronos 0.4.0-alpha documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="shortcut icon" href="_static/favicon.ico"/>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Camera Class" href="camera.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="camera.html" title="Camera Class"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">PyChronos 0.4.0-alpha documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <span class="target" id="module-pychronos.sensors"></span><div class="section" id="sensor-api-class">
+<h1>Sensor API Class<a class="headerlink" href="#sensor-api-class" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="pychronos.sensors.api">
+<em class="property">class </em><code class="descclassname">pychronos.sensors.</code><code class="descname">api</code><a class="headerlink" href="#pychronos.sensors.api" title="Permalink to this definition">¶</a></dt>
+<dd><p>Abstract class defining the API to an image sensor.</p>
+<dl class="attribute">
+<dt id="pychronos.sensors.api.baseIso">
+<code class="descname">baseIso</code><a class="headerlink" href="#pychronos.sensors.api.baseIso" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – The ISO number of the image sensor at normal (0dB) gain.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.api.cfaPattern">
+<code class="descname">cfaPattern</code><a class="headerlink" href="#pychronos.sensors.api.cfaPattern" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – String describing the color filter array pattern, or <cite>None</cite> for monochrome sensors.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getColorMatrix">
+<code class="descname">getColorMatrix</code><span class="sig-paren">(</span><em>cTempK=5500</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getColorMatrix" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the color correction matrix for this image sensor.</p>
+<p>A color matrix is required to convert the image sensor’s bayer filter data into
+sRGB color space. If the image sensor is characterized under multiple lighting
+conditions, the matrix which best matches the provided color temperature should
+be returned.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>cTempK</strong> (<em>int</em><em>, </em><em>optional</em>) – The color temperature (degrees Kelvin) of the CIE
+D-series illuminant under which the color matrix will be used (default 5500K).</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="docutils">
+<dt>The matrix coefficients for the 3x3 matrix converting the camera</dt>
+<dd>color space into sRGB. The matrix coefficients are stored in row-scan order.</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">List[float]</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getCurrentExposure">
+<code class="descname">getCurrentExposure</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getCurrentExposure" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the current image sensor exposure time.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The current exposure time in seconds.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">float</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getCurrentGain">
+<code class="descname">getCurrentGain</code><span class="sig-paren">(</span><em>gain</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getCurrentGain" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the current analog gain of the image sensor</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getCurrentGeometry">
+<code class="descname">getCurrentGeometry</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getCurrentGeometry" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the current frame size of the image sensor</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference internal" href="#pychronos.sensors.frameGeometry" title="pychronos.sensors.frameGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frameGeometry</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getCurrentPeriod">
+<code class="descname">getCurrentPeriod</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getCurrentPeriod" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the current frame period of the image sensor.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Current frame period in seconds</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">float</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getExposureRange">
+<code class="descname">getExposureRange</code><span class="sig-paren">(</span><em>fSize</em>, <em>fPeriod</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getExposureRange" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a tuple with the minimum and maximum exposure at a given frame size</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>fSize</strong> (<a class="reference internal" href="#pychronos.sensors.frameGeometry" title="pychronos.sensors.frameGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frameGeometry</span></code></a>) – The frame size at which the exposure range is being requested.</li>
+<li><strong>fPeriod</strong> (<em>float</em>) – The frame period for which the exposure range is being requested.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><dl class="docutils">
+<dt>A tuple of (min, max) exposure periods in seconds, or zero to</dt>
+<dd><p class="first last">indicate that te exposure period is not limited.</p>
+</dd>
+</dl>
+</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">(float, float)</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If <cite>fSize</cite> is not a valid resolution for the image sensor.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getMaxGeometry">
+<code class="descname">getMaxGeometry</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getMaxGeometry" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the maximum frame geometry supported by the image sensor</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference internal" href="#pychronos.sensors.frameGeometry" title="pychronos.sensors.frameGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frameGeometry</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getPeriodRange">
+<code class="descname">getPeriodRange</code><span class="sig-paren">(</span><em>fSize</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getPeriodRange" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a tuple with the minimum and maximum frame periods at a given frame size</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fSize</strong> (<a class="reference internal" href="#pychronos.sensors.frameGeometry" title="pychronos.sensors.frameGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frameGeometry</span></code></a>) – The frame size for which the frame period limits
+are being requested.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="docutils">
+<dt>A tuple of (min, max) frame periods in seconds, or zero to</dt>
+<dd>indicate that the frame period is not limited.</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">(float, float)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If <cite>fSize</cite> is not a valid resolution for the image sensor.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getSupportedExposurePrograms">
+<code class="descname">getSupportedExposurePrograms</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getSupportedExposurePrograms" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a tuple of the supported exposure programs.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.getWhiteBalance">
+<code class="descname">getWhiteBalance</code><span class="sig-paren">(</span><em>cTempK=5500</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.getWhiteBalance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the white balance matrix for this image sensor.</p>
+<p>A white balance is required to equalize the sensitivity of each channel of the
+bayer filter data to achieve white. If the image sensor is characterized under
+multiple lighting conditions, the white balance which best matches the provided
+color temperature should be returned.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>cTempK</strong> (<em>int</em><em>, </em><em>optional</em>) – The color temperature (degrees Kelvin) of the CIE
+D-series illuminant under which the white balance will be used (default 5500K).</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="docutils">
+<dt>An array containing the gains for the Red, Green and Blue channels</dt>
+<dd>to achieve white balance at the desired lighting temperature.</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">List[float]</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.api.hIncrement">
+<code class="descname">hIncrement</code><a class="headerlink" href="#pychronos.sensors.api.hIncrement" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – The minimum step size, in pixels, for changes in horizontal resolution</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.api.hMin">
+<code class="descname">hMin</code><a class="headerlink" href="#pychronos.sensors.api.hMin" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – The minimum horizontal resolution, in pixels, of the image sensor</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.isValidResolution">
+<code class="descname">isValidResolution</code><span class="sig-paren">(</span><em>fSize</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.isValidResolution" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test if the provided geometry is supported by the iamge sensor.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fSize</strong> (<a class="reference internal" href="#pychronos.sensors.frameGeometry" title="pychronos.sensors.frameGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frameGeometry</span></code></a>) – The resolution to test for support.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><cite>True</cite> if <cite>fSize</cite> is a supported resolution, and <cite>False</cite> otherwise.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.loadAnalogCal">
+<code class="descname">loadAnalogCal</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.loadAnalogCal" title="Permalink to this definition">¶</a></dt>
+<dd><p>Load stored analog calibration data from a file, if supported</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.api.maxGain">
+<code class="descname">maxGain</code><a class="headerlink" href="#pychronos.sensors.api.maxGain" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – The maximum gain supported by the sensor as a multiplier of baseIso.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.api.name">
+<code class="descname">name</code><a class="headerlink" href="#pychronos.sensors.api.name" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The name of the image sensor.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.reset">
+<code class="descname">reset</code><span class="sig-paren">(</span><em>fSize=None</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Perform a reset of the image sensor and bring it into normal operation.</p>
+<p>This function may be called either to initialzie the image sensor, or to restart it
+if the sensor is already running. After a reset, the expected state of the image
+sensor is to be operating at full-frame resolution, the maximum framerate, nominal
+(0dB) gain and a 180-degree shutter angle.</p>
+<p>This function returns no value, but may throw an exception if the initialization
+proceedure failed.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fSize</strong> (<a class="reference internal" href="#pychronos.sensors.frameGeometry" title="pychronos.sensors.frameGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frameGeometry</span></code></a>, optional) – The initial video geometry to set after
+initializing the image sensor, or use the maximum active video by default.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.saveAnalogCal">
+<code class="descname">saveAnalogCal</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.saveAnalogCal" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write analog calibration data from a file, if supported</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.setExposureProgram">
+<code class="descname">setExposureProgram</code><span class="sig-paren">(</span><em>expPeriod</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setExposureProgram" title="Permalink to this definition">¶</a></dt>
+<dd><p>Configure the sensor to operate in normal exposure mode.</p>
+<p>When in normal exposure mode, the image sensor is free running
+and will capture frames continuously  with the desired exposure
+period. This function may be called to enter the standard
+exposure program or to update the exposure time.</p>
+<p>This function is mandatory for all image sensors.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>expPeriod</strong> (<em>float</em>) – The exposure time of each frame, in seconds.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.setFramePeriod">
+<code class="descname">setFramePeriod</code><span class="sig-paren">(</span><em>fPeriod</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setFramePeriod" title="Permalink to this definition">¶</a></dt>
+<dd><p>Configure the frame minumum period of the image sensor</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fPeriod</strong> (<em>float</em>) – The frame period to configure on the image sensor.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If <cite>fPeriod</cite> is not a valid frame period at the current resolution.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.setFrameTriggerProgram">
+<code class="descname">setFrameTriggerProgram</code><span class="sig-paren">(</span><em>expPeriod</em>, <em>numFrames=1</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setFrameTriggerProgram" title="Permalink to this definition">¶</a></dt>
+<dd><p>Configure the sensor to operate in frame trigger mode.</p>
+<p>When in frame trigger mode, the image sensor is inactive until a
+rising edge of the frame trigger is detected, after which the
+image sensor will capture a fixed number of frames and then return
+to an idle state until the next rising edge is detected.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>expPeriod</strong> (<em>float</em>) – The exposure time of each frame, in seconds.</li>
+<li><strong>numFrames</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of frames to acquire after each risng edge (default: 1)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If <cite>expPeriod</cite> is not a valid exposure time at the current resolution.</li>
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">NotImplementedError</span></code> – If frame trigger mode is not supported by the image sensor.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.setGain">
+<code class="descname">setGain</code><span class="sig-paren">(</span><em>gain</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setGain" title="Permalink to this definition">¶</a></dt>
+<dd><p>Configure the analog gain of the image sensor</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.setHdrExposureProgram">
+<code class="descname">setHdrExposureProgram</code><span class="sig-paren">(</span><em>expPeriod</em>, <em>numIntegration=2</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setHdrExposureProgram" title="Permalink to this definition">¶</a></dt>
+<dd><p>Configure the sensor to operate in high dynmaic range mode</p>
+<p>When in high dynamic range mode, the image sensor combines multiple
+integration periods to achieve a non-linear response to incoming
+sensitivities.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>expPeriod</strong> (<em>float</em>) – The total exposure time of each frame, in seconds.</li>
+<li><strong>numIntegrations</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of integration periods to apply for HDR mode. (default: 2)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If <cite>expPeriod</cite> is not a valid exposure time at the current resolution.</li>
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If <cite>numIntegration</cite> is not supported by the image sensor.</li>
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">NotImplementedError</span></code> – If high dynamic range mode is not supported by the image sensor.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.setResolution">
+<code class="descname">setResolution</code><span class="sig-paren">(</span><em>fSize</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setResolution" title="Permalink to this definition">¶</a></dt>
+<dd><p>Configure the resolution and frame geometry of the image sensor.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fSize</strong> (<a class="reference internal" href="#pychronos.sensors.frameGeometry" title="pychronos.sensors.frameGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frameGeometry</span></code></a>) – Frame size and geometry to configure.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If <cite>fSize</cite> is not a valid resolution for the image sensor.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.setShutterGatingProgram">
+<code class="descname">setShutterGatingProgram</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setShutterGatingProgram" title="Permalink to this definition">¶</a></dt>
+<dd><p>Configure the sensor to operate in shutter gating mode.</p>
+<p>When in shutter gating mode, the image sensor is inactive until
+the trigger signal is asserted. Once asserted the exposure duration
+is controlled by the active period of the trigger signal. Frame
+readout begins on the falling edge of the trigger signal, after
+which the sensor becomes idle again until the next rising edge
+of the trigger.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><code class="xref py py-exc docutils literal notranslate"><span class="pre">NotImplementedError</span></code> – If shutter gating is not supported by the image sensor.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.api.startAnalogCal">
+<code class="descname">startAnalogCal</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.startAnalogCal" title="Permalink to this definition">¶</a></dt>
+<dd><p>Perform the automatic analog sensor calibration at the current settings.</p>
+<p>Any analog calibration that the sensor can perform without requiring any
+extern user setup, such as covering the lens cap or attaching calibration
+jigs, should be performed by this call.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Yields:</th><td class="field-body"><em>float</em> – The sleep time, in seconds, between steps of the calibration proceedure.</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<p>This function returns a generator iterator with the sleep time between the
+steps of the analog calibration proceedure. The caller may use this for
+cooperative multithreading, or can complete the calibration sychronously
+as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">delay</span> <span class="ow">in</span> <span class="n">sensor</span><span class="o">.</span><span class="n">startAnalogCal</span><span class="p">():</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">delay</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.api.vIncrement">
+<code class="descname">vIncrement</code><a class="headerlink" href="#pychronos.sensors.api.vIncrement" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – The minimum step size, in pixels, for changes in vertical resolution</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.api.vMin">
+<code class="descname">vMin</code><a class="headerlink" href="#pychronos.sensors.api.vMin" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – The minimum vertical resolution, in pixels, of the image sensor</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="frame-geometry-class">
+<h1>Frame Geometry Class<a class="headerlink" href="#frame-geometry-class" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="pychronos.sensors.frameGeometry">
+<em class="property">class </em><code class="descclassname">pychronos.sensors.</code><code class="descname">frameGeometry</code><span class="sig-paren">(</span><em>hRes</em>, <em>vRes</em>, <em>hOffset=0</em>, <em>vOffset=0</em>, <em>vDarkRows=0</em>, <em>bitDepth=12</em>, <em>minFrameTime=None</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.frameGeometry" title="Permalink to this definition">¶</a></dt>
+<dd><p>Container to express the geometry of images recorded from an image sensor.</p>
+<dl class="attribute">
+<dt id="pychronos.sensors.frameGeometry.hRes">
+<code class="descname">hRes</code><a class="headerlink" href="#pychronos.sensors.frameGeometry.hRes" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – Horizontal resolution, in pixels, of the recorded image.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.frameGeometry.vRes">
+<code class="descname">vRes</code><a class="headerlink" href="#pychronos.sensors.frameGeometry.vRes" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – Vertical resolution, in pixels, of the recorded image.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.frameGeometry.hOffset">
+<code class="descname">hOffset</code><a class="headerlink" href="#pychronos.sensors.frameGeometry.hOffset" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – Horizontal offset from the top left of the sensor to the first recorded pixel.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.frameGeometry.vOffset">
+<code class="descname">vOffset</code><a class="headerlink" href="#pychronos.sensors.frameGeometry.vOffset" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – Vertical offset from the top left of the sensor to the first recorded pixel.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.frameGeometry.vDarkRows">
+<code class="descname">vDarkRows</code><a class="headerlink" href="#pychronos.sensors.frameGeometry.vDarkRows" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – Number of optical dark rows to be recorded and appended to the top of the image.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.frameGeometry.bitDepth">
+<code class="descname">bitDepth</code><a class="headerlink" href="#pychronos.sensors.frameGeometry.bitDepth" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>int</em> – Number of bits recorded per pixel from the image sensor.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pychronos.sensors.frameGeometry.minFrameTime">
+<code class="descname">minFrameTime</code><a class="headerlink" href="#pychronos.sensors.frameGeometry.minFrameTime" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>float</em> – Minimum time recording time per frame at this resolution settings.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.frameGeometry.pixels">
+<code class="descname">pixels</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.frameGeometry.pixels" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the number of pixels in a recorded image.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Number of pixels in the image.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">int</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pychronos.sensors.frameGeometry.size">
+<code class="descname">size</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.frameGeometry.size" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the size in bytes of a recorded image.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Size of bytes of a recorded image.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">int</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Sensor API Class</a></li>
+<li><a class="reference internal" href="#frame-geometry-class">Frame Geometry Class</a></li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="camera.html"
+                        title="previous chapter">Camera Class</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/sensor.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="camera.html" title="Camera Class"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">PyChronos 0.4.0-alpha documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 Kron Technologies, Inc.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.9.
+    </div>
+  </body>
+</html>

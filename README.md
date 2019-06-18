@@ -24,19 +24,36 @@ This project includes several major components:
 
 Building and Installing
 -----------------------
-To build the `pychronos` module, you will need the `python3-dev` and `python3-dbus`
+**To build the `pychronos` module**, you will need the `python3-dev` and `python3-dbus`
 packages for your camera's operating sytem. Once installed, you can use the `setup.py`
 script to build and install the module on your camera, using the following commands:
  * `python3 setup.py build` to build the pychronos package from your checkout.
  * `python3 setup.py install` to install the pychronos package on your camera.
 
-For quick development, you can also use `make inplace` to generate an in-place
+**For quick development**, you can also use `make inplace` to generate an in-place
 version of the `pychronos` package that can be imported from the root of the
 project checkout without installing to the system.
 
 As much as we love backwards compatibility, the `pychronos` module required Python
 version 3.4 and newer. This is due to extensive use of generator functions to handle
 cooperative multithreading for long-running tasks.
+
+**To build the documentation**, you will need the following prereqs installed on your
+computer. For example, on linux,
+```
+sudo apt install python3 build-essentials python3-sphinx sphinx-doc python3-numpy
+```
+
+In the base folder of the project, you can then build the documentation. This
+build will be output to the `~/docs` folder, so that [github
+pages](https://krontech.github.io/pychronos/camera.html) recognises it and
+serves it to the world.
+```
+make inplace
+cd docs_src
+make html #-OR-
+make watch html #for development
+```
 
 
 

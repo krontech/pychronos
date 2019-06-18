@@ -1,0 +1,63 @@
+<svg id="SVGRoot" max-width="100%" version="1.1" viewBox="0 0 950 210" aria-labelledby="svgCSCCTitle svgCSCCDesc" role="img" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+	<!-- See https://css-tricks.com/accessible-svgs/#article-header-id-6 for a description aria-labelledby, role, title, and desc. -->
+	<desc id="svgPSCDesc">Communicating directly with the hardware, the camApp software controls all aspects of the Chronos camera.</desc>
+	<metadata>
+		<rdf:RDF>
+			<cc:Work rdf:about="">
+				<dc:format>image/svg+xml</dc:format>
+				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+				<dc:title/>
+			</cc:Work>
+		</rdf:RDF>
+	</metadata>
+	<defs>
+		<marker id="markerArrowEnd" overflow="visible" orient="auto">
+			<path transform="matrix(-.4 0 0 -.4 -4 0)" d="m0 0 5-5-17.5 5 17.5 5z" fill-rule="evenodd" stroke="#000" stroke-width="1pt"/>
+		</marker>
+	</defs>
+	<style>
+		path {
+			stroke: black;
+		}
+		
+		g > text {
+			font-family:sans-serif;
+			line-height: 1.25;
+			text-align: center;
+			text-anchor: middle;
+		}
+		
+		g:not(.column-headers) > text {
+			font-size: 16px;
+			pointer-events: none; /* Keep links, on rects, working when mouse is over text. */
+			user-select: none;
+		}
+		
+		rect {
+			fill-opacity:.25;
+			fill:#10bfbf;
+			stroke:#107f7f
+		}
+		
+		svg a:hover {
+			opacity: 0.7;
+		}
+	</style>
+	<g transform="translate(-29.5,-60.5)">
+		<a transform="translate(279.5,-39.5)" href="https://www.krontech.ca/store/Chronos-1-4-high-speed-camera-p92268927">
+			<rect x="40" y="160" width="150" height="140" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
+		</a>
+		<a transform="translate(229.5 .5)" href="https://github.com/krontech/chronos-cam-app">
+			<rect x="300" y="160" width="160" height="60" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
+		</a>
+		<g transform="translate(270,-50)" font-size="16px" style="font-family:sans-serif;font-size:16px;text-anchor:middle">
+			<text x="124.14063" y="236.32422" text-align="center" style="font-family:sans-serif;line-height:1.25;text-align:center;text-anchor:middle"><tspan x="124.14062" y="236.32422">Camera</tspan> <tspan x="124.14062" y="256.32422">Hardware</tspan></text>
+		</g>
+		<text x="609.50391" y="184.91406" font-size="16px" text-align="center" style="font-family:sans-serif;font-size:16px;line-height:1.25;text-align:center;text-anchor:middle"><tspan x="609.50391" y="184.91406">camApp</tspan> <tspan x="609.50391" y="204.91406">(chronos-cam-app)</tspan></text>
+		<g class="column-headers" transform="translate(270)" font-size="18.667px" style="fill:#000000;font-family:sans-serif;font-size:18.667px">
+			<text x="124.08073" y="98.567337" text-align="center" style="font-family:sans-serif;line-height:1.25;text-align:center;text-anchor:middle" xml:space="preserve"><tspan x="124.08073" y="98.567337">Hardware</tspan></text>
+			<text x="339.04428" y="98.567337" text-align="center" style="font-family:sans-serif;line-height:1.25;text-align:center;text-anchor:middle" xml:space="preserve"><tspan x="339.04428" y="98.567337">Software</tspan></text>
+		</g>
+		<path d="m529.5 190.5h-60" style="fill:none;marker-end:url(#markerArrowEnd);stroke-width:1px;stroke:#000000"/>
+	</g>
+</svg>

@@ -4,6 +4,7 @@
 *.pyc
 build/
 __pycache__/
+docs/.buildinfo
 
 # Ignore common temporary files.
 .DS_Store

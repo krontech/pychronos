@@ -1,0 +1,352 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Index &#8212; PyChronos 0.4.0-alpha documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="shortcut icon" href="_static/favicon.ico"/>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Camera Class" href="camera.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="camera.html" title="Camera Class"
+             accesskey="N">next</a> |</li>
+        <li class="nav-item nav-item-0"><a href="#">PyChronos 0.4.0-alpha documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="pychronos-chronos-camera-control">
+<h1><a class="toc-backref" href="#id1"><a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> — Chronos Camera Control</a><a class="headerlink" href="#pychronos-chronos-camera-control" title="Permalink to this headline">¶</a></h1>
+<p>The <a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> module provides programmatic high-level control over a Chronos Camera. To do so, it exposes a D-Bus API for other software to consume. This document covers the PyChronos project and how to use it.</p>
+<div class="contents topic" id="table-of-contents">
+<p class="topic-title first">Table of Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#pychronos-chronos-camera-control" id="id1"><a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> — Chronos Camera Control</a><ul>
+<li><a class="reference internal" href="#history" id="id2">History</a></li>
+<li><a class="reference internal" href="#pychronos-components" id="id3">PyChronos Components</a></li>
+<li><a class="reference internal" href="#indices-and-tables" id="id4">Indices and tables</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="history">
+<h2><a class="toc-backref" href="#id2">History</a><a class="headerlink" href="#history" title="Permalink to this headline">¶</a></h2>
+<p>In the beginning, there was camApp. And it was glorious, and ran all parts of the camera from the UI to the FPGA, and the engineers were happy.</p>
+<svg id="SVGRoot" max-width="100%" version="1.1" viewBox="0 0 950 210" aria-labelledby="svgCSCCTitle svgCSCCDesc" role="img" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+	<!-- See https://css-tricks.com/accessible-svgs/#article-header-id-6 for a description aria-labelledby, role, title, and desc. -->
+	<desc id="svgPSCDesc">Communicating directly with the hardware, the camApp software controls all aspects of the Chronos camera.</desc>
+	<metadata>
+		<rdf:RDF>
+			<cc:Work rdf:about="">
+				<dc:format>image/svg+xml</dc:format>
+				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+				<dc:title/>
+			</cc:Work>
+		</rdf:RDF>
+	</metadata>
+	<defs>
+		<marker id="markerArrowEnd" overflow="visible" orient="auto">
+			<path transform="matrix(-.4 0 0 -.4 -4 0)" d="m0 0 5-5-17.5 5 17.5 5z" fill-rule="evenodd" stroke="#000" stroke-width="1pt"/>
+		</marker>
+	</defs>
+	<style>
+		path {
+			stroke: black;
+		}
+		
+		g > text {
+			font-family:sans-serif;
+			line-height: 1.25;
+			text-align: center;
+			text-anchor: middle;
+		}
+		
+		g:not(.column-headers) > text {
+			font-size: 16px;
+			pointer-events: none; /* Keep links, on rects, working when mouse is over text. */
+			user-select: none;
+		}
+		
+		rect {
+			fill-opacity:.25;
+			fill:#10bfbf;
+			stroke:#107f7f
+		}
+		
+		svg a:hover {
+			opacity: 0.7;
+		}
+	</style>
+	<g transform="translate(-29.5,-60.5)">
+		<a transform="translate(279.5,-39.5)" href="https://www.krontech.ca/store/Chronos-1-4-high-speed-camera-p92268927">
+			<rect x="40" y="160" width="150" height="140" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
+		</a>
+		<a transform="translate(229.5 .5)" href="https://github.com/krontech/chronos-cam-app">
+			<rect x="300" y="160" width="160" height="60" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
+		</a>
+		<g transform="translate(270,-50)" font-size="16px" style="font-family:sans-serif;font-size:16px;text-anchor:middle">
+			<text x="124.14063" y="236.32422" text-align="center" style="font-family:sans-serif;line-height:1.25;text-align:center;text-anchor:middle"><tspan x="124.14062" y="236.32422">Camera</tspan> <tspan x="124.14062" y="256.32422">Hardware</tspan></text>
+		</g>
+		<text x="609.50391" y="184.91406" font-size="16px" text-align="center" style="font-family:sans-serif;font-size:16px;line-height:1.25;text-align:center;text-anchor:middle"><tspan x="609.50391" y="184.91406">camApp</tspan> <tspan x="609.50391" y="204.91406">(chronos-cam-app)</tspan></text>
+		<g class="column-headers" transform="translate(270)" font-size="18.667px" style="fill:#000000;font-family:sans-serif;font-size:18.667px">
+			<text x="124.08073" y="98.567337" text-align="center" style="font-family:sans-serif;line-height:1.25;text-align:center;text-anchor:middle" xml:space="preserve"><tspan x="124.08073" y="98.567337">Hardware</tspan></text>
+			<text x="339.04428" y="98.567337" text-align="center" style="font-family:sans-serif;line-height:1.25;text-align:center;text-anchor:middle" xml:space="preserve"><tspan x="339.04428" y="98.567337">Software</tspan></text>
+		</g>
+		<path d="m529.5 190.5h-60" style="fill:none;marker-end:url(#markerArrowEnd);stroke-width:1px;stroke:#000000"/>
+	</g>
+</svg>
+<p>As time passed, the engineers grew numerous and discontentment spread; and there was conflict, and confusion; and it was declared that camApp be split into several components each with a clearly-defined responsibility. And it was declared those components would be as follows:</p>
+<svg id="SVGRoot" max-width="100%" version="1.1" viewBox="0 0 950 300" aria-labelledby="svgCSCCDesc" role="img" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+	<!-- See https://css-tricks.com/accessible-svgs/#article-header-id-6 for a description aria-labelledby, role, title, and desc. -->
+	<desc id="svgCSCDesc">Communicating directly with the hardware, two daemons expose video (in chronos-cli) and control (pychronos) functionality over a D-Bus interface. Consuming those interfaces, there are the back-of-camera user interface (chronos-gui-2) and web interface bridge (in chronos-web-interface). Connected to the web interface bridge are any remote clients.</desc>
+	<metadata>
+		<rdf:RDF>
+			<cc:Work rdf:about="">
+				<dc:format>image/svg+xml</dc:format>
+				<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+				<dc:title/>
+			</cc:Work>
+		</rdf:RDF>
+	</metadata>
+	<defs>
+		<marker id="markerArrowEnd" overflow="visible" orient="auto">
+			<path transform="matrix(-.4 0 0 -.4 -4 0)" d="m0 0 5-5-17.5 5 17.5 5z" fill-rule="evenodd" stroke="#000" stroke-width="1pt"/>
+		</marker>
+		<marker id="markerArrowStart" overflow="visible" orient="auto">
+			<path transform="matrix(.4 0 0 .4 4 0)" d="m0 0 5-5-17.5 5 17.5 5z" fill-rule="evenodd" stroke="#000" stroke-width="1pt"/>
+		</marker>
+	</defs>
+	<style>
+		path {
+			stroke: black;
+		}
+		
+		g > text {
+			font-family:sans-serif;
+			line-height: 1.25;
+			text-align: center;
+			text-anchor: middle;
+		}
+		
+		g:not(.column-headers) > text {
+			font-size: 16px;
+			pointer-events: none; /* Keep links, on rects, working when mouse is over text. */
+			user-select: none;
+		}
+		
+		rect {
+			fill-opacity:.25;
+			fill:#10bfbf;
+			stroke:#107f7f
+		}
+		
+		svg a:hover {
+			opacity: 0.7;
+		}
+	</style>
+	<g transform="translate(-29.5,-60.5)">
+		<a transform="translate(9.5,10.5)" href="https://www.krontech.ca/store/Chronos-1-4-high-speed-camera-p92268927">
+			<rect x="40" y="160" width="150" height="140" fill="#10bfbf" fill-opacity=".25" stroke="#107f7f"/>
+		</a>
+		<a transform="translate(-40.5,10.5)" href="https://github.com/krontech/pychronos">
+			<rect x="300" y="160" width="160" height="60" fill="#10bfbf" fill-opacity=".25" stroke="#107f7f"/>
+		</a>
+		<a transform="translate(-40.5,10.5)" href="https://github.com/krontech/chronos-cli/blob/master/src/pipeline">
+			<rect x="300" y="240" width="160" height="60" fill="#10bfbf" fill-opacity=".25" stroke="#107f7f"/>
+		</a>
+		<a transform="translate(-100.5 .5)" href="https://github.com/krontech/chronos-gui-2">
+			<rect x="580" y="130" width="209.5" height="60.5" fill="#10bfbf" fill-opacity=".25" stroke="#107f7f"/>
+		</a>
+		<a transform="translate(-100.5 .5)" href="#yih">
+			<rect x="580" y="290" width="209.5" height="60.5" style="fill:#6ecff0;fill-opacity:1;stroke:#2c4d8e"/>
+		</a>
+		<g font-family="sans-serif" font-size="16px" text-anchor="middle">
+			<text x="124.14063" y="236.32422" text-align="center" style="line-height:1.25"><tspan x="124.14062" y="236.32422">Camera</tspan> <tspan x="124.14062" y="256.32422">Hardware</tspan></text>
+			<text x="584.25391" y="155.16406" text-align="center" style="line-height:1.25"><tspan x="584.25391" y="155.16406">User Interface</tspan> <tspan x="584.25391" y="175.16406">(chronos-gui-2)</tspan></text>
+			<text x="584.69141" y="326.71484" fill="#2c4d8e" text-align="center" style="line-height:1.25"><tspan x="584.69141" y="326.71484">Your Interface Here</tspan></text>
+		</g>
+		<a transform="translate(169.5,-39.5)" href="#ych">
+			<rect x="580" y="290" width="209.5" height="60.75" style="fill:#6ecff0;fill-opacity:1;stroke:#2c4d8e"/>
+		</a>
+		<text x="854.69141" y="286.83984" fill="#2c4d8e" font-family="sans-serif" font-size="16px" text-align="center" text-anchor="middle" style="line-height:1.25"><tspan x="854.69141" y="286.83984">Your Client Here</tspan></text>
+		<text x="339.50391" y="275.52344" font-family="sans-serif" font-size="16px" text-align="center" text-anchor="middle" style="line-height:1.25"><tspan x="339.50391" y="275.52344">Video API</tspan> <tspan x="339.50391" y="295.52344">(chronos-cli)</tspan></text>
+		<text x="339.50391" y="194.91406" font-family="sans-serif" font-size="16px" text-align="center" text-anchor="middle" style="line-height:1.25"><tspan x="339.50391" y="194.91406">Control API</tspan> <tspan x="339.50391" y="214.91406">(pychronos)</tspan></text>
+		<a transform="translate(169.5,40.5)" href="https://github.com/krontech/chronos-web-interface">
+			<rect x="580" y="130" width="209.5" height="60.75" fill="#10bfbf" fill-opacity=".25" stroke="#107f7f"/>
+		</a>
+		<a transform="translate(-100.5 .5)" href="https://github.com/krontech/chronos-web-interface">
+			<rect x="580" y="210" width="209.5" height="60.5" fill="#10bfbf" fill-opacity=".25" stroke="#107f7f"/>
+		</a>
+		<g stroke="#000">
+			<path d="m479.5 177.76-60 9.7446" marker-end="url(#markerArrowEnd)"/>
+			<path d="m419.5 213.66 60 9.8672" marker-start="url(#markerArrowStart)"/>
+			<path d="m400.82 250.5 121.61-59.5" marker-start="url(#markerArrowStart)"/>
+			<path d="m522.68 290.5-122.12-60" marker-end="url(#markerArrowEnd)"/>
+			<path d="m419.5 267.51 60-9.7446" marker-start="url(#markerArrowStart)"/>
+			<path d="m419.5 293.66 60 9.8672" marker-start="url(#markerArrowStart)"/>
+			<path d="m199.5 226.55 60-11.163" marker-start="url(#markerArrowStart)"/>
+			<path d="m259.5 265.62-60-11.163" marker-end="url(#markerArrowEnd)"/>
+		</g>
+		<g fill="none" stroke="#000">
+			<path d="m339.5 230.5v20" marker-end="url(#markerArrowEnd)" stroke-width="1.0016"/>
+			<path d="m689 224.06 60.5-8.4868" marker-start="url(#markerArrowStart)" stroke-width="1px"/>
+			<path d="m689 255.09 60.5 9.4391" marker-start="url(#markerArrowStart)" stroke-width="1px"/>
+		</g>
+		<g fill="#000000" font-family="sans-serif" font-size="18.667px" class="column-headers">
+			<text x="124.08073" y="98.567337" text-align="center" style="line-height:1.25" xml:space="preserve"><tspan x="124.08073" y="98.567337">Hardware</tspan></text>
+			<text x="339.04428" y="98.567337" text-align="center" style="line-height:1.25" xml:space="preserve"><tspan x="339.04428" y="98.567337">D-Bus APIs</tspan></text>
+			<text x="583.79425" y="98.567337" text-align="center" style="line-height:1.25" xml:space="preserve"><tspan x="583.79425" y="98.567337">D-Bus API Clients</tspan></text>
+			<text x="853.79425" y="98.567337" text-align="center" style="line-height:1.25" xml:space="preserve"><tspan x="853.79425" y="98.567337">Remote Clients</tspan></text>
+		</g>
+		<g font-family="sans-serif" text-anchor="middle">
+			<text x="584.25391" y="235.77344" font-size="16px" text-align="center" style="line-height:1.25"><tspan x="584.25391" y="235.77344">Web Interface</tspan> <tspan x="584.25391" y="255.77344">(chronos-web-interface)</tspan></text>
+			<text x="854.25391" y="195.89844" font-size="16px" text-align="center" style="line-height:1.25"><tspan x="854.25391" y="195.89844">Web App</tspan> <tspan x="854.25391" y="215.89844">(chronos-web-interface)</tspan></text>
+		</g>
+	</g>
+</svg>
+<div class="section" id="control-api">
+<h3>Control API<a class="headerlink" href="#control-api" title="Permalink to this headline">¶</a></h3>
+<p>This project. Configures the camera and, internally, coordinates bring-up of the camera hardware with the the Video API. Partially wraps the Video API as a result. Exposes functionality over D-Bus.</p>
+</div>
+<div class="section" id="video-api">
+<h3>Video API<a class="headerlink" href="#video-api" title="Permalink to this headline">¶</a></h3>
+<p>Deals with video recording and display. Starts and stops the stream, and internally routes the picture to the the HDMI port and the back-of-camera display. Exposes functionality over D-Bus.</p>
+</div>
+<div class="section" id="user-interface">
+<h3>User Interface<a class="headerlink" href="#user-interface" title="Permalink to this headline">¶</a></h3>
+<p>Synchronise your brain with a camera! The UI displays the current camera state and lets people change it how they want. It translates human input into D-Bus calls to the Video and Control APIs, as well as listens to the D-Bus APIs for updates to display.</p>
+</div>
+<div class="section" id="web-interface">
+<h3>Web Interface<a class="headerlink" href="#web-interface" title="Permalink to this headline">¶</a></h3>
+<p>Synchronise your network client with a camera! The Web Interface exposes the Control and Video D-Bus APIs over HTTP so a remote client can make use of them. It must be enabled in the Network Settings screen on the camera before it will start.</p>
+</div>
+<div class="section" id="your-interface-here">
+<h3>Your Interface Here<a class="headerlink" href="#your-interface-here" title="Permalink to this headline">¶</a></h3>
+<p>Write your own on-board software. This can be as simple as dropping some new HTML files into the web directory the current app is running out of, to enable new, convenient functionality for your own project, or as complex as writing a complete replacement for the back-of-camera user interface.</p>
+</div>
+<div class="section" id="web-app">
+<h3>Web App<a class="headerlink" href="#web-app" title="Permalink to this headline">¶</a></h3>
+<p>After enabling the web interface, point a web browser at your camera for a remote-control app. (Well, soon, at any rate. This component is not complete yet!)</p>
+</div>
+<div class="section" id="your-client-here">
+<h3>Your Client Here<a class="headerlink" href="#your-client-here" title="Permalink to this headline">¶</a></h3>
+<p>Write your own remote client! Control the camera using a script, program, or web page on another computer or mobile device. (This is generally easier than writing your own on-board interface.)</p>
+</div>
+</div>
+<div class="section" id="pychronos-components">
+<h2><a class="toc-backref" href="#id3">PyChronos Components</a><a class="headerlink" href="#pychronos-components" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound" id="mastertoc">
+<p class="caption"><span class="caption-text">Subcomponents</span><a class="headerlink" href="#mastertoc" title="Permalink to this toctree">¶</a></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="camera.html">Camera Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">Sensor API Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html#frame-geometry-class">Frame Geometry Class</a></li>
+</ul>
+</div>
+</div>
+<div class="section" id="indices-and-tables">
+<h2><a class="toc-backref" href="#id4">Indices and tables</a><a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></li>
+<li><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></li>
+<li><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></li>
+</ul>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="#">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#"><code class="docutils literal notranslate"><span class="pre">pychronos</span></code> — Chronos Camera Control</a><ul>
+<li><a class="reference internal" href="#history">History</a><ul>
+<li><a class="reference internal" href="#control-api">Control API</a></li>
+<li><a class="reference internal" href="#video-api">Video API</a></li>
+<li><a class="reference internal" href="#user-interface">User Interface</a></li>
+<li><a class="reference internal" href="#web-interface">Web Interface</a></li>
+<li><a class="reference internal" href="#your-interface-here">Your Interface Here</a></li>
+<li><a class="reference internal" href="#web-app">Web App</a></li>
+<li><a class="reference internal" href="#your-client-here">Your Client Here</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#pychronos-components">PyChronos Components</a></li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Next topic</h4>
+  <p class="topless"><a href="camera.html"
+                        title="next chapter">Camera Class</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="camera.html" title="Camera Class"
+             >next</a> |</li>
+        <li class="nav-item nav-item-0"><a href="#">PyChronos 0.4.0-alpha documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 Kron Technologies, Inc.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.9.
+    </div>
+  </body>
+</html>
