@@ -3,7 +3,7 @@
 *.so
 *.pyc
 *.pickle
-*.doctrees
+*.doctree
 build/
 __pycache__/
 docs/.buildinfo

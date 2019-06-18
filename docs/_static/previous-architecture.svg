@@ -47,8 +47,8 @@
 		<a transform="translate(279.5,-39.5)" href="https://www.krontech.ca/store/Chronos-1-4-high-speed-camera-p92268927">
 			<rect x="40" y="160" width="150" height="140" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
 		</a>
-		<a transform="translate(229.5 .5)" href="https://github.com/krontech/chronos-cam-app">
-			<rect x="300" y="160" width="160" height="60" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
+		<a transform="translate(229.5 -39.5)" href="https://github.com/krontech/chronos-cam-app">
+			<rect x="300" y="160" width="160" height="140" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
 		</a>
 		<g transform="translate(270,-50)" font-size="16px" style="font-family:sans-serif;font-size:16px;text-anchor:middle">
 			<text x="124.14063" y="236.32422" text-align="center" style="font-family:sans-serif;line-height:1.25;text-align:center;text-anchor:middle"><tspan x="124.14062" y="236.32422">Camera</tspan> <tspan x="124.14062" y="256.32422">Hardware</tspan></text>

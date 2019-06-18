@@ -46,15 +46,15 @@
 <p class="topic-title first">Table of Contents</p>
 <ul class="simple">
 <li><a class="reference internal" href="#pychronos-chronos-camera-control" id="id1"><a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> — Chronos Camera Control</a><ul>
-<li><a class="reference internal" href="#history" id="id2">History</a></li>
+<li><a class="reference internal" href="#history-and-overview" id="id2">History and Overview</a></li>
 <li><a class="reference internal" href="#pychronos-components" id="id3">PyChronos Components</a></li>
 <li><a class="reference internal" href="#indices-and-tables" id="id4">Indices and tables</a></li>
 </ul>
 </li>
 </ul>
 </div>
-<div class="section" id="history">
-<h2><a class="toc-backref" href="#id2">History</a><a class="headerlink" href="#history" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="history-and-overview">
+<h2><a class="toc-backref" href="#id2">History and Overview</a><a class="headerlink" href="#history-and-overview" title="Permalink to this headline">¶</a></h2>
 <p>In the beginning, there was camApp. And it was glorious, and ran all parts of the camera from the UI to the FPGA, and the engineers were happy.</p>
 <svg id="SVGRoot" max-width="100%" version="1.1" viewBox="0 0 950 210" aria-labelledby="svgCSCCTitle svgCSCCDesc" role="img" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 	<!-- See https://css-tricks.com/accessible-svgs/#article-header-id-6 for a description aria-labelledby, role, title, and desc. -->
@@ -105,8 +105,8 @@
 		<a transform="translate(279.5,-39.5)" href="https://www.krontech.ca/store/Chronos-1-4-high-speed-camera-p92268927">
 			<rect x="40" y="160" width="150" height="140" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
 		</a>
-		<a transform="translate(229.5 .5)" href="https://github.com/krontech/chronos-cam-app">
-			<rect x="300" y="160" width="160" height="60" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
+		<a transform="translate(229.5 -39.5)" href="https://github.com/krontech/chronos-cam-app">
+			<rect x="300" y="160" width="160" height="140" style="fill-opacity:.25;fill:#10bfbf;stroke:#107f7f"/>
 		</a>
 		<g transform="translate(270,-50)" font-size="16px" style="font-family:sans-serif;font-size:16px;text-anchor:middle">
 			<text x="124.14063" y="236.32422" text-align="center" style="font-family:sans-serif;line-height:1.25;text-align:center;text-anchor:middle"><tspan x="124.14062" y="236.32422">Camera</tspan> <tspan x="124.14062" y="256.32422">Hardware</tspan></text>
@@ -228,34 +228,16 @@
 		</g>
 	</g>
 </svg>
-<div class="section" id="control-api">
-<h3>Control API<a class="headerlink" href="#control-api" title="Permalink to this headline">¶</a></h3>
-<p>This project. Configures the camera and, internally, coordinates bring-up of the camera hardware with the the Video API. Partially wraps the Video API as a result. Exposes functionality over D-Bus.</p>
-</div>
-<div class="section" id="video-api">
-<h3>Video API<a class="headerlink" href="#video-api" title="Permalink to this headline">¶</a></h3>
-<p>Deals with video recording and display. Starts and stops the stream, and internally routes the picture to the the HDMI port and the back-of-camera display. Exposes functionality over D-Bus.</p>
-</div>
-<div class="section" id="user-interface">
-<h3>User Interface<a class="headerlink" href="#user-interface" title="Permalink to this headline">¶</a></h3>
-<p>Synchronise your brain with a camera! The UI displays the current camera state and lets people change it how they want. It translates human input into D-Bus calls to the Video and Control APIs, as well as listens to the D-Bus APIs for updates to display.</p>
-</div>
-<div class="section" id="web-interface">
-<h3>Web Interface<a class="headerlink" href="#web-interface" title="Permalink to this headline">¶</a></h3>
-<p>Synchronise your network client with a camera! The Web Interface exposes the Control and Video D-Bus APIs over HTTP so a remote client can make use of them. It must be enabled in the Network Settings screen on the camera before it will start.</p>
-</div>
-<div class="section" id="your-interface-here">
-<h3>Your Interface Here<a class="headerlink" href="#your-interface-here" title="Permalink to this headline">¶</a></h3>
-<p>Write your own on-board software. This can be as simple as dropping some new HTML files into the web directory the current app is running out of, to enable new, convenient functionality for your own project, or as complex as writing a complete replacement for the back-of-camera user interface.</p>
-</div>
-<div class="section" id="web-app">
-<h3>Web App<a class="headerlink" href="#web-app" title="Permalink to this headline">¶</a></h3>
-<p>After enabling the web interface, point a web browser at your camera for a remote-control app. (Well, soon, at any rate. This component is not complete yet!)</p>
-</div>
-<div class="section" id="your-client-here">
-<h3>Your Client Here<a class="headerlink" href="#your-client-here" title="Permalink to this headline">¶</a></h3>
-<p>Write your own remote client! Control the camera using a script, program, or web page on another computer or mobile device. (This is generally easier than writing your own on-board interface.)</p>
-</div>
+<p>Each component of the camera software has a specific purpose.</p>
+<ul class="simple">
+<li><strong>Control API</strong>: This project. Configures the camera and, internally, coordinates bring-up of the camera hardware with the the Video API. Partially wraps the Video API as a result. Exposes <a class="reference internal" href="camera.html#pychronos.camera" title="pychronos.camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.camera</span></code></a> functionality over D-Bus.</li>
+<li><strong>Video API</strong>: Deals with video recording and display. Starts and stops the stream, and internally routes the picture to the the HDMI port and the back-of-camera display. Exposes functionality over D-Bus.</li>
+<li><strong>User Interface</strong>: Synchronise your brain with a camera! The UI displays the current camera state and lets people change it how they want. It translates human input into D-Bus calls to the Video and Control APIs, as well as listens to the D-Bus APIs for updates to display.</li>
+<li><strong>Web Interface</strong>: Synchronise your network client with a camera! The Web Interface exposes the Control and Video D-Bus APIs over HTTP so a remote client can make use of them. It must be enabled in the Network Settings screen on the camera before it will start.</li>
+<li><strong>Your Interface Here</strong>: Write your own on-board software. This can be as simple as dropping some new HTML files into the web directory the current app is running out of, to enable new, convenient functionality for your own project, or as complex as writing a complete replacement for the back-of-camera user interface.</li>
+<li><strong>Web App</strong>: After enabling the web interface, point a web browser at your camera for a remote-control app. (Well, soon, at any rate. This component is not complete yet!)</li>
+<li><strong>Your Client Here</strong>: Write your own remote client! Control the camera using a script, program, or web page on another computer or mobile device. (This is generally easier than writing your own on-board interface.)</li>
+</ul>
 </div>
 <div class="section" id="pychronos-components">
 <h2><a class="toc-backref" href="#id3">PyChronos Components</a><a class="headerlink" href="#pychronos-components" title="Permalink to this headline">¶</a></h2>
@@ -287,16 +269,7 @@
   <h3><a href="#">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#"><code class="docutils literal notranslate"><span class="pre">pychronos</span></code> — Chronos Camera Control</a><ul>
-<li><a class="reference internal" href="#history">History</a><ul>
-<li><a class="reference internal" href="#control-api">Control API</a></li>
-<li><a class="reference internal" href="#video-api">Video API</a></li>
-<li><a class="reference internal" href="#user-interface">User Interface</a></li>
-<li><a class="reference internal" href="#web-interface">Web Interface</a></li>
-<li><a class="reference internal" href="#your-interface-here">Your Interface Here</a></li>
-<li><a class="reference internal" href="#web-app">Web App</a></li>
-<li><a class="reference internal" href="#your-client-here">Your Client Here</a></li>
-</ul>
-</li>
+<li><a class="reference internal" href="#history-and-overview">History and Overview</a></li>
 <li><a class="reference internal" href="#pychronos-components">PyChronos Components</a></li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
 </ul>

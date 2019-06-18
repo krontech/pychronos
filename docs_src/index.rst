@@ -15,8 +15,8 @@ The :mod:`pychronos` module provides programmatic high-level control over a Chro
 	:depth: 2	
 
 
-History
--------
+History and Overview
+--------------------
 In the beginning, there was camApp. And it was glorious, and ran all parts of the camera from the UI to the FPGA, and the engineers were happy.
 
 
@@ -40,33 +40,21 @@ As time passed, the engineers grew numerous and discontentment spread; and there
 		:align: center
 		:alt: Communicating directly with the hardware, two daemons expose video (in chronos-cli) and control (pychronos) functionality over a D-Bus interface. Consuming those interfaces, there are the back-of-camera user interface (chronos-gui-2) and web interface bridge (in chronos-web-interface). Connected to the web interface bridge are any remote clients.
 
-Control API
-^^^^^^^^^^^
-This project. Configures the camera and, internally, coordinates bring-up of the camera hardware with the the Video API. Partially wraps the Video API as a result. Exposes functionality over D-Bus.
+Each component of the camera software has a specific purpose.
 
-Video API
-^^^^^^^^^
-Deals with video recording and display. Starts and stops the stream, and internally routes the picture to the the HDMI port and the back-of-camera display. Exposes functionality over D-Bus.
+* **Control API**: This project. Configures the camera and, internally, coordinates bring-up of the camera hardware with the the Video API. Partially wraps the Video API as a result. Exposes :class:`pychronos.camera` functionality over D-Bus.
 
-User Interface
-^^^^^^^^^^^^^^
-Synchronise your brain with a camera! The UI displays the current camera state and lets people change it how they want. It translates human input into D-Bus calls to the Video and Control APIs, as well as listens to the D-Bus APIs for updates to display.
+* **Video API**: Deals with video recording and display. Starts and stops the stream, and internally routes the picture to the the HDMI port and the back-of-camera display. Exposes functionality over D-Bus.
 
-Web Interface
-^^^^^^^^^^^^^
-Synchronise your network client with a camera! The Web Interface exposes the Control and Video D-Bus APIs over HTTP so a remote client can make use of them. It must be enabled in the Network Settings screen on the camera before it will start.
+* **User Interface**: Synchronise your brain with a camera! The UI displays the current camera state and lets people change it how they want. It translates human input into D-Bus calls to the Video and Control APIs, as well as listens to the D-Bus APIs for updates to display.
 
-Your Interface Here
-^^^^^^^^^^^^^^^^^^^
-Write your own on-board software. This can be as simple as dropping some new HTML files into the web directory the current app is running out of, to enable new, convenient functionality for your own project, or as complex as writing a complete replacement for the back-of-camera user interface.
+* **Web Interface**: Synchronise your network client with a camera! The Web Interface exposes the Control and Video D-Bus APIs over HTTP so a remote client can make use of them. It must be enabled in the Network Settings screen on the camera before it will start.
 
-Web App
-^^^^^^^
-After enabling the web interface, point a web browser at your camera for a remote-control app. (Well, soon, at any rate. This component is not complete yet!)
+* **Your Interface Here**: Write your own on-board software. This can be as simple as dropping some new HTML files into the web directory the current app is running out of, to enable new, convenient functionality for your own project, or as complex as writing a complete replacement for the back-of-camera user interface.
 
-Your Client Here
-^^^^^^^^^^^^^^^^
-Write your own remote client! Control the camera using a script, program, or web page on another computer or mobile device. (This is generally easier than writing your own on-board interface.)
+* **Web App**: After enabling the web interface, point a web browser at your camera for a remote-control app. (Well, soon, at any rate. This component is not complete yet!)
+
+* **Your Client Here**: Write your own remote client! Control the camera using a script, program, or web page on another computer or mobile device. (This is generally easier than writing your own on-board interface.)
 
 
 

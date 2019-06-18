@@ -177,6 +177,6 @@ pseudoxml:
 	@echo "Build finished. The pseudo-XML files are in $(BUILDDIR)/pseudoxml."
 
 watch:
-	+echo *.rst conf.py Makefile | tr " " "\n" | entr make html & #${ARGS} doesn't work the second time
+	+echo *.rst conf.py Makefile _static/*.svg | tr " " "\n" | entr make html & #${ARGS} doesn't work the second time
 	cd ../docs;\
 	python3 -m http.server 8007
