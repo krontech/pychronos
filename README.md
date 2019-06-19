@@ -185,7 +185,7 @@ API to the `chronos-cli` program.
 |`state`                                     |`G`|   |`N`| enum   |       |       | One of `idle`, `recording`, `reset` and others???? TBD.
 |`error`                                     |   |   |`x`| string |       |       | Included in a notification dictionary if, and only if, an operation fails due to an error.
 |`externalStorage`                           |`G`|   |   | dict   |       |       | Dictionary of dictionaries describing the external storage devices.
-|`dateTime`                                  |`G`|   |   | string |       |       | ISO-8601 formatted date and time string.
+|`dateTime`                                  |`G`|`x`|`x`| string |       |       | ISO-8601 formatted date and time string.
 
 ### Power and Battery Parameters
 | Parameter                                  | G | S | N | Type   | Min   | Max   | Description
