@@ -186,6 +186,7 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
     def startFilesave(self, args, onReply=None, onError=None):
+        """TBD: A proxy for the `filesave` method in the Video API."""
         # Filename suffixes for the formats that need one.
         suffixes = {
             'h264': '.mp4',
@@ -369,12 +370,21 @@ class controlApi(dbus.service.Object):
     #Method('status', arguments='', returns='a{sv}')
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def status(self):
+        """Get the current :meth:`~pychronos.camera.state` of the camera.
+        
+            Return value::
+            
+                {
+                    'state': pychronos.camera.state
+                }
+        """
         return {'state':self.camera.state}
 
     #===============================================================================================
     #Method('softReset', arguments='', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def softReset(self):
+        """Perform a soft reset and initialization of the FPGA and image sensor."""
         try:
             self.runGenerator(self.runSoftReset())
             return {
@@ -420,6 +430,20 @@ class controlApi(dbus.service.Object):
     #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def startCalibration(self, args):
+        """ Perform full calibration operations.
+            
+            Takes a dict of calibration names set to True to run. For example::
+            
+                {
+                    'blackCal': True,
+                    'analogCal': True,
+                    'zeroTimeBlackCal': False,
+                }
+            
+            This performs a full black calibration and analog calibration, but
+            does not run the zero time black calibration routine. If a calibration
+            is not named, it is treated as if it were False.
+        """
         try:
             self.runGenerator(self.camera.startCalibration(**args))
             return {
@@ -439,6 +463,7 @@ class controlApi(dbus.service.Object):
     #Method('flushRecording', arguments='', regutns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def startAutoWhiteBalance(self, args):
+        """Take a reference image from the live display and compute the white balance."""
         logging.info('starting white balance')
         try:
             self.runGenerator(self.camera.startWhiteBalance(**args))
@@ -453,6 +478,7 @@ class controlApi(dbus.service.Object):
 
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def revertAutoWhiteBalance(self, args):
+        """This copies the contents of `wbCustom` into `wbMatrix`."""
         self.camera.wbMatrix = self.camera.wbCustom
         return {
             "state": self.camera.state
@@ -460,6 +486,7 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def startRecording(self):
+        """Begin recording video data to memory."""
         try:
             self.runGenerator(self.camera.startRecording())
             return {
@@ -473,6 +500,7 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def stopRecording(self):
+        """Terimnate recording of video data to memory."""
         try:
             self.camera.stopRecording()
             return {
@@ -486,12 +514,30 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
     def flushRecording(self, onReply=None, onError=None):
+        """Flush recoreded video data from memory."""
         self.video.flush(reply_handler=onReply, error_handler=onError, timeout=150)
 
     #===============================================================================================
     #Method('testResolution', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def testResolution(self, args):
+        """Return the timing limits (framerate) at a resolution.
+            
+            Returns an error if the resolution is invalid.
+            
+            Example shell invocation::
+            
+                $ call --system \\
+                    --dest ca.krontech.chronos.control \\
+                    --object-path /ca/krontech/chronos/control \\
+                    --method ca.krontech.chronos.control.testResolution \\
+                    "{'hRes': <1280>, 'vRes': <1020>}"
+                ({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMax
+                Frames': <17542>, 'exposureMax': <925722>},)
+            
+            .. note::
+                Maximum framerate, in fps, is ``1e9 / minFramePeriod``.
+        """
         fSize = frameGeometry(**args)
         if (self.camera.sensor.isValidResolution(fSize)):
             fpMin, fpMax = self.camera.sensor.getPeriodRange(fSize)

@@ -6,7 +6,7 @@ Conflicts=chronos-gui.service
 
 [Service]
 Type=dbus
-ExecStart=/usr/bin/cam-control
+ExecStart=/usr/bin/cam_control
 BusName=ca.krontech.chronos.control
 StandardOutput=journal+console
 StandardError=inherit

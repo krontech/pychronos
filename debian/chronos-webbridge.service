@@ -4,7 +4,7 @@ After=chronos-control.service chronos-video.service
 Requires=chronos-control.service chronos-video.service
 
 [Service]
-ExecStart=/usr/bin/cam-webbridge
+ExecStart=/usr/bin/cam_webbridge
 StandardOutput=journal+console
 StandardError=inherit
 

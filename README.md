@@ -18,7 +18,7 @@ This project includes several major components:
    * `regmaps`: Classes which represent various register groups in the FPGA.
    * `sensors`: Classes which represent the image sensors supported on the camera.
    * `camera`: A class which represents the state machine of the camera.
- * `cam-control`: A D-Bus binding program which exports an API to manipulate
+ * `cam_control`: A D-Bus binding program which exports an API to manipulate
    the `camera` class.
 
 
@@ -59,7 +59,7 @@ make watch html #for development
 
 Chronos Control Interface
 =========================
-The D-Bus API to the `cam-control` program is expressed as a set of parameters most
+The D-Bus API to the `cam_control` program is expressed as a set of parameters most
 of which can be queried via a `get` command, updated via a `set` command. Or, when
 updated internally by the camera, may emit a `notify` signal. For each parameter
 listed, the `G`, `S`, and `N` columns indicate which of these operations a parameter

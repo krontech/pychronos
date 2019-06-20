@@ -55,7 +55,19 @@ copyright = '2019 Kron Technologies, Inc'
 # Nitpick references, check they're all valid.
 # See http://www.sphinx-doc.org/en/master/usage/configuration.html#confval-nitpicky.
 nitpicky = True
-nitpick_ignore = []
+nitpick_ignore = [
+    #Built-ins
+    ('py:class', 'bool'),
+    ('py:class', 'int'),
+    ('py:class', 'float'),
+    ('py:class', 'str'),
+    ('py:class', 'callable'),
+    ('py:class', 'List'),
+    ('py:class', 'optional'), #Used to mark things optional, not an actual class.
+    ('py:obj', 'list'),
+    ('py:exc', 'ValueError'),
+    ('py:exc', 'NotImplementedError'),
+]
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

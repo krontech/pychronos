@@ -16,7 +16,7 @@
     <link rel="shortcut icon" href="_static/favicon.ico"/>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Camera Class" href="camera.html" /> 
+    <link rel="next" title="Control API Class" href="cam_control.html" /> 
   </head><body>
     <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
@@ -28,7 +28,7 @@
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="camera.html" title="Camera Class"
+          <a href="cam_control.html" title="Control API Class"
              accesskey="N">next</a> |</li>
         <li class="nav-item nav-item-0"><a href="#">PyChronos 0.4.0-alpha documentation</a> &#187;</li> 
       </ul>
@@ -40,22 +40,25 @@
           <div class="body" role="main">
             
   <div class="section" id="pychronos-chronos-camera-control">
-<h1><a class="toc-backref" href="#id2"><a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> — Chronos Camera Control</a><a class="headerlink" href="#pychronos-chronos-camera-control" title="Permalink to this headline">¶</a></h1>
-<p>The <a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> module provides programmatic high-level control over a Chronos Camera. To do so, it exposes a D-Bus API for other software to consume. This document covers the PyChronos project and how to use it. A familiarity with the project <a class="reference external" href="https://github.com/krontech/pychronos/blob/master/README.md">README</a> is assumed.</p>
-<div class="contents topic" id="table-of-contents">
-<p class="topic-title first">Table of Contents</p>
-<ul class="simple">
-<li><a class="reference internal" href="#pychronos-chronos-camera-control" id="id2"><a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> — Chronos Camera Control</a><ul>
-<li><a class="reference internal" href="#history-and-overview" id="id3">History and Overview</a></li>
-<li><a class="reference internal" href="#writing-your-own-client" id="id4">Writing Your Own Client</a></li>
-<li><a class="reference internal" href="#modifying-pychronos" id="id5">Modifying PyChronos</a></li>
-<li><a class="reference internal" href="#indices-and-tables" id="id6">Indices and tables</a></li>
-</ul>
-</li>
+<h1><a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> — Chronos Camera Control<a class="headerlink" href="#pychronos-chronos-camera-control" title="Permalink to this headline">¶</a></h1>
+<p>The <a class="reference internal" href="camera.html#module-pychronos" title="pychronos"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pychronos</span></code></a> module provides programmatic high-level control over a Chronos Camera. To do so, it exposes a D-Bus API for other software to consume. This document introduces the PyChronos project and how to use it. A familiarity with the project <a class="reference external" href="https://github.com/krontech/pychronos/blob/master/README.md">README</a> is assumed.</p>
+<div class="toctree-wrapper compound" id="component-toc">
+<p class="caption"><span class="caption-text">Subcomponents of PyChronos</span><a class="headerlink" href="#component-toc" title="Permalink to this toctree">¶</a></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="cam_control.html">Control API Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="camera.html">Camera Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">Sensor API Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html#frame-geometry-class">Frame Geometry Class</a></li>
 </ul>
 </div>
-<div class="section" id="history-and-overview">
-<h2><a class="toc-backref" href="#id3">History and Overview</a><a class="headerlink" href="#history-and-overview" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound" id="other-docs-toc">
+<p class="caption"><span class="caption-text">Other Documentation</span><a class="headerlink" href="#other-docs-toc" title="Permalink to this toctree">¶</a></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="creating_your_own_interface.html">Creating Your Own On-Board Interface</a></li>
+</ul>
+</div>
+<div class="section" id="project-history-and-overview">
+<h2>Project History and Overview<a class="headerlink" href="#project-history-and-overview" title="Permalink to this headline">¶</a></h2>
 <p>In the beginning, there was camApp. And it was glorious, and ran all parts of the camera from the UI to the FPGA, and the engineers were happy.</p>
 <svg id="SVGRoot" max-width="100%" version="1.1" viewBox="0 0 950 210" aria-labelledby="svgCSCCTitle svgCSCCDesc" role="img" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 	<!-- See https://css-tricks.com/accessible-svgs/#article-header-id-6 for a description aria-labelledby, role, title, and desc. -->
@@ -229,7 +232,10 @@
 		</g>
 	</g>
 </svg>
-<p>(Click on a component to visit its resource.)</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Click on a component to visit its resource.</p>
+</div>
 <ul class="simple">
 <li><strong>Control API</strong>: This project. Configures the camera and, internally, coordinates bring-up of the camera hardware with the the Video API. Partially wraps the Video API as a result. Exposes <a class="reference internal" href="camera.html#pychronos.camera" title="pychronos.camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.camera</span></code></a> functionality over D-Bus.</li>
 <li><strong>Video API</strong>: Deals with video recording and display. Starts and stops the stream, and internally routes the picture to the the HDMI port and the back-of-camera display. Exposes functionality over D-Bus.</li>
@@ -242,26 +248,26 @@
 <p>And so it was. This has made a lot of engineers very happy and been widely regarded as a good move. For this way, components could be easily written to control the camera, and didn’t have to fork camApp to do so.</p>
 </div>
 <div class="section" id="writing-your-own-client">
-<h2><a class="toc-backref" href="#id4">Writing Your Own Client</a><a class="headerlink" href="#writing-your-own-client" title="Permalink to this headline">¶</a></h2>
+<h2>Writing Your Own Client<a class="headerlink" href="#writing-your-own-client" title="Permalink to this headline">¶</a></h2>
 <p>To develop your own on-camera client, you’ll want to compile a program or write a script to talk to PyChronos over D-Bus. While a Python module wrapping PyChronos can be found in <a class="reference external" href="https://github.com/krontech/chronos-gui-2">chronos-cam-app</a>’s <a class="reference external" href="https://github.com/krontech/chronos-gui-2/blob/master/src/api2.py">api2.py</a>, it is fairly straight-forward to invoke the D-Bus API yourself.</p>
-<p>Please see the tutorial I have yet to write over at <a class="reference internal" href="creating_your_own_interface.html"><span class="doc">&lt;no title&gt;</span></a> for more details. 😬</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">Neither of these tutorials are written yet.</p>
+</div>
+<p>Please see the tutorial at <a class="reference internal" href="creating_your_own_interface.html"><span class="doc">Creating Your Own On-Board Interface</span></a> for more details.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">If you would like to develop a remote client, make a web app, or use the HTTP interface on the camera; check out <a class="reference external" href="https://github.com/krontech/chronos-web-interface">the tutorial in chronos-web-interface</a>.</p>
+</div>
 </div>
 <div class="section" id="modifying-pychronos">
-<h2><a class="toc-backref" href="#id5">Modifying PyChronos</a><a class="headerlink" href="#modifying-pychronos" title="Permalink to this headline">¶</a></h2>
-<p>The internal architecture of PyChronos divided into three main classes. The <a class="reference internal" href="camera.html#pychronos.camera" title="pychronos.camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.camera</span></code></a> class and the <a class="reference internal" href="sensor.html#module-pychronos.sensors" title="pychronos.sensors"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.sensors</span></code></a> class provide implementation of the D-Bus calls the PyChronos script exposes. The <code class="xref py py-class docutils literal notranslate"><span class="pre">controlApi</span></code> exposes both classes over D-Bus, so other programs can use them as well.</p>
-<p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">controlApi</span></code> also partially wraps the <a class="reference external" href="https://github.com/krontech/chronos-cli/blob/master/src/pipeline">Video API</a>, so the <code class="xref py py-meth docutils literal notranslate"><span class="pre">controlApi.set()</span></code> call of the Control API is a strict superset of the set call of the Video API. In <a class="reference external" href="https://github.com/krontech/chronos-web-interface">chronos-web-interface</a>, this is taken a step further - all calls made via HTTP are automatically routed to the correct internal API. Refer to the <a class="reference external" href="https://github.com/krontech/pychronos/blob/master/README.md">README</a> in the base directory of the project source for details on what the calls do.</p>
-<p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">controlApi</span></code> will usually pick up on changes made to <a class="reference internal" href="camera.html#pychronos.camera" title="pychronos.camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.camera</span></code></a> and <a class="reference internal" href="sensor.html#module-pychronos.sensors" title="pychronos.sensors"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.sensors</span></code></a>, as long as the proper function decorators are applied.</p>
-<div class="toctree-wrapper compound" id="mastertoc">
-<p class="caption"><span class="caption-text">Components</span><a class="headerlink" href="#mastertoc" title="Permalink to this toctree">¶</a></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="camera.html">Camera Class</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sensor.html">Sensor API Class</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sensor.html#frame-geometry-class">Frame Geometry Class</a></li>
-</ul>
-</div>
+<h2>Modifying PyChronos<a class="headerlink" href="#modifying-pychronos" title="Permalink to this headline">¶</a></h2>
+<p>The internal architecture of PyChronos divided into three main classes. The <a class="reference internal" href="camera.html#pychronos.camera" title="pychronos.camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.camera</span></code></a> class and the <a class="reference internal" href="sensor.html#module-pychronos.sensors" title="pychronos.sensors"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.sensors</span></code></a> class provide implementation of the D-Bus calls that <a class="reference internal" href="cam_control.html#module-cam_control" title="cam_control"><code class="xref py py-class docutils literal notranslate"><span class="pre">cam_control</span></code></a> exposes.</p>
+<p>The <a class="reference internal" href="cam_control.html#module-cam_control" title="cam_control"><code class="xref py py-class docutils literal notranslate"><span class="pre">cam_control</span></code></a> class also partially wraps the <a class="reference external" href="https://github.com/krontech/chronos-cli/blob/master/src/pipeline">Video API</a>, so the <a class="reference internal" href="cam_control.html#cam_control.controlApi.set" title="cam_control.controlApi.set"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set()</span></code></a> call of the Control API is a strict superset of the set call of the Video API. In <a class="reference external" href="https://github.com/krontech/chronos-web-interface">chronos-web-interface</a>, this is taken a step further - all calls made via HTTP are automatically routed to the correct internal API. Refer to PyChronos’ <a class="reference external" href="https://github.com/krontech/pychronos/blob/master/README.md">README.md</a> for more details on what the calls do and how to use them.</p>
+<p>The <a class="reference internal" href="cam_control.html#module-cam_control" title="cam_control"><code class="xref py py-class docutils literal notranslate"><span class="pre">cam_control</span></code></a> will usually pick up on changes made to <a class="reference internal" href="camera.html#pychronos.camera" title="pychronos.camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.camera</span></code></a> and <a class="reference internal" href="sensor.html#module-pychronos.sensors" title="pychronos.sensors"><code class="xref py py-class docutils literal notranslate"><span class="pre">pychronos.sensors</span></code></a>, as long as the proper function decorators are applied.</p>
 </div>
 <div class="section" id="indices-and-tables">
-<h2><a class="toc-backref" href="#id6">Indices and tables</a><a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h2>
+<h2>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
 <li><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></li>
 <li><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></li>
@@ -279,7 +285,7 @@
   <h3><a href="#">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#"><code class="docutils literal notranslate"><span class="pre">pychronos</span></code> — Chronos Camera Control</a><ul>
-<li><a class="reference internal" href="#history-and-overview">History and Overview</a></li>
+<li><a class="reference internal" href="#project-history-and-overview">Project History and Overview</a></li>
 <li><a class="reference internal" href="#writing-your-own-client">Writing Your Own Client</a></li>
 <li><a class="reference internal" href="#modifying-pychronos">Modifying PyChronos</a></li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
@@ -288,8 +294,8 @@
 </ul>
 
   <h4>Next topic</h4>
-  <p class="topless"><a href="camera.html"
-                        title="next chapter">Camera Class</a></p>
+  <p class="topless"><a href="cam_control.html"
+                        title="next chapter">Control API Class</a></p>
   <div role="note" aria-label="source link">
     <h3>This Page</h3>
     <ul class="this-page-menu">
@@ -323,7 +329,7 @@
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="camera.html" title="Camera Class"
+          <a href="cam_control.html" title="Control API Class"
              >next</a> |</li>
         <li class="nav-item nav-item-0"><a href="#">PyChronos 0.4.0-alpha documentation</a> &#187;</li> 
       </ul>

@@ -1,2 +1,2 @@
 #!/usr/bin/dh-exec
-cam-webbridge.py => usr/bin/cam-webbridge
+cam_webbridge.py => usr/bin/cam_webbridge
