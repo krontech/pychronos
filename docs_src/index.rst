@@ -65,11 +65,9 @@ As time passed, the engineers grew numerous and discontentment spread; and there
 
 * **Web Interface**: Synchronise your network client with a camera! The Web Interface exposes the Control and Video D-Bus APIs over HTTP so a remote client can make use of them. It must be enabled in the Network Settings screen on the camera before it will start.
 
-* **Your Interface Here**: Write your own on-board software. This can be as simple as dropping some new HTML files into the web directory the current app is running out of, to enable new, convenient functionality for your own project, or as complex as writing a complete replacement for the back-of-camera user interface.
+* **Your Client Here**: Write your own on-board software or remote client. This can be as simple as dropping some new HTML files into the web directory, or as complex as writing a complete replacement for the back-of-camera user interface.
 
 * **Web App**: After enabling the web interface, point a web browser at your camera for a remote-control app. (Well, soon, at any rate. This component is not complete yet!)
-
-* **Your Client Here**: Write your own remote client! Control the camera using a script, program, or web page on another computer or mobile device. (This is generally easier than writing your own on-board interface.)
 
 And so it was. This has made a lot of engineers very happy and been widely regarded as a good move. For this way, components could be easily written to control the camera, and didn't have to fork camApp to do so.
 

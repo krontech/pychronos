@@ -59,13 +59,13 @@
 		<a transform="translate(-100.5 .5)" href="https://github.com/krontech/chronos-gui-2">
 			<rect x="580" y="130" width="209.5" height="60.5" fill="#10bfbf" fill-opacity=".25" stroke="#107f7f"/>
 		</a>
-		<a transform="translate(-100.5 .5)" href="#yih">
+		<a transform="translate(-100.5 .5)" href="https://krontech.github.io/pychronos/creating_your_own_interface.html">
 			<rect x="580" y="290" width="209.5" height="60.5" style="fill:#6ecff0;fill-opacity:1;stroke:#2c4d8e"/>
 		</a>
 		<g font-family="sans-serif" font-size="16px" text-anchor="middle">
 			<text x="124.14063" y="236.32422" text-align="center" style="line-height:1.25"><tspan x="124.14062" y="236.32422">Camera</tspan> <tspan x="124.14062" y="256.32422">Hardware</tspan></text>
 			<text x="584.25391" y="155.16406" text-align="center" style="line-height:1.25"><tspan x="584.25391" y="155.16406">User Interface</tspan> <tspan x="584.25391" y="175.16406">(chronos-gui-2)</tspan></text>
-			<text x="584.69141" y="326.71484" fill="#2c4d8e" text-align="center" style="line-height:1.25"><tspan x="584.69141" y="326.71484">Your Interface Here</tspan></text>
+			<text x="584.69141" y="326.71484" fill="#2c4d8e" text-align="center" style="line-height:1.25"><tspan x="584.69141" y="326.71484">Your Client Here</tspan></text>
 		</g>
 		<a transform="translate(169.5,-39.5)" href="#ych">
 			<rect x="580" y="290" width="209.5" height="60.75" style="fill:#6ecff0;fill-opacity:1;stroke:#2c4d8e"/>
