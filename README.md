@@ -46,7 +46,7 @@ sudo apt install python3 build-essential python3-sphinx sphinx-doc python3-numpy
 
 In the base folder of the project, you can then build the documentation. This
 build will be output to the `~/docs` folder, so that [github
-pages](https://krontech.github.io/pychronos/camera.html) recognises it and
+pages](https://krontech.github.io/pychronos/) recognises it and
 serves it to the world.
 ```
 make inplace
