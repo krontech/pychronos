@@ -87,11 +87,11 @@ Please see the tutorial at :doc:`creating_your_own_interface` for more details.
 
 Modifying PyChronos
 -------------------
-The internal architecture of PyChronos divided into three main classes. The :class:`pychronos.camera` class and the :class:`pychronos.sensors` class provide implementation of the D-Bus calls that :class:`cam_control` exposes. 
+The internal architecture of PyChronos is divided into three main classes: :class:`cam_control`, which exposes D-Bus calls, and :class:`pychronos.camera` and :class:`pychronos.sensors`, which provide implementation of those exposed D-Bus calls. 
 
 The :class:`cam_control` class also partially wraps the `Video API <https://github.com/krontech/chronos-cli/blob/master/src/pipeline>`_, so the :meth:`~cam_control.controlApi.set` call of the Control API is a strict superset of the set call of the Video API. In `chronos-web-interface <https://github.com/krontech/chronos-web-interface>`_, this is taken a step further - all calls made via HTTP are automatically routed to the correct internal API. Refer to PyChronos' `README.md <https://github.com/krontech/pychronos/blob/master/README.md>`_ for more details on what the calls do and how to use them.
 
-The :class:`~cam_control` will usually pick up on changes made to :class:`pychronos.camera` and :class:`pychronos.sensors`, as long as the proper function decorators are applied.
+The :class:`~cam_control` class will usually pick up on changes made to :class:`pychronos.camera` and :class:`pychronos.sensors`, as long as the proper function decorators are applied.
 
 
 Indices and tables
