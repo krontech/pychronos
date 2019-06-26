@@ -522,6 +522,10 @@ class lux1310(api):
         else:
             return [1.5226, 1.0723, 1.5655]
 
+    @property
+    def maxGain(self):
+        return 16
+    
     def setGain(self, gain):
         gainConfig = {  # VRSTB, VRST,  VRSTH,  Sampling Cap, Feedback Cap, Serial Gain
             1:          ( 2.7,   3.3,   3.6,    0x007f,       0x007f,       0x3),
