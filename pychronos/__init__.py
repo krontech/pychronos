@@ -9,7 +9,7 @@ import pychronos.sensors
 from pychronos.spd import spdRead
 from pychronos.camera import camera
 from pychronos.camera import camProperty
-from pychronos.camera import CameraError
+from pychronos.error import *
 
 # module information
 from pychronos.about import __version__

@@ -15,7 +15,8 @@ import dbus.service
 import dbus.mainloop.glib
 from gi.repository import GLib
 
-from pychronos import camera, CameraError
+from pychronos import camera
+from pychronos.error import *
 from pychronos.sensors import lux1310, frameGeometry
 import pychronos.regmaps as regmaps
 
@@ -71,6 +72,9 @@ class controlApi(dbus.service.Object):
             GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
         except StopIteration:
             pass
+        except CameraError as error:
+            logging.error(error)
+            self.notify({"state": self.camera.state, "error": str(error)})
         except Exception as error:
             logging.error(error)
             logging.debug(traceback.format_exc())
@@ -84,6 +88,9 @@ class controlApi(dbus.service.Object):
         try:
             delay = next(generator)
             GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
+        except CameraError as error:
+            logging.error(error)
+            self.notify({"state": self.camera.state, "error": str(error)})
         except StopIteration:
             pass
 

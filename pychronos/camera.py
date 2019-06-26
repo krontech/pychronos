@@ -8,6 +8,7 @@ import datetime
 import pychronos
 import pychronos.regmaps as regmaps
 import pychronos.spd as spd
+from pychronos.error import *
 
 from . import utils
 
@@ -55,9 +56,6 @@ def camProperty(notify=False, save=False, derivedFrom=None, prio=0):
         return property(fn, *args, **kwargs)
 
     return camPropertyAnnotate
-
-class CameraError(RuntimeError):
-    pass
 
 # Parameter priority groups
 PARAM_PRIO_RESOLUTION = 3
@@ -420,9 +418,8 @@ class camera:
         seq = regmaps.sequencer()
         yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
         if not seq.liveResult:
-            logging.error("Failed to get a frame during cal")
             self.__setState('idle')
-            return
+            raise CalibrationError("Failed to acquire frames during calibration")
         frame = numpy.asarray(seq.liveResult)
 
         # Apply calibration to the averaged frames.
@@ -436,11 +433,18 @@ class camera:
         # TODO: Subtract the per-pixel FPN, which a pain in the butt because it's a 12-bit signed.
         
         # Sum up each of the R, G and B channels
+        headroom = (1 << fSize.bitDepth) // 32
+        minSum = headroom * (hSamples * vSamples) // 2
         rSum = 0
         gSum = 0
         bSum = 0
         for row in range(vStart, vStart+vSamples):
             for col in range(hStart, hStart+hSamples):
+                pix = corrected[row][col]
+                if ((pix + headroom) > (1 << fSize.bitDepth)):
+                    self.__setState('idle')
+                    raise CalibrationError("Signal clipping, reference image is too bright for white balance")
+
                 if (row & 1):
                     # Odd Rows - Blue/Green pixels
                     if (col & 1):
@@ -454,6 +458,11 @@ class camera:
                     else:
                         gSum += corrected[row][col]
         
+        # Check for too-low of a signal.
+        if ((rSum < minSum) or (gSum < minSum) or (bSum < minSum)):
+            self.__setState('idle')
+            raise CalibrationError("Low signal, reference image is too dim for white balance")
+
         # Find the highest channel (probably green)
         maxSum = max(rSum, gSum, bSum)
         whiteBalance = [maxSum / rSum, maxSum / gSum, maxSum / bSum]
@@ -482,9 +491,8 @@ class camera:
                 logging.debug('waiting for frame %d of %d', i+1, numFrames)
                 yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
                 if not seq.liveResult:
-                    logging.error("Failed to get a frame during cal")
                     self.__setState('idle')
-                    return
+                    raise CalibrationError("Failed to acquire frames during calibration")
                 fAverage += numpy.asarray(seq.liveResult)
         else:
             # Take a recording and read the results from the live buffer.
@@ -625,7 +633,11 @@ class camera:
         if analogCal:
             logging.info('starting analog calibration')
             self.__setState('analogcal')
-            yield from self.sensor.startAnalogCal()
+            try:
+                yield from self.sensor.startAnalogCal()
+            except Exception as e:
+                self.__setState('idle')
+                raise e
             self.__setState('idle')
 
         # Perform at most one black calibration.

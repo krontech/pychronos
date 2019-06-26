@@ -6,6 +6,7 @@ import copy
 import numpy
 import logging
 
+from pychronos.error import *
 from pychronos.regmaps import sequencer, ioInterface
 from pychronos.sensors import api, frameGeometry
 from . import lux1310regs, lux1310wt, lux1310timing
@@ -646,8 +647,7 @@ class lux1310(api):
             # Read a frame and compute the column averages and minimum.
             yield from seq.startLiveReadout(fSize.hRes, numRows)
             if not seq.liveResult:
-                logging.error("ADC Gain calibration failed to read frame")
-                return
+                raise CalibrationError("Failed to acquire frames during calibration")
             frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
             highColumns = numpy.average(frame, 0)
 
@@ -666,8 +666,7 @@ class lux1310(api):
             # Read a frame and compute the column averages and minimum.
             yield from seq.startLiveReadout(fSize.hRes, numRows)
             if not seq.liveResult:
-                logging.error("ADC Gain calibration failed to read frame")
-                return
+                raise CalibrationError("Failed to acquire frames during calibration")
             frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
             lowColumns = numpy.average(frame, 0)
 
@@ -685,8 +684,7 @@ class lux1310(api):
         # Read a frame out of the live display.
         yield from seq.startLiveReadout(fSize.hRes, numRows)
         if not seq.liveResult:
-            logging.error("ADC Gain calibration failed to read frame")
-            return
+            raise CalibrationError("Failed to acquire frames during calibration")
         frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
         midColumns = numpy.average(frame, 0)
 
@@ -702,11 +700,10 @@ class lux1310(api):
             minrange = (pixFullScale // 16)
             diff = highColumns[col] - lowColumns[col]
             if ((highColumns[col] <= (midColumns[col] + minrange)) or (midColumns[col] <= (lowColumns[col] + minrange))):
-                logging.warning("ADC Auto calibration range error")
                 for x in range(0, self.MAX_HRES):
                     colGainRegs.mem16[x] = (1 << self.COL_GAIN_FRAC_BITS)
                     colCurveRegs.mem16[x] = 0
-                return
+                raise CalibrationError("ADC Auto calibration range error")
             if (diff > maxColumn):
                 maxColumn = diff
 
