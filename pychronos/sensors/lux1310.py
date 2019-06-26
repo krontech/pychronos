@@ -116,7 +116,7 @@ class lux1310(api):
     def __init__(self, board={
             "lux1310-spidev":  "/dev/spidev3.0",
             "lux1310-dac-cs": "/sys/class/gpio/gpio33/value",
-            "lux1310-color":  "/sys/class/gpio/gpio66/value"} ):
+            "lux1310-color":  "/sys/class/gpio/gpio34/value"} ):
         ## Hardware Resources
         self.spidev = board["lux1310-spidev"]
         self.spics = board["lux1310-dac-cs"]
