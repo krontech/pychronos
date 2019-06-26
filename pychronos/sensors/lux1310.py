@@ -401,10 +401,18 @@ class lux1310(api):
         return tFrame
     
     def getPeriodRange(self, fSize):
-        # TODO: Need to validate the frame size.
-        # TODO: Probably need to enforce some maximum frame period.
-        fClocks = self.getMinFrameClocks(fSize, wtSize=self.regs.reg[0x7A])
-        return (fClocks / self.LUX1310_SENSOR_HZ, 0)
+        # If a frame time was provided, find the longest matching wavetable.
+        if (fSize.minFrameTime):
+            fClocks = fSize.minFrameTime * self.LUX1310_SENSOR_HZ
+            for x in self.wavetables:
+                wtFrameClocks = self.getMinFrameClocks(fSize, x.clocks)
+                if (wtFrameClocks <= fClocks):
+                    return (wtFrameClocks / self.LUX1310_SENSOR_HZ, 0)
+            # This frame time could not be met.
+            raise ValueError("Invalid frame time for resolution given")
+        else:
+            fClocks = self.getMinFrameClocks(fSize)
+            return (fClocks / self.LUX1310_SENSOR_HZ, 0)
     
     def getCurrentPeriod(self):
         return self.frameClocks / self.LUX1310_SENSOR_HZ
