@@ -783,7 +783,7 @@ class camera:
     
     @camProperty()
     def sensorPixelRate(self):
-        """int: Maximum throughput of the image sensor in pixels per second."""
+        """float: Maximum throughput of the image sensor in pixels per second."""
         fSize = self.sensor.getMaxGeometry()
         return (fSize.vRes + fSize.vDarkRows) * fSize.hRes / fSize.minFrameTime
     
