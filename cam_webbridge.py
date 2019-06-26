@@ -510,7 +510,7 @@ def main():
     Method(control, controlApi, 'softTrigger',            arguments=False)
     Method(control, controlApi, 'revertToDefaults',       arguments=False)
     Method(control, controlApi, 'softReset',              arguments=False)
-    Method(control, controlApi, 'testResolution',         arguments=True)
+    Method(control, controlApi, 'getResolutionTimingLimits', arguments=True)
 
     video = resource.Resource()
     root.putChild(b'video', video)

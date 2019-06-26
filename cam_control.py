@@ -518,9 +518,9 @@ class controlApi(dbus.service.Object):
         self.video.flush(reply_handler=onReply, error_handler=onError, timeout=150)
 
     #===============================================================================================
-    #Method('testResolution', arguments='a{sv}', returns='a{sv}'),
+    #Method('getResolutionTimingLimits', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def testResolution(self, args):
+    def getResolutionTimingLimits(self, args):
         """Return the timing limits (framerate) at a resolution.
             
             Returns an error if the resolution is invalid.
@@ -530,7 +530,7 @@ class controlApi(dbus.service.Object):
                 $ call --system \\
                     --dest ca.krontech.chronos.control \\
                     --object-path /ca/krontech/chronos/control \\
-                    --method ca.krontech.chronos.control.testResolution \\
+                    --method ca.krontech.chronos.control.getResolutionTimingLimits \\
                     "{'hRes': <1280>, 'vRes': <1020>}"
                 ({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMax
                 Frames': <17542>, 'exposureMax': <925722>},)

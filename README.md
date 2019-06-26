@@ -341,13 +341,13 @@ of the supported methods are as follows:
 | `softTrigger`            |`S`| none             |              | Generate a software trigger event.
 | `revertToDefaults`       |   | none             |              | Revert all settings to their default values (with optional parameter overrides).
 | `softReset`              |`S`| none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
-| `testResolution`         |`S`| dict(resolution) |              | Test if a resolution is valid and return the timing limits (framerate) at that resolution. Example: `call --system --dest ca.krontech.chronos.control --object-path /ca/krontech/chronos/control --method ca.krontech.chronos.control.testResolution "{'hRes': <1280>, 'vRes': <1020>}"` → `({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMaxFrames': <17542>, 'exposureMax': <925722>},)`. Maximum framerate is `1e9 / minFramePeriod`.
+| `getResolutionTimingLimits` |`S`| dict(resolution) |           | Test if a resolution is valid and return the timing limits (framerate) at that resolution. Example: `call --system --dest ca.krontech.chronos.control --object-path /ca/krontech/chronos/control --method ca.krontech.chronos.control.getResolutionTimingLimits "{'hRes': <1280>, 'vRes': <1020>}"` → `({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMaxFrames': <17542>, 'exposureMax': <925722>},)`. Maximum framerate is `1e9 / minFramePeriod`.
 
 All methods return a dictionary of parameters, normally this will just include
 the status dictionary, which minimally includes `state`, but may also include an
 `error` parameter in the event that the operation failed due an error.
 
-TODO: A weird exception is the `testResolution` method, which queries the camera if
+One exception is the `getResolutionTimingLimits` method, which queries the camera if
 the requested resolution is valid. If the resolution settings are valid, then the
 dict will return the following values as though the resolution and minimum frame
 period had been applied:
@@ -356,7 +356,7 @@ period had been applied:
  * `exposureMin`
  * `exposureMax`
 
-Otherwise, the `testResolution` method will return a status dictionary with a
+Otherwise, the `getResolutionTimingLimits` method will return a status dictionary with a
 parameter of `error` set to "Invalid Resolution"
 
 Control Signals
