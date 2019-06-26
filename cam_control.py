@@ -108,7 +108,7 @@ class controlApi(dbus.service.Object):
             return src
         
         # For dicts, convert all values into variants.
-        result = dbus.types.Dictionary(variant_level=variant_level)
+        result = dbus.types.Dictionary(variant_level=variant_level, signature='sv')
         for key in src:
             value = src[key]
             if isinstance(value, int):
