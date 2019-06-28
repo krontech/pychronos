@@ -10,6 +10,8 @@ import pychronos.regmaps as regmaps
 import pychronos.spd as spd
 from pychronos.error import *
 
+import power
+
 from . import utils
 
 def camProperty(notify=False, save=False, derivedFrom=None, prio=0):
@@ -79,6 +81,8 @@ class camera:
     FPN_ADDRESS = CAL_REGION_START
 
     def __init__(self, sensor, onChange=None):
+        self.power = power.powerClass
+        self.power.openPowerSocket(self.power)
         self.sensor = sensor
         self.configFile = None
         self.dimmSize = [0, 0]
@@ -1006,25 +1010,25 @@ class camera:
     def externalPower(self):
         """bool: True when the AC adaptor is present, and False when on battery power."""
         logging.warn('Value not implemented, using dummy.')
-        return True
+        return bool(self.power.flags & 2)
     
     @camProperty()
     def batteryChargePercent(self):
         """float: Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged."""
-        logging.warn('Value not implemented, using dummy.')
-        return self.batteryChargeNormalized * 100
+        return self.power.battCapacityPercent
     
     @camProperty()
     def batteryChargeNormalized(self):
         """float: Estimated battery charge, with 0% being fully depleted and 100% being fully charged."""
-        logging.warn('Value not implemented, using dummy.')
-        return [1.0, 0.99, 0.98][datetime.datetime.now().microsecond % 3]
+        return self.power.battCapacityPercent / 100
     
     @camProperty()
     def batteryVoltage(self):
         """float: A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
-        logging.warn('Value not implemented, using dummy.')
-        return [12.45, 12.50, 12.55][datetime.datetime.now().microsecond % 3]
+        #TEMPORARY query:
+        self.power.queryPowerSocket(self.power)
+
+        return self.power.battVoltageCam
         
     @camProperty(notify=True, save=True, derivedFrom='saveAndPowerDownLowBatteryLevelPercent')
     def saveAndPowerDownLowBatteryLevelNormalized(self):
