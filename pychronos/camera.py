@@ -1025,9 +1025,6 @@ class camera:
     @camProperty()
     def batteryVoltage(self):
         """float: A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
-        #TEMPORARY query:
-        self.power.queryPowerSocket(self.power)
-
         return self.power.battVoltageCam
         
     @camProperty(notify=True, save=True, derivedFrom='saveAndPowerDownLowBatteryLevelPercent')

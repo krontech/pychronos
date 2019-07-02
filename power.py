@@ -1,6 +1,9 @@
-import os
+import os, time
 import socket
 import sys
+import select
+
+gclient = None
 
 class powerClass:
 
@@ -71,11 +74,43 @@ class powerClass:
 	def openPowerSocket(self):
 		"""This opens the socket to the power controller daemon"""
 		if os.path.exists("/tmp/pcUtil.socket"):
-			self.client = socket.socket(socket.AF_UNIX)
-			self.client.connect("/tmp/pcUtil.socket")
+			gclient = socket.socket(socket.AF_UNIX)
+			gclient.setblocking(0)
+			gclient.connect("/tmp/pcUtil.socket")
+			print("CLIENT:", gclient)
+			#self.receivePowerSocket(self)
 
 	def queryPowerSocket(self):
 		"""This polls the power controller daemon for battery data"""
 		self.client.send("GET_BATTERY_DATA".encode('utf-8'))
 		ret = self.client.recv(1000)
 		self.parsePower(self, ret)
+
+	def receivePowerSocket(self):
+		ret = self.client.recv(1000) #.encode('utf-8')
+		print (ret, ".")
+		self.parsePower(self, ret)
+		
+	def nonBlockPowerSocket(self):
+		inputs = [gclient]
+		outputs = []
+		for i in range(1):
+			readable, writeable, exceptional = select.select(inputs, outputs, inputs, 0)
+
+			if(readable):
+				try:
+					ret = gclient.recv(1000)
+					self.parsePower(self, ret)
+
+				except KeyboardInterrupt as k:
+					print("Shutting down.")
+					gclient.close()
+					break
+
+
+print("Connecting...")
+if os.path.exists("/tmp/pcUtil.socket"):
+	gclient = socket.socket(socket.AF_UNIX) #, socket.SOCK_STREAM)
+	gclient.setblocking(0)
+	gclient.connect("/tmp/pcUtil.socket")
+

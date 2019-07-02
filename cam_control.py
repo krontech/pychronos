@@ -64,7 +64,7 @@ class controlApi(dbus.service.Object):
         self.video.connect_to_signal('update', self.videoUpdateSignal)
 
         self.callLater(0.5, self.softReset)
-        
+
     ## Internal helper to iterate over a generator from the GLib mainloop.
     def stepGenerator(self, generator):
         try:
@@ -559,7 +559,15 @@ class controlApi(dbus.service.Object):
             return {
                 "error": "Invalid Resolution"
             }
-    
+
+class powerTimer:
+    def __init__(self, camera):
+        print(camera.power)
+        self.camera = camera
+
+    def __call__(self, *args):
+        self.camera.power.nonBlockPowerSocket(self.camera.power)
+        return True
 
 # Run the control API
 if __name__ == "__main__":
@@ -601,6 +609,14 @@ if __name__ == "__main__":
 
     # Setup resources.
     cam  = camera(lux1310())
+
+
+    # Install a timer for battery data monitoring
+    print(cam)
+    print(cam.power)
+    timer = powerTimer(cam)
+    GLib.timeout_add(1000, timer)
+
    
     name = dbus.service.BusName('ca.krontech.chronos.control', bus=bus)
     obj  = controlApi(bus, '/ca/krontech/chronos/control', mainloop, cam, configFile=args.config)
