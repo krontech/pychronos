@@ -310,7 +310,7 @@ if the sensor is already running. After a reset, the expected state of the image
 sensor is to be operating at full-frame resolution, the maximum framerate, nominal
 (0dB) gain and a 180-degree shutter angle.</p>
 <p>This function returns no value, but may throw an exception if the initialization
-proceedure failed.</p>
+procedure failed.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -350,7 +350,7 @@ exposure program or to update the exposure time.</p>
 <dl class="method">
 <dt id="pychronos.sensors.api.setFramePeriod">
 <code class="descname">setFramePeriod</code><span class="sig-paren">(</span><em>fPeriod</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setFramePeriod" title="Permalink to this definition">¶</a></dt>
-<dd><p>Configure the frame minumum period of the image sensor</p>
+<dd><p>Configure the frame minimum period of the image sensor</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -400,7 +400,7 @@ to an idle state until the next rising edge is detected.</p>
 <dl class="method">
 <dt id="pychronos.sensors.api.setHdrExposureProgram">
 <code class="descname">setHdrExposureProgram</code><span class="sig-paren">(</span><em>expPeriod</em>, <em>numIntegration=2</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.sensors.api.setHdrExposureProgram" title="Permalink to this definition">¶</a></dt>
-<dd><p>Configure the sensor to operate in high dynmaic range mode</p>
+<dd><p>Configure the sensor to operate in high dynamic range mode</p>
 <p>When in high dynamic range mode, the image sensor combines multiple
 integration periods to achieve a non-linear response to incoming
 sensitivities.</p>
@@ -472,13 +472,13 @@ jigs, should be performed by this call.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Yields:</th><td class="field-body"><em>float</em> – The sleep time, in seconds, between steps of the calibration proceedure.</td>
+<tr class="field-odd field"><th class="field-name">Yields:</th><td class="field-body"><em>float</em> – The sleep time, in seconds, between steps of the calibration procedure.</td>
 </tr>
 </tbody>
 </table>
 <p class="rubric">Examples</p>
 <p>This function returns a generator iterator with the sleep time between the
-steps of the analog calibration proceedure. The caller may use this for
+steps of the analog calibration procedure. The caller may use this for
 cooperative multithreading, or can complete the calibration sychronously
 as follows:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">delay</span> <span class="ow">in</span> <span class="n">sensor</span><span class="o">.</span><span class="n">startAnalogCal</span><span class="p">():</span>

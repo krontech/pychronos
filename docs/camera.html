@@ -272,7 +272,7 @@ of the reported storage devices are in units of kB.</p>
 <dl class="attribute">
 <dt id="pychronos.camera.frameRate">
 <code class="descname">frameRate</code><a class="headerlink" href="#pychronos.camera.frameRate" title="Permalink to this definition">¶</a></dt>
-<dd><p><em>float</em> – The estimated estimated recording rate in frams per second (reciprocal of <cite>framePeriod</cite>).</p>
+<dd><p><em>float</em> – The estimated estimated recording rate in frames per second (reciprocal of <cite>framePeriod</cite>).</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -501,7 +501,7 @@ configuration.</li>
 <dl class="attribute">
 <dt id="pychronos.camera.saveAndPowerDownLowBatteryLevelPercent">
 <code class="descname">saveAndPowerDownLowBatteryLevelPercent</code><a class="headerlink" href="#pychronos.camera.saveAndPowerDownLowBatteryLevelPercent" title="Permalink to this definition">¶</a></dt>
-<dd><p>float Turn off the camera if the battery charge level, reported by <cite>batteryChargePercent</cite>, falls below this level. The camera will start saving any recorded footage before it powers down. If this level is too low, the camera may run out of battery and stop before it finishes saving.</p>
+<dd><p><em>float</em> – Turn off the camera if the battery charge level, reported by <cite>batteryChargePercent</cite>, falls below this level. The camera will start saving any recorded footage before it powers down. If this level is too low, the camera may run out of battery and stop before it finishes saving.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -522,7 +522,7 @@ configuration.</li>
 <dd><p><em>str</em> – String describing the color filter array pattern of the image sensor.</p>
 <p class="rubric">Example</p>
 <p>A typical 2x2 Bayer pattern sensor would have a value of ‘GRBG’.
-Meanhile, monochrome image sensors should have a value of ‘mono’.</p>
+Meanwhile, monochrome image sensors should have a value of ‘mono’.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -564,7 +564,7 @@ Meanhile, monochrome image sensors should have a value of ‘mono’.</p>
 <dl class="attribute">
 <dt id="pychronos.camera.sensorPixelRate">
 <code class="descname">sensorPixelRate</code><a class="headerlink" href="#pychronos.camera.sensorPixelRate" title="Permalink to this definition">¶</a></dt>
-<dd><p><em>int</em> – Maximum throughput of the image sensor in pixels per second.</p>
+<dd><p><em>float</em> – Maximum throughput of the image sensor in pixels per second.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -624,13 +624,13 @@ set will invoke a callback handler with the name of the property and its new val
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>bitstream</strong> (<em>str</em><em>, </em><em>optional</em>) – File path to the FPGA bitstream to load,
 or None to perform only a soft-reset of the FPGA.</td>
 </tr>
-<tr class="field-even field"><th class="field-name">Yields:</th><td class="field-body"><em>float</em> – The sleep time, in seconds, between steps of the reset proceedure.</td>
+<tr class="field-even field"><th class="field-name">Yields:</th><td class="field-body"><em>float</em> – The sleep time, in seconds, between steps of the reset procedure.</td>
 </tr>
 </tbody>
 </table>
 <p class="rubric">Examples</p>
 <p>This function returns a generator iterator with the sleep time between steps
-of the reset proceedure. The caller can perform a complete reset as follows:</p>
+of the reset procedure. The caller can perform a complete reset as follows:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">softReset</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">delay</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
 <span class="gp">&gt;&gt;&gt; </span>   <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">delay</span><span class="p">)</span>
@@ -647,7 +647,7 @@ of the reset proceedure. The caller can perform a complete reset as follows:</p>
 <dl class="method">
 <dt id="pychronos.camera.startCalibration">
 <code class="descname">startCalibration</code><span class="sig-paren">(</span><em>blackCal=False</em>, <em>analogCal=False</em>, <em>zeroTimeBlackCal=False</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.camera.startCalibration" title="Permalink to this definition">¶</a></dt>
-<dd><p>Begin one or more calibration proceedures at the current settings.</p>
+<dd><p>Begin one or more calibration procedures at the current settings.</p>
 <p>Black calibration takes a sequence of images with the lens cap or shutter
 closed and averages them to find the black level of the image sensor. This
 value can then be subtracted during playback to correct for image offset
@@ -670,14 +670,14 @@ by reducing the exposure time and aperture to their minimum values.
 </ul>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Yields:</th><td class="field-body"><p class="first last"><em>float</em> – The sleep time, in seconds, between steps of the calibration proceedure.</p>
+<tr class="field-even field"><th class="field-name">Yields:</th><td class="field-body"><p class="first last"><em>float</em> – The sleep time, in seconds, between steps of the calibration procedure.</p>
 </td>
 </tr>
 </tbody>
 </table>
 <p class="rubric">Example</p>
 <p>This function returns a generator iterator with the sleep time between steps
-of the calibration proceedures. The caller may use this for cooperative
+of the calibration procedures. The caller may use this for cooperative
 multithreading, or can complete the calibration sychronously as follows:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">startCalibration</span><span class="p">(</span><span class="n">blackCal</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">delay</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
@@ -706,7 +706,7 @@ commands to executed for this recording.</td>
 </table>
 <p class="rubric">Example</p>
 <p>This function returns a generator iterator with the sleep time between the
-steps of the recording proceedure. The caller may use this for cooperative
+steps of the recording procedure. The caller may use this for cooperative
 multithreading, or can complete the calibration sychronously as follows:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">startRecording</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">delay</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
@@ -732,7 +732,7 @@ the current <cite>recMode</cite> property when starting the recording.</td>
 </table>
 <p class="rubric">Example</p>
 <p>This function returns a generator iterator with the sleep time between the
-steps of the recording proceedure. The caller may use this for cooperative
+steps of the recording procedure. The caller may use this for cooperative
 multithreading, or can complete the calibration sychronously as follows:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">startRecording</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">delay</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
@@ -744,7 +744,7 @@ multithreading, or can complete the calibration sychronously as follows:</p>
 <dl class="method">
 <dt id="pychronos.camera.startWhiteBalance">
 <code class="descname">startWhiteBalance</code><span class="sig-paren">(</span><em>hStart=None</em>, <em>vStart=None</em><span class="sig-paren">)</span><a class="headerlink" href="#pychronos.camera.startWhiteBalance" title="Permalink to this definition">¶</a></dt>
-<dd><p>Begin the white balance proceedure</p>
+<dd><p>Begin the white balance procedure.</p>
 <p>Take a white reference sample from the live video stream, and compute the
 white balance coefficients for the current lighting conditions.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -757,14 +757,14 @@ white balance coefficients for the current lighting conditions.</p>
 </ul>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Yields:</th><td class="field-body"><p class="first last"><em>float</em> – The sleep time, in seconds, between steps of the white balance proceedure.</p>
+<tr class="field-even field"><th class="field-name">Yields:</th><td class="field-body"><p class="first last"><em>float</em> – The sleep time, in seconds, between steps of the white balance procedure.</p>
 </td>
 </tr>
 </tbody>
 </table>
 <p class="rubric">Example</p>
 <p>This function returns a generator iterator with the sleep time between the
-steps of the white balance proceedure. The caller may use this for cooperative
+steps of the white balance procedure. The caller may use this for cooperative
 multithreading, or can complete the calibration sychronously as follows:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">startWhiteBalance</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">delay</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>

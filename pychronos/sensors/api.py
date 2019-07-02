@@ -64,7 +64,7 @@ class api(ABC):
         (0dB) gain and a 180-degree shutter angle.
 
         This function returns no value, but may throw an exception if the initialization
-        proceedure failed.
+        procedure failed.
 
         Args:
             fSize (:obj:`frameGeometry`, optional): The initial video geometry to set after
@@ -202,7 +202,7 @@ class api(ABC):
     
     @abstractmethod
     def setFramePeriod(self, fPeriod):
-        """Configure the frame minumum period of the image sensor
+        """Configure the frame minimum period of the image sensor
         
         Args:
             fPeriod (float): The frame period to configure on the image sensor.
@@ -295,7 +295,7 @@ class api(ABC):
         raise NotImplementedError()
     
     def setHdrExposureProgram(self, expPeriod, numIntegration=2):
-        """Configure the sensor to operate in high dynmaic range mode
+        """Configure the sensor to operate in high dynamic range mode
 
         When in high dynamic range mode, the image sensor combines multiple
         integration periods to achieve a non-linear response to incoming
@@ -362,11 +362,11 @@ class api(ABC):
         jigs, should be performed by this call.
 
         Yields:
-            float: The sleep time, in seconds, between steps of the calibration proceedure.
+            float: The sleep time, in seconds, between steps of the calibration procedure.
         
         Examples:
             This function returns a generator iterator with the sleep time between the
-            steps of the analog calibration proceedure. The caller may use this for
+            steps of the analog calibration procedure. The caller may use this for
             cooperative multithreading, or can complete the calibration sychronously
             as follows:
 
