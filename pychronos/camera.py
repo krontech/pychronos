@@ -604,9 +604,9 @@ class camera:
         """Begin one or more calibration procedures at the current settings.
 
         Black calibration takes a sequence of images with the lens cap or shutter
-        closed and averages them to find the black level of the image sensor. This
-        value can then be subtracted during playback to correct for image offset
-        defects.
+        closed and averages them to find the black level of each pixel on the
+        image sensor. This value is then be subtracted during playback to
+        correct for image offset defects.
 
         Analog calibration consists of any automated image sensor calibration
         that can be performed quickly and autonomously without any setup from
@@ -883,7 +883,7 @@ class camera:
 
     @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def exposurePercent(self):
-        """float: The current exposure time as a percentage between `exposureMin` and `exposureMax`."""
+        """float: The current exposure time rescaled between `exposureMin` and `exposureMax`.  This value is 0% when exposure is at minimum, and increases linearly until exposure is at maximum, when it is 100%."""
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
@@ -900,7 +900,7 @@ class camera:
 
     @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def exposureNormalized(self):
-        """float: The current exposure time as a percentage between `exposureMin` and `exposureMax`."""
+        """float: The current exposure time rescaled between `exposureMin` and `exposureMax`.  This value is 0 when exposure is at minimum, and increases linearly until exposure is at maximum, when it is 1.0."""
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
@@ -952,15 +952,15 @@ class camera:
         
         Args:
             'normal': Frame and exposure timing operate on fixed periods and are free-running.
-            'frameTrigger': Frame starts on the rising edge of the trigger signal, and exposes
-                the frame for a fixed exposure period. Once readout completes, the camera will
+            'frameTrigger': Frame starts on the rising edge of the trigger signal, and **exposes
+                the frame for `exposurePeriod` nanoseconds**. Once readout completes, the camera will
                 wait for another rising edge before starting the next frame. In this mode, the
                 `framePeriod` property constrains the minimum time between frames.
-            'shutterGating': Frame starts on the rising edge of the trigger signal, and exposes
-                the frame for as long as the trigger signal is held high. Once readout completes,
-                the camera will wait for another rising edge before starting the next frame. In
-                this mode the `exposurePeriod` property has no effect and the `framePeriod`
-                property constrains the minimum time between frames. 
+            'shutterGating': Frame starts on the rising edge of the trigger signal, and **exposes
+                the frame for as long as the trigger signal is held high**, regardless of the `exposurePeriod`
+                property. Once readout completes, the camera will wait for another
+                rising edge before starting the next frame. In this mode, the `framePeriod` property
+                constrains the minimum time between frames. 
         """
         ## TODO: The docstring needs some help to explain the 2 and 3-slope HDR modes.
         return self.__exposureMode
@@ -1014,17 +1014,17 @@ class camera:
     
     @camProperty()
     def batteryChargePercent(self):
-        """float: Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged."""
+        """float: Estimated battery charge, with 0% being fully depleted and 100% being fully charged."""
         return self.power.battCapacityPercent
     
     @camProperty()
     def batteryChargeNormalized(self):
-        """float: Estimated battery charge, with 0% being fully depleted and 100% being fully charged."""
+        """float: Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged."""
         return self.power.battCapacityPercent / 100
     
     @camProperty()
     def batteryVoltage(self):
-        """float: A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
+        """float: The voltage that is currently being output from the removable battery. A healthy and fully charged battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
         #TEMPORARY query:
         self.power.queryPowerSocket(self.power)
 
@@ -1096,7 +1096,7 @@ class camera:
     
     @camProperty()
     def externalStorage(self):
-        """dict: The currently attached external storage devices and their status. The sizes
+        """dict: The currently attached external storage partitions and their status. The sizes
         of the reported storage devices are in units of kB.
         
         Examples:
