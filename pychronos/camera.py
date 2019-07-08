@@ -173,11 +173,11 @@ class camera:
                 or None to perform only a soft-reset of the FPGA.
 
         Yields:
-            float: The sleep time, in seconds, between steps of the reset proceedure.
+            float: The sleep time, in seconds, between steps of the reset procedure.
 
         Examples:
             This function returns a generator iterator with the sleep time between steps
-            of the reset proceedure. The caller can perform a complete reset as follows:
+            of the reset procedure. The caller can perform a complete reset as follows:
 
             >>> state = camera.softReset()
             >>> for delay in state:
@@ -186,7 +186,7 @@ class camera:
         # If the current state is neither `idle` nor `recording`, then switch
         # to the `reset` state to force any outstanding generators to complete.
         # Give the generators up to half a second to finish and then continue
-        # with the reset proceedure.
+        # with the reset procedure.
         if self.__state != 'idle' and self.__state != 'recording':
             self.__setState('reset')
             for x in range(0,5):
@@ -301,7 +301,7 @@ class camera:
         
         Example:
             This function returns a generator iterator with the sleep time between the
-            steps of the recording proceedure. The caller may use this for cooperative
+            steps of the recording procedure. The caller may use this for cooperative
             multithreading, or can complete the calibration sychronously as follows:
         
             >>> state = camera.startRecording()
@@ -338,7 +338,7 @@ class camera:
         
         Example:
             This function returns a generator iterator with the sleep time between the
-            steps of the recording proceedure. The caller may use this for cooperative
+            steps of the recording procedure. The caller may use this for cooperative
             multithreading, or can complete the calibration sychronously as follows:
             
             >>> state = camera.startRecording()
@@ -386,7 +386,7 @@ class camera:
     # API Methods: Calibration Group
     #===============================================================================================
     def startWhiteBalance(self, hStart=None, vStart=None):
-        """Begin the white balance proceedure
+        """Begin the white balance procedure.
 
         Take a white reference sample from the live video stream, and compute the
         white balance coefficients for the current lighting conditions.
@@ -396,11 +396,11 @@ class camera:
             vStart (int, optional): Veritcal position at which the white reference should be taken.
         
         Yields:
-            float: The sleep time, in seconds, between steps of the white balance proceedure.
+            float: The sleep time, in seconds, between steps of the white balance procedure.
         
         Example:
             This function returns a generator iterator with the sleep time between the
-            steps of the white balance proceedure. The caller may use this for cooperative
+            steps of the white balance procedure. The caller may use this for cooperative
             multithreading, or can complete the calibration sychronously as follows:
 
             >>> state = camera.startWhiteBalance()
@@ -551,7 +551,7 @@ class camera:
         self.__setState('idle')
 
     def __startZeroTimeBlackCal(self):
-        """Begin the black calibration proceedure using a zero-time exposure.
+        """Begin the black calibration procedure using a zero-time exposure.
 
         Black calibration is best performed with the lens cap or shutter closed,
         but in the absence of user intervention, an acceptable calibration can be
@@ -567,12 +567,12 @@ class camera:
         Yields
         ------
         float :
-            The sleep time, in seconds, between steps of the calibration proceedure.
+            The sleep time, in seconds, between steps of the calibration procedure.
         
         Examples
         --------
         This function returns a generator iterator with the sleep time between the
-        steps of the black calibration proceedure. The caller may use this for
+        steps of the black calibration procedure. The caller may use this for
         cooperative multithreading, or can complete the calibration sychronously
         as follows:
 
@@ -601,12 +601,12 @@ class camera:
         self.__setupExposure(self.__exposurePeriod, self.__exposureMode)
     
     def startCalibration(self, blackCal=False, analogCal=False, zeroTimeBlackCal=False):
-        """Begin one or more calibration proceedures at the current settings.
+        """Begin one or more calibration procedures at the current settings.
 
         Black calibration takes a sequence of images with the lens cap or shutter
-        closed and averages them to find the black level of the image sensor. This
-        value can then be subtracted during playback to correct for image offset
-        defects.
+        closed and averages them to find the black level of each pixel on the
+        image sensor. This value is then be subtracted during playback to
+        correct for image offset defects.
 
         Analog calibration consists of any automated image sensor calibration
         that can be performed quickly and autonomously without any setup from
@@ -622,11 +622,11 @@ class camera:
                 (default: false)
         
         Yields:
-            float : The sleep time, in seconds, between steps of the calibration proceedure.
+            float : The sleep time, in seconds, between steps of the calibration procedure.
         
         Example:
             This function returns a generator iterator with the sleep time between steps
-            of the calibration proceedures. The caller may use this for cooperative
+            of the calibration procedures. The caller may use this for cooperative
             multithreading, or can complete the calibration sychronously as follows:
 
             >>> state = camera.startCalibration(blackCal=True)
@@ -784,7 +784,7 @@ class camera:
         
         Example:
             A typical 2x2 Bayer pattern sensor would have a value of 'GRBG'.
-            Meanhile, monochrome image sensors should have a value of 'mono'.
+            Meanwhile, monochrome image sensors should have a value of 'mono'.
         """ 
         if self.sensor.cfaPattern:
             return self.sensor.cfaPattern
@@ -883,7 +883,7 @@ class camera:
 
     @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def exposurePercent(self):
-        """float: The current exposure time as a percentage between `exposureMin` and `exposureMax`."""
+        """float: The current exposure time rescaled between `exposureMin` and `exposureMax`.  This value is 0% when exposure is at minimum, and increases linearly until exposure is at maximum, when it is 100%."""
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
@@ -900,7 +900,7 @@ class camera:
 
     @camProperty(prio=PARAM_PRIO_EXPOSURE)
     def exposureNormalized(self):
-        """float: The current exposure time as a percentage between `exposureMin` and `exposureMax`."""
+        """float: The current exposure time rescaled between `exposureMin` and `exposureMax`.  This value is 0 when exposure is at minimum, and increases linearly until exposure is at maximum, when it is 1.0."""
         fSize = self.sensor.getCurrentGeometry()
         fPeriod = self.sensor.getCurrentPeriod()
         expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
@@ -952,15 +952,15 @@ class camera:
         
         Args:
             'normal': Frame and exposure timing operate on fixed periods and are free-running.
-            'frameTrigger': Frame starts on the rising edge of the trigger signal, and exposes
-                the frame for a fixed exposure period. Once readout completes, the camera will
+            'frameTrigger': Frame starts on the rising edge of the trigger signal, and **exposes
+                the frame for `exposurePeriod` nanoseconds**. Once readout completes, the camera will
                 wait for another rising edge before starting the next frame. In this mode, the
                 `framePeriod` property constrains the minimum time between frames.
-            'shutterGating': Frame starts on the rising edge of the trigger signal, and exposes
-                the frame for as long as the trigger signal is held high. Once readout completes,
-                the camera will wait for another rising edge before starting the next frame. In
-                this mode the `exposurePeriod` property has no effect and the `framePeriod`
-                property constrains the minimum time between frames. 
+            'shutterGating': Frame starts on the rising edge of the trigger signal, and **exposes
+                the frame for as long as the trigger signal is held high**, regardless of the `exposurePeriod`
+                property. Once readout completes, the camera will wait for another
+                rising edge before starting the next frame. In this mode, the `framePeriod` property
+                constrains the minimum time between frames. 
         """
         ## TODO: The docstring needs some help to explain the 2 and 3-slope HDR modes.
         return self.__exposureMode
@@ -1014,17 +1014,20 @@ class camera:
     
     @camProperty()
     def batteryChargePercent(self):
-        """float: Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged."""
+        """float: Estimated battery charge, with 0% being fully depleted and 100% being fully charged."""
         return self.power.battCapacityPercent
     
     @camProperty()
     def batteryChargeNormalized(self):
-        """float: Estimated battery charge, with 0% being fully depleted and 100% being fully charged."""
+        """float: Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged."""
         return self.power.battCapacityPercent / 100
     
     @camProperty()
     def batteryVoltage(self):
-        """float: A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
+        """float: The voltage that is currently being output from the removable battery. A healthy and fully charged battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
+        #TEMPORARY query:
+        self.power.queryPowerSocket(self.power)
+
         return self.power.battVoltageCam / 1000
         
     @camProperty(notify=True, save=True, derivedFrom='saveAndPowerDownLowBatteryLevelPercent')
@@ -1039,7 +1042,7 @@ class camera:
     _saveAndPowerDownLowBatteryLevelPercent = 4
     @camProperty(notify=True, save=True)
     def saveAndPowerDownLowBatteryLevelPercent(self):
-        """float Turn off the camera if the battery charge level, reported by `batteryChargePercent`, falls below this level. The camera will start saving any recorded footage before it powers down. If this level is too low, the camera may run out of battery and stop before it finishes saving."""
+        """float: Turn off the camera if the battery charge level, reported by `batteryChargePercent`, falls below this level. The camera will start saving any recorded footage before it powers down. If this level is too low, the camera may run out of battery and stop before it finishes saving."""
         logging.warn('Value not implemented, using dummy.')
         return self._saveAndPowerDownLowBatteryLevelPercent
         
@@ -1093,7 +1096,7 @@ class camera:
     
     @camProperty()
     def externalStorage(self):
-        """dict: The currently attached external storage devices and their status. The sizes
+        """dict: The currently attached external storage partitions and their status. The sizes
         of the reported storage devices are in units of kB.
         
         Examples:
@@ -1278,7 +1281,7 @@ class camera:
 
     @camProperty(prio=PARAM_PRIO_FRAME_TIME)
     def frameRate(self):
-        """float: The estimated estimated recording rate in frams per second (reciprocal of `framePeriod`)."""
+        """float: The estimated estimated recording rate in frames per second (reciprocal of `framePeriod`)."""
         return 1 / self.sensor.getCurrentPeriod()
     @frameRate.setter
     def frameRate(self, value):

@@ -25,7 +25,7 @@ This project includes several major components:
 Building and Installing
 -----------------------
 **To build the `pychronos` module**, you will need the `python3-dev` and `python3-dbus`
-packages for your camera's operating sytem. Once installed, you can use the `setup.py`
+packages for your camera's operating system. Once installed, you can use the `setup.py`
 script to build and install the module on your camera, using the following commands:
  * `python3 setup.py build` to build the pychronos package from your checkout.
  * `python3 setup.py install` to install the pychronos package on your camera.
@@ -297,7 +297,7 @@ The input configuration has a single parameter:
 |`recSegments`      |`G`|`S`|`N`| int    | 1     |       | Number of memory segments supported when in segmented recording mode.
 |`recPreBurst`      |`G`|`S`|`N`| int    | 0     |       | Number of frames leading up to the trigger to record when in gated burst mode.
 |`resolution`       |`G`|`S`|`N`| dict   |       |       | Dict describing the resolution settings. For example, `gdbus call --system --dest ca.krontech.chronos.control  --object-path /ca/krontech/chronos/control --method ca.krontech.chronos.control.get "['resolution']"` yields `({'resolution': <{'vOffset': <4>, 'hRes': <1280>, 'vDarkRows': <4>, 'bitDepth': <12>, 'hOffset': <0>, 'minFrameTime': <0.00093492222222222221>, 'vRes': <1020>}>},)`. `bitDepth` is min and max 12 at the moment. The optional `minFrameTime` is used to select the optimal wavetable when switching resolutions. This is useful when dialing the camera back, such as when recording at 500fps full-frame instead of 1000fps.
-|`minFramePeriod`   |`G`|   |`N`| int    |       |       | Minimum frame period at the current resolution settings.
+|`minFramePeriod`   |`G`|   |`N`| int    |       |       | Minimum frame period for the current resolution settings.
 |`cameraMaxFrames`  |`G`|   |`N`| int    |       |       | Maximum number of frames the camera's memory can save at the current resolution.
 |`framePeriod`      |`G`|`S`|`N`| int    |       |       | Time in nanoseconds to record a single frame (or minimum time for frame sync and shutter gating).
 |`frameRate`        |`G`|`S`|   | float  |       |       | Estimated frame rate in frames per second (reciprocal of `framePeriod`)
