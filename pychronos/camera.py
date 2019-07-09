@@ -1009,8 +1009,12 @@ class camera:
     @camProperty(notify=True)
     def externalPower(self):
         """bool: True when the AC adaptor is present, and False when on battery power."""
-        logging.warn('Value not implemented, using dummy.')
         return bool(self.power.flags & 2)
+    
+    @camProperty()
+    def batteryPresent(self):
+        """bool: True when the AC adaptor is present, and False when on battery power."""
+        return bool(self.power.flags & 1)
     
     @camProperty()
     def batteryChargePercent(self):
@@ -1025,9 +1029,6 @@ class camera:
     @camProperty()
     def batteryVoltage(self):
         """float: The voltage that is currently being output from the removable battery. A healthy and fully charged battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
-        #TEMPORARY query:
-        self.power.queryPowerSocket(self.power)
-
         return self.power.battVoltageCam / 1000
         
     @camProperty(notify=True, save=True, derivedFrom='saveAndPowerDownLowBatteryLevelPercent')
