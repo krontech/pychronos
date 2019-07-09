@@ -5,6 +5,13 @@ import select
 
 gclient = None
 
+def within(x, min, max):
+	if x > max:
+		return max
+	if x < min:
+		return min
+	return x
+
 class powerClass:
 
 	battCapacityPercent = 0
@@ -18,6 +25,7 @@ class powerClass:
 	mbTemperature = 0
 	flags = 0
 	fanPWM = 0
+	acAdaptorPresent = False
 	
 	bufferSize = 1000;
 	PATH = "/var/run/bmsFifo";
@@ -53,6 +61,21 @@ class powerClass:
 				self.flags = value
 			elif element == "fanPWM":
 				self.fanPWM = value
+		# Now calculate capacity percent from voltage
+		if self.flags & 4:	# If battery is charging
+			self.battCapacityPercent = 				within((self.battVoltageCam/1000.0 - 10.75) / (12.4 - 10.75) * 80, 0.0, 80.0) + \
+							20 - 20*within((self.battCurrentCam/1000.0 - 0.1) / (1.28 - 0.1), 0.0, 1.0) 
+		else:   #discharging
+			self.battCapacityPercent = within((self.battVoltageCam/1000.0 - 9.75) / (11.8 - 9.75) * 100, 0.0, 100.0)
+		#charge 10.75 - 12.4 is 0 - 80%
+		if not self.flags & 1:
+			self.battVoltageCam = 0
+			self.battCapacityPercent = 0
+		self.acAdaptorPresent = self.flags & 2
+
+		#print("Voltage:", self.battVoltageCam)
+		#print("Charge:", self.battCapacityPercent, "%")
+		#print("Flags", self.flags)
 
 	def readPowerFifo(self):	
 		try:
