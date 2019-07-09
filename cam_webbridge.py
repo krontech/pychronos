@@ -499,7 +499,7 @@ def main():
     GetMethod(control, controlApi, 'get')
     Method(control, controlApi, 'set',                    arguments=True)
     
-    Method(control, controlApi, 'startAutoWhiteBalance',  arguments=False)
+    Method(control, controlApi, 'startAutoWhiteBalance',  arguments=True)
     Method(control, controlApi, 'revertAutoWhiteBalance', arguments=False)
     Method(control, controlApi, 'startAutoFocus',         arguments=True)
     Method(control, controlApi, 'startCalibration',       arguments=True)
