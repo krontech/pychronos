@@ -105,12 +105,12 @@ class powerClass:
 
 	def queryPowerSocket(self):
 		"""This polls the power controller daemon for battery data"""
-		self.client.send("GET_BATTERY_DATA".encode('utf-8'))
-		ret = self.client.recv(1000)
+		gclient.send("GET_BATTERY_DATA".encode('utf-8'))
+		ret = gclient.recv(1000)
 		self.parsePower(self, ret)
 
 	def receivePowerSocket(self):
-		ret = self.client.recv(1000) #.encode('utf-8')
+		ret = gclient.recv(1000) #.encode('utf-8')
 		print (ret, ".")
 		self.parsePower(self, ret)
 		
@@ -129,6 +129,23 @@ class powerClass:
 					print("Shutting down.")
 					gclient.close()
 					break
+
+	def setShippingMode(self, en):
+		"""This sets whether shipping mode is enabled"""
+		print("shipping mode:", eb)
+		if en:
+			gclient.send("SET_SHIPPING_MODE_ENABLED".encode('utf-8'))
+		else:
+			gclient.send("SET_SHIPPING_MODE_DISABLED".encode('utf-8'))
+
+
+	def setPowerMode(self, powerOn, powerOff):
+		"""This sets the automatic power-on and automatic save and power-off, when the power supply is connected or disconnected"""
+		print(powerOn, powerOff)
+		num = powerOn + 2*powerOff
+		modeStr = "SET_POWERUP_MODE_" + str(num)
+		print(modeStr)
+		gclient.send(modeStr.encode('utf-8'))				
 
 
 print("Connecting...")

@@ -1049,7 +1049,7 @@ class camera:
         
     @saveAndPowerDownLowBatteryLevelPercent.setter
     def saveAndPowerDownLowBatteryLevelPercent(self, val):
-        logging.warn('Value not implemented, using dummy.')
+        #logging.warn('Value not implemented, using dummy.')
         self._saveAndPowerDownLowBatteryLevelPercent = val
         self.__propChange("saveAndPowerDownLowBatteryLevelNormalized")
         self.__propChange("saveAndPowerDownLowBatteryLevelPercent")
@@ -1058,27 +1058,32 @@ class camera:
     @camProperty(notify=True, save=True)
     def saveAndPowerDownWhenLowBattery(self):
         """bool: Should the camera try to turn off gracefully when the battery is low? The low level is set by `saveAndPowerDownLowBatteryLevelPercent` (or `saveAndPowerDownLowBatteryLevelNormalized`). The opposite of `powerOnWhenMainsConnected`. See `powerOnWhenMainsConnected` for an example which sets the camera to turn on and off when external power is supplied."""
-        logging.warn('Value not implemented, using dummy.')
+        #logging.warn('Value not implemented, using dummy.')
         return self._saveAndPowerDownWhenLowBattery
         
     @saveAndPowerDownWhenLowBattery.setter
     def saveAndPowerDownWhenLowBattery(self, val):
-        logging.warn('Value not implemented, using dummy.')
+        print("SAVEANDPOWERDOWN:", val)
+        #logging.warn('Value not implemented, using dummy.')
         self._saveAndPowerDownWhenLowBattery = val
+        self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
         self.__propChange("saveAndPowerDownWhenLowBattery")
+
     
     _powerOnWhenMainsConnected = False
     @camProperty(notify=True, save=True)
     def powerOnWhenMainsConnected(self):
         """bool: Set to `True` to have the camera turn itself on when it is plugged in. The inverse of this, turning off when the charger is disconnected, is achieved by setting the camera to turn off at any battery percentage. For example, to make the camera turn off when it is unpowered and turn on when it is powered again - effectively only using the battery to finish saving - you could make the following call: `api.set({ 'powerOnWhenMainsConnected':True, 'saveAndPowerDownWhenLowBattery':True, 'saveAndPowerDownLowBatteryLevelPercent':100.0 })`."""
-        logging.warn('Value not implemented, using dummy.')
+        #logging.warn('Value not implemented, using dummy.')
         return self._powerOnWhenMainsConnected
         
     @powerOnWhenMainsConnected.setter
     def powerOnWhenMainsConnected(self, val):
-        logging.warn('Value not implemented, using dummy.')
+        #logging.warn('Value not implemented, using dummy.')
+        print("AUTOPOWERON:", val)
         self._powerOnWhenMainsConnected = val
         self.__propChange("powerOnWhenMainsConnected")
+        self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
     
     
     _backlightEnabled = True
