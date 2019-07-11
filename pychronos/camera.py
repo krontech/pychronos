@@ -975,15 +975,25 @@ class camera:
 
     #===============================================================================================
     # API Parameters: Gain Group
-    @camProperty(notify=True)
+    @camProperty(notify=True, save=True)
     def currentGain(self):
         """int: The current gain of the image sensor as a linear multiplier of `sensorIso`."""
         return self.sensor.getCurrentGain()
+    @currentGain.setter
+    def currentGain(self, value):
+        self.__checkState('idle')
+        self.sensor.setGain(value)
+        self.__propChange("currentGain")
     
     @camProperty()
     def currentIso(self):
         """int: The ISO number of the image sensor at the current current gain."""
         return self.sensor.getCurrentGain() * self.sensor.baseIso
+    @currentIso.setter
+    def currentIso(self, value):
+        self.__checkState('idle')
+        self.sensor.setGain(value / self.sensor.baseIso)
+        self.__propChange("currentGain")
 
     #===============================================================================================
     # API Parameters: Camera Status Group

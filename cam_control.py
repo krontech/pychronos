@@ -276,6 +276,7 @@ class controlApi(dbus.service.Object):
         keys = sorted(newValues.keys(), key=self.paramsort, reverse=True)
         failedAttributes = {}
         videoAttributes = {}
+        startCal = self.camera.sensor.calFilename("test", ".bin")
         for name in keys:
             # If the property exists in the camera class, set it.
             value = newValues[name]
@@ -295,6 +296,13 @@ class controlApi(dbus.service.Object):
             else:
                 failedAttributes[name] = "Unknown property '%s' could not be set." % (name)
         
+        # If the calibration file name has changed, a new calibration will
+        # be required. Check if stored calibration data exists, and load it.
+        # Otherwise, we should load some sensible defaults and perform a zero
+        # time black cal.
+        if startCal != self.camera.sensor.calFilename("test", ".bin"):
+            logging.warning('Sensor configuration chage requires new calibration')
+
         # For any keys that don't exist - try setting them in the video API.
         # TODO: We should catch the async response and pass errors back to the
         # caller, but for now we just assume that everything succeeded.

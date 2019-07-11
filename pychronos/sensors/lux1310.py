@@ -547,9 +547,9 @@ class lux1310(api):
             raise ValueError("Unsupported image gain setting")
         
         vrstb, vrst, vrsth, samp, feedback, sgain = gainConfig[int(gain)]
-        self.writeDAC(self.regs.DAC_VRSTB, vrstb)
-        self.writeDAC(self.regs.DAC_VRST, vrst)
-        self.writeDAC(self.regs.DAC_VRSTH, vrsth)
+        self.writeDAC(self.DAC_VRSTB, vrstb)
+        self.writeDAC(self.DAC_VRST, vrst)
+        self.writeDAC(self.DAC_VRSTH, vrsth)
         self.regs.regGainSelSamp = samp
         self.regs.regGainSelFb = feedback
         self.regs.regGainBit = sgain
@@ -805,3 +805,8 @@ class lux1310(api):
         else:
             logging.error("Invalid timing program, reverting to standard exposure")
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
+
+    def calFilename(self, prefix, extension=""):
+        wtClocks = self.regs.regRdoutDly
+        gain = self.getCurrentGain()
+        return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)

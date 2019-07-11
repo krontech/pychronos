@@ -130,8 +130,8 @@ electronic lens control up and running.
 ### Gain Control Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
-| `currentIso`      |`G`|`x`|   | int    |       |       | ISO number of the sensor at the current gain setting.
-| `currentGain`     |`G`|`x`|`x`| int    |       |       | The gain as a multiplier of the `sensorIso` parameter.
+| `currentIso`      |`G`|`S`|   | int    |       |       | ISO number of the sensor at the current gain setting.
+| `currentGain`     |`G`|`S`|`N`| int    |       |       | The gain as a multiplier of the `sensorIso` parameter.
 
 ### Display Parameters
 These API parameters are proxy values for the equivalent parameters in the D-Bus

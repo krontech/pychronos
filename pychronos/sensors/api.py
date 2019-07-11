@@ -374,6 +374,24 @@ class api(ABC):
             >>>    time.sleep(delay)
         """
         pass
+
+    def calFilename(self, prefix, extension=""):
+        """Generate the filename for sensor calibration data at the current settings.
+
+        Calibration data may depend on any number of internal sensor settings that
+        are not directly exposed via the sensor API. The caller may use this function
+        to generate calibration filenames that are unique to the current operating
+        conditions.
+
+        Args:
+            prefix (string): Filename prefix to begin calibration data with.
+            extension (string, optional): File extension to end the calibration data with.
+
+        Returns:
+            string: A filename, beginning with prefix, that is unique to the current
+                settings which affect calibration.
+        """
+        return prefix + extension
     
     def loadAnalogCal(self):
         """Load stored analog calibration data from a file, if supported"""
