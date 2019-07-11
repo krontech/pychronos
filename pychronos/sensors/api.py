@@ -354,12 +354,16 @@ class api(ABC):
         return [1.0, 1.0, 1.0]
     
     @abstractmethod
-    def startAnalogCal(self):
+    def startAnalogCal(self, saveLocation=None):
         """Perform the automatic analog sensor calibration at the current settings.
 
         Any analog calibration that the sensor can perform without requiring any
         extern user setup, such as covering the lens cap or attaching calibration
         jigs, should be performed by this call.
+
+        Args:
+            saveLocation (string, optional): Filesystem path to the directory where
+                calibration data should should be stored.
 
         Yields:
             float: The sleep time, in seconds, between steps of the calibration procedure.
@@ -393,13 +397,14 @@ class api(ABC):
         """
         return prefix + extension
     
-    def loadAnalogCal(self):
-        """Load stored analog calibration data from a file, if supported"""
-        raise NotImplementedError
-    
-    def saveAnalogCal(self):
-        """Write analog calibration data from a file, if supported"""
-        raise NotImplementedError
+    def loadAnalogCal(self, calLocation):
+        """Load stored analog calibration data from a file, if supported
+        
+        Args:
+            calLocation (string): Filesystem path to the directory where
+                calibration data is stored.
+        """
+        raise False
     
     @abstractmethod
     def setGain(self, gain):

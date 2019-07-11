@@ -638,7 +638,7 @@ class camera:
             logging.info('starting analog calibration')
             self.__setState('analogcal')
             try:
-                yield from self.sensor.startAnalogCal()
+                yield from self.sensor.startAnalogCal("/var/camera/cal")
             except Exception as e:
                 self.__setState('idle')
                 raise e

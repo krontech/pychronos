@@ -46,6 +46,7 @@ class controlApi(dbus.service.Object):
         self.bus = bus
         self.mainloop = mainloop
         self.configFile = configFile
+        self.calLocation = "/var/camera/cal"
     
         self.camera = camera
         self.video = bus.get_object('ca.krontech.chronos.video', '/ca/krontech/chronos/video')
@@ -277,6 +278,7 @@ class controlApi(dbus.service.Object):
         failedAttributes = {}
         videoAttributes = {}
         startCal = self.camera.sensor.calFilename("test", ".bin")
+        resChange = False
         for name in keys:
             # If the property exists in the camera class, set it.
             value = newValues[name]
@@ -286,6 +288,8 @@ class controlApi(dbus.service.Object):
                 try:
                     setattr(self.camera, name, value)
                     logging.debug("Set %s -> %s", name, value)
+                    if (name == 'resolution'):
+                        resChange = True
                 except Exception as e:
                     logging.debug("Setting %s failed: %s", name, e)
                     logging.debug(traceback.format_exc())
@@ -300,7 +304,7 @@ class controlApi(dbus.service.Object):
         # be required. Check if stored calibration data exists, and load it.
         # Otherwise, we should load some sensible defaults and perform a zero
         # time black cal.
-        if startCal != self.camera.sensor.calFilename("test", ".bin"):
+        if resChange or (startCal != self.camera.sensor.calFilename("test", ".bin")):
             logging.warning('Sensor configuration chage requires new calibration')
 
         # For any keys that don't exist - try setting them in the video API.
@@ -429,9 +433,11 @@ class controlApi(dbus.service.Object):
 
         # Reload the configuration.
         self.loadConfig()
+        # Reload calibration data.
+        self.camera.sensor.loadAnalogCal(self.calLocation)
 
-        # Re-run initial calibration.
-        yield from self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True)
+        # Re-run initial black calibration.
+        yield from self.camera.startCalibration(zeroTimeBlackCal=True)
 
         # Re-configure the video system back into live display.
         res = self.camera.resolution

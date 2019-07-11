@@ -5,6 +5,7 @@ import math
 import copy
 import numpy
 import logging
+import json
 
 from pychronos.error import *
 from pychronos.regmaps import sequencer, ioInterface
@@ -128,7 +129,7 @@ class lux1310(api):
         self.io     = ioInterface()
         
         ## ADC Calibration state
-        self.adcOffsets = [0] * self.HRES_INCREMENT
+        self.adcOffsets = [0] * self.ADC_CHANNELS
 
         self.__nTrigFrames = 5
 
@@ -735,20 +736,18 @@ class lux1310(api):
         #  a = three-point curvature correction.
         #  b = two-point gain correction.
         #  c = some constant (black level).
-        curve3pt = err2pt / ((midColumns - lowColumns) * (highColumns - midColumns))
-        gain3pt = gain2pt - curve3pt * (highColumns + lowColumns)
+        self.curve3pt = err2pt / ((midColumns - lowColumns) * (highColumns - midColumns))
+        self.gain3pt = gain2pt - self.curve3pt * (highColumns + lowColumns)
 
-        logging.debug("ADC Columns 3-point gain: %s" % (gain3pt))
-        logging.debug("ADC Columns 3-point curve: %s" % (curve3pt))
+        logging.debug("ADC Columns 3-point gain: %s" % (self.gain3pt))
+        logging.debug("ADC Columns 3-point curve: %s" % (self.curve3pt))
 
         # Load and enable the 3-point calibration.
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
         colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
-        gain3pt *= (1 << self.COL_GAIN_FRAC_BITS)
-        curve3pt *= (1 << self.COL_CURVE_FRAC_BITS)
         for col in range(self.MAX_HRES):
-            curvature = int(curve3pt[col % self.ADC_CHANNELS])
-            colGainRegs.mem16[col] = int(gain3pt[col % self.ADC_CHANNELS])
+            curvature = int(self.curve3pt[col % self.ADC_CHANNELS] * (1 << self.COL_CURVE_FRAC_BITS))
+            colGainRegs.mem16[col] = int(self.gain3pt[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
             if (curvature > 0):
                 colCurveRegs.mem16[col] = curvature
             else:
@@ -756,7 +755,7 @@ class lux1310(api):
         display = pychronos.regmaps.display()
         display.gainControl |= display.GAINCTL_3POINT
 
-    def startAnalogCal(self):     
+    def startAnalogCal(self, saveLocation=None):     
         # Retrieve the current resolution and frame period.
         fSizePrev = self.getCurrentGeometry()
         fSizeCal = copy.deepcopy(fSizePrev)
@@ -784,6 +783,16 @@ class lux1310(api):
         logging.debug('Starting ADC gain calibration')
         yield from self.autoAdcGainCal(fSizeCal)
 
+        # Save the analog calibration results if a location was provided.
+        if saveLocation:
+            caldata = {
+                "offsets": self.adcOffsets,
+                "gain": list(self.gain3pt),
+                "curve": list(self.curve3pt)
+            }
+            with open(self.calFilename(saveLocation + '/lux1310cal', '.json'), 'w') as fp:
+                json.dump(caldata, fp)
+
         # Restore the frame period and wavetable.
         logging.debug("Restoring sensor configuration")
         self.timing.programInterm()
@@ -806,7 +815,51 @@ class lux1310(api):
             logging.error("Invalid timing program, reverting to standard exposure")
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
 
+    def loadAnalogCal(self, calLocation):
+        loadSuccessful = False
+        loadFilename = self.calFilename(calLocation + '/lux1310cal', '.json')
+        try:
+            with open(loadFilename, 'r') as fp:
+                # Read calibration from the file.
+                logging.error("Loading lux1310 calibration data from %s", loadFilename)
+                calData = json.load(fp)
+                self.adcOffsets = list(calData['offsets'])
+                self.gain3pt = numpy.array(calData['gain'], dtype=numpy.float)
+                self.curve3pt = numpy.array(calData['curve'], dtype=numpy.float)
+                if (len(self.adcOffsets) < self.ADC_CHANNELS):
+                    raise ValueError("Invalid array size for ADC offset calibration data")
+                if (len(self.gain3pt) < self.ADC_CHANNELS):
+                    raise ValueError("Invalid array size for ADC gain calibration data")
+                if (len(self.curve3pt) < self.ADC_CHANNELS):
+                    raise ValueError("Invalid array size for ADC gain calibration data")
+                loadSuccessful = True
+        except Exception as err:
+            # Load some sensible defaults.
+            logging.error("Failed to load lux1310 calibration data from %s", loadFilename)
+            self.adcOffsets = [0] * self.ADC_CHANNELS
+            self.gain3pt = numpy.full(self.ADC_CHANNELS, 1.0)
+            self.curve3pt = numpy.full(self.ADC_CHANNELS, 0.0)
+
+        # Program the ADC offsets.
+        for col in range(self.ADC_CHANNELS):
+            self.regs.regAdcOs[col] = self.adcOffsets[col]
+
+        # Load and enable the 3-point calibration.
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
+        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
+        for col in range(self.MAX_HRES):
+            curvature = int(self.curve3pt[col % self.ADC_CHANNELS] * (1 << self.COL_CURVE_FRAC_BITS))
+            colGainRegs.mem16[col] = int(self.gain3pt[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
+            if (curvature > 0):
+                colCurveRegs.mem16[col] = curvature
+            else:
+                colCurveRegs.mem16[col] = (0x10000 + curvature) & 0xffff
+        display = pychronos.regmaps.display()
+        display.gainControl |= display.GAINCTL_3POINT
+
+        return loadSuccessful
+
     def calFilename(self, prefix, extension=""):
         wtClocks = self.regs.regRdoutDly
-        gain = self.getCurrentGain()
+        gain = int(self.getCurrentGain())
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
