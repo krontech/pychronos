@@ -327,22 +327,22 @@ In addition to the parameters which can be manipulated to setup the camera,
 the API also includes a set of methods which perform state changes. A list
 of the supported methods are as follows:
 
-| Method                   | S | Arguments        | State Change | Description
-|:-------------------------|:--|:-----------------|:-------------|:-----------
-| `get`                    |`G`| array of names   |              | Retrieve one or more parameters from the control API.
-| `set`                    |`S`| dict(parameters) |              | Modify one or more parameters in the control API.
-| `startAutoWhiteBalance`  |`S`| dict(none)       | `whitebal`   | Take a reference image from the live display and compute the white balance.
-| `revertAutoWhiteBalance` |`S`| none             |              | This copies the contents of `wbCustom` into `wbMatrix`.
-| `startAutoFocus`         |   | dict(location)   |              | Attempt to automatically focus the camera on a subject.
-| `startCalibration`       |`S`| dict(calTypes)   | varies       | Perform full calibration operations. Dict can have `blackCal`, `analogCal`, ior `zeroTimeBlackCal` set to true or false.
-| `startRecording`         |`S`| none             | `recording`  | Begin recording video data to memory.
-| `stopRecording`          |`S`| none             | `idle`       | Terimnate recording of video data to memory.
-| `flushRecording`         |`S`| none             |              | Flush recoreded video data from memory.
-| `startFilesave`          |   | dict             |              | TBD: A proxy for the `filesave` method in the Video API.
-| `softTrigger`            |`S`| none             |              | Generate a software trigger event.
-| `revertToDefaults`       |   | none             |              | Revert all settings to their default values (with optional parameter overrides).
-| `softReset`              |`S`| none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
-| `getResolutionTimingLimits` |`S`| dict(resolution) |           | Test if a resolution is valid and return the timing limits (framerate) at that resolution. Example: `call --system --dest ca.krontech.chronos.control --object-path /ca/krontech/chronos/control --method ca.krontech.chronos.control.getResolutionTimingLimits "{'hRes': <1280>, 'vRes': <1020>}"` → `({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMaxFrames': <17542>, 'exposureMax': <925722>},)`. Maximum framerate is `1e9 / minFramePeriod`.
+| Method                      | S | Arguments        | State Change | Description
+|:----------------------------|:--|:-----------------|:-------------|:-----------
+| `get`                       |`G`| array of names   |              | Retrieve one or more parameters from the control API.
+| `set`                       |`S`| dict(parameters) |              | Modify one or more parameters in the control API.
+| `startAutoWhiteBalance`     |`S`| dict(none)       | `whitebal`   | Take a reference image from the live display and compute the white balance.
+| `revertAutoWhiteBalance`    |`S`| none             |              | This copies the contents of `wbCustom` into `wbMatrix`.
+| `startAutoFocus`            |   | dict(location)   |              | Attempt to automatically focus the camera on a subject.
+| `startCalibration`          |`S`| dict(calTypes)   | varies       | Perform full calibration operations. Dict can have `blackCal`, `analogCal`, ior `zeroTimeBlackCal` set to true or false.
+| `startRecording`            |`S`| none             | `recording`  | Begin recording video data to memory.
+| `stopRecording`             |`S`| none             | `idle`       | Terimnate recording of video data to memory.
+| `flushRecording`            |`S`| none             |              | Flush recoreded video data from memory.
+| `startFilesave`             |   | dict             |              | TBD: A proxy for the `filesave` method in the Video API.
+| `softTrigger`               |`S`| none             |              | Generate a software trigger event.
+| `revertToDefaults`          |   | none             |              | Revert all settings to their default values (with optional parameter overrides).
+| `softReset`                 |`S`| none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
+| `getResolutionTimingLimits` |`S`| dict(resolution) |              | Test if a resolution is valid and return the timing limits (framerate) at that resolution. Example: `call --system --dest ca.krontech.chronos.control --object-path /ca/krontech/chronos/control --method ca.krontech.chronos.control.getResolutionTimingLimits "{'hRes': <1280>, 'vRes': <1020>}"` → `({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMaxFrames': <17542>, 'exposureMax': <925722>},)`. Maximum framerate is `1e9 / minFramePeriod`.
 
 All methods return a dictionary of parameters, normally this will just include
 the status dictionary, which minimally includes `state`, but may also include an
