@@ -305,7 +305,12 @@ class controlApi(dbus.service.Object):
         # Otherwise, we should load some sensible defaults and perform a zero
         # time black cal.
         if resChange or (startCal != self.camera.sensor.calFilename("test", ".bin")):
-            logging.warning('Sensor configuration chage requires new calibration')
+            if not self.camera.loadCalibration():
+                logging.warning('Sensor configuration chage requires new calibration')
+                try:
+                    self.runGenerator(self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True, saveCal=False))
+                finally:
+                    pass
 
         # For any keys that don't exist - try setting them in the video API.
         # TODO: We should catch the async response and pass errors back to the

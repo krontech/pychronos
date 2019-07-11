@@ -478,10 +478,69 @@ class camera:
         self.wbMatrix = whiteBalance
         self.__setState('idle')
     
-    def __startBlackCal(self, numFrames=16, useLiveBuffer=True):
+    def __applyBlackCal(self, fSize, fAverage):
+        display = regmaps.display()
+
+        # Readout the column gain and linearity calibration.
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, fSize.hRes * 2)
+        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, fSize.hRes * 2)
+        colOffsetRegs = pychronos.fpgamap(pychronos.FPGA_COL_OFFSET_BASE, fSize.hRes * 2)
+        gain = numpy.asarray(colGainRegs.mem16, dtype=numpy.uint16) / (1 << 12)
+        curve = numpy.asarray(colCurveRegs.mem16, dtype=numpy.int16) / (1 << 21)
+        offsets = numpy.asarray(colOffsetRegs.mem16, dtype=numpy.int16)
+
+        # For each column, the average gives the DC component of the FPN, which
+        # gets applied to the column calibration as the constant term. The column
+        # calibration function is given by:
+        #
+        # f(x) = curve * x^2 + gain * x + offset
+        #
+        # For the FPN to be black, we expected f(fpn) == 0, and therefore:
+        #
+        # offset = -(curve * fpn^2 + gain * fpn)
+        colAverage = numpy.average(fAverage, 0)
+        colOffset = curve * (colAverage * colAverage) + gain * colAverage
+        # TODO: Would be nice to have a write helper.
+        for x in range(0, fSize.hRes):
+            colOffsetRegs.mem16[x] = int(-colOffset[x]) & 0xffff
+
+        # For each pixel, the AC component of the FPN can be found by subtracting
+        # the column average, which we will load into the per-pixel FPN region as
+        # a signed quantity.
+        #
+        # TODO: For even better calibration, this should actually take the slope
+        # into consideration around the FPN, in which case we would also divide
+        # by the derivative of f'(fpn) for the column.
+        fpn = numpy.int16(fAverage - colAverage)
+        pychronos.writeframe(display.fpnAddr, fpn)
+
+        logging.info('loaded black calibration: min=%d, max=%d, deviation=%d',
+                     numpy.min(fAverage), numpy.max(fAverage), numpy.std(fAverage))
+
+    def __loadBlackCal(self, calLocation):
+        fSize = self.sensor.getCurrentGeometry()
+        fName = calLocation + "/fpn/fpn%dx%doffset%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset)
+        fpnFile = self.sensor.calFilename(fName, '.raw')
+        try:
+            logging.info("Loading black calibration from %s", fpnFile)
+            fpnData = numpy.reshape(numpy.fromfile(fpnFile, dtype=numpy.uint16), (fSize.vRes, fSize.hRes))
+            self.__applyBlackCal(fSize, fpnData)
+            return True
+        except Exception as err:
+            display = regmaps.display()
+
+            # Clear the column offsets.
+            colOffsetRegs = pychronos.fpgamap(pychronos.FPGA_COL_OFFSET_BASE, fSize.hRes * 2)
+            for x in range(0, fSize.hRes):
+                colOffsetRegs.mem16[x] = 0
+
+            # Clear the FPN region.
+            pychronos.writeframe(display.fpnAddr, numpy.zeros((fSize.vRes, fSize.hRes), dtype=numpy.uint16))
+            return False
+    
+    def __startBlackCal(self, numFrames=16, useLiveBuffer=True, saveLocation=None):
         # get the resolution from the display properties
         fSize = self.sensor.getCurrentGeometry()
-        display = regmaps.display()
         seq = regmaps.sequencer()
 
         fAverage = numpy.zeros((fSize.vRes, fSize.hRes))
@@ -509,46 +568,16 @@ class camera:
                 addr += seq.frameSize
                 yield 0
 
-        fAverage /= numFrames
-        
-        # Readout the column gain and linearity calibration.
-        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, fSize.hRes * 2)
-        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, fSize.hRes * 2)
-        colOffsetRegs = pychronos.fpgamap(pychronos.FPGA_COL_OFFSET_BASE, fSize.hRes * 2)
-        gain = numpy.asarray(colGainRegs.mem16, dtype=numpy.uint16) / (1 << 12)
-        curve = numpy.asarray(colCurveRegs.mem16, dtype=numpy.int16) / (1 << 21)
-        offsets = numpy.asarray(colOffsetRegs.mem16, dtype=numpy.int16)
-        yield 0
-
-        # For each column, the average gives the DC component of the FPN, which
-        # gets applied to the column calibration as the constant term. The column
-        # calibration function is given by:
-        #
-        # f(x) = curve * x^2 + gain * x + offset
-        #
-        # For the FPN to be black, we expected f(fpn) == 0, and therefore:
-        #
-        # offset = -(curve * fpn^2 + gain * fpn)
-        colAverage = numpy.average(fAverage, 0)
-        colOffset = curve * (colAverage * colAverage) + gain * colAverage
-        # TODO: Would be nice to have a write helper.
-        for x in range(0, fSize.hRes):
-            colOffsetRegs.mem16[x] = int(-colOffset[x]) & 0xffff
-        yield 0
-
-        # For each pixel, the AC component of the FPN can be found by subtracting
-        # the column average, which we will load into the per-pixel FPN region as
-        # a signed quantity.
-        #
-        # TODO: For even better calibration, this should actually take the slope
-        # into consideration around the FPN, in which case we would also divide
-        # by the derivative of f'(fpn) for the column.
-        fpn = numpy.int16(fAverage - colAverage)
-        pychronos.writeframe(display.fpnAddr, fpn)
-
-        logging.info('black calibration complete: min=%d, max=%d, deviation=%d',
-                     numpy.min(fAverage), numpy.max(fAverage), numpy.std(fAverage))
+        # Load the FPN data.
+        self.__applyBlackCal(fSize, fAverage / numFrames)
         self.__setState('idle')
+
+        # Write the FPN data to file.
+        if saveLocation:
+            fName = saveLocation + "/fpn/fpn%dx%doffset%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset)
+            fpnFile = self.sensor.calFilename(fName, '.raw')
+            logging.info("Saving black calibration to %s", fpnFile)
+            numpy.array(fAverage / numFrames, dtype=numpy.uint16).tofile(fpnFile)
 
     def __startZeroTimeBlackCal(self):
         """Begin the black calibration procedure using a zero-time exposure.
@@ -600,7 +629,7 @@ class camera:
         # Restore the previous exposure settings.
         self.__setupExposure(self.__exposurePeriod, self.__exposureMode)
     
-    def startCalibration(self, blackCal=False, analogCal=False, zeroTimeBlackCal=False):
+    def startCalibration(self, blackCal=False, analogCal=False, zeroTimeBlackCal=False, saveCal=False):
         """Begin one or more calibration procedures at the current settings.
 
         Black calibration takes a sequence of images with the lens cap or shutter
@@ -620,6 +649,8 @@ class camera:
             zeroTimeBlackCal (bool, optional): Perform a fast black calibration
                 by reducing the exposure time and aperture to their minimum values.
                 (default: false)
+            saveCal (bool, optional): Whether the results of calibration should be
+                saved to the filesystem for later use.
         
         Yields:
             float : The sleep time, in seconds, between steps of the calibration procedure.
@@ -638,7 +669,7 @@ class camera:
             logging.info('starting analog calibration')
             self.__setState('analogcal')
             try:
-                yield from self.sensor.startAnalogCal("/var/camera/cal")
+                yield from self.sensor.startAnalogCal("/var/camera/cal" if saveCal else None)
             except Exception as e:
                 self.__setState('idle')
                 raise e
@@ -648,13 +679,17 @@ class camera:
         if blackCal:
             self.__setState('blackcal')
             logging.info('starting standard black calibration')
-            yield from self.__startBlackCal()
+            yield from self.__startBlackCal(saveLocation="/var/camera/cal" if saveCal else None)
             self.__setState('idle')
         elif zeroTimeBlackCal:
             self.__setState('blackcal')
             logging.info('starting zero time black calibration')
             yield from self.__startZeroTimeBlackCal()
             self.__setState('idle')
+
+    def loadCalibration(self):
+        self.sensor.loadAnalogCal("/var/camera/cal")
+        return self.__loadBlackCal("/var/camera/cal")
 
     #===============================================================================================
     # API Parameters: Configuration Dictionary

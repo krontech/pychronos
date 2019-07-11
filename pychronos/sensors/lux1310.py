@@ -821,7 +821,7 @@ class lux1310(api):
         try:
             with open(loadFilename, 'r') as fp:
                 # Read calibration from the file.
-                logging.error("Loading lux1310 calibration data from %s", loadFilename)
+                logging.info("Loading lux1310 calibration data from %s", loadFilename)
                 calData = json.load(fp)
                 self.adcOffsets = list(calData['offsets'])
                 self.gain3pt = numpy.array(calData['gain'], dtype=numpy.float)
