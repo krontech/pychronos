@@ -8,9 +8,8 @@ import datetime
 import pychronos
 import pychronos.regmaps as regmaps
 import pychronos.spd as spd
+from pychronos.power import power
 from pychronos.error import *
-
-import power
 
 from . import utils
 
@@ -81,9 +80,8 @@ class camera:
     FPN_ADDRESS = CAL_REGION_START
 
     def __init__(self, sensor, onChange=None):
-        self.power = power.powerClass
-        self.power.openPowerSocket(self.power)
         self.sensor = sensor
+        self.power = power()
         self.configFile = None
         self.dimmSize = [0, 0]
 
@@ -1113,24 +1111,18 @@ class camera:
         
     @saveAndPowerDownWhenLowBattery.setter
     def saveAndPowerDownWhenLowBattery(self, val):
-        print("SAVEANDPOWERDOWN:", val)
-        #logging.warn('Value not implemented, using dummy.')
         self._saveAndPowerDownWhenLowBattery = val
         self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
         self.__propChange("saveAndPowerDownWhenLowBattery")
 
-    
     _powerOnWhenMainsConnected = False
     @camProperty(notify=True, save=True)
     def powerOnWhenMainsConnected(self):
         """bool: Set to `True` to have the camera turn itself on when it is plugged in. The inverse of this, turning off when the charger is disconnected, is achieved by setting the camera to turn off at any battery percentage. For example, to make the camera turn off when it is unpowered and turn on when it is powered again - effectively only using the battery to finish saving - you could make the following call: `api.set({ 'powerOnWhenMainsConnected':True, 'saveAndPowerDownWhenLowBattery':True, 'saveAndPowerDownLowBatteryLevelPercent':100.0 })`."""
-        #logging.warn('Value not implemented, using dummy.')
         return self._powerOnWhenMainsConnected
         
     @powerOnWhenMainsConnected.setter
     def powerOnWhenMainsConnected(self, val):
-        #logging.warn('Value not implemented, using dummy.')
-        print("AUTOPOWERON:", val)
         self._powerOnWhenMainsConnected = val
         self.__propChange("powerOnWhenMainsConnected")
         self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)

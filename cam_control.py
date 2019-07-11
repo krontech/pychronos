@@ -438,11 +438,10 @@ class controlApi(dbus.service.Object):
 
         # Reload the configuration.
         self.loadConfig()
-        # Reload calibration data.
-        self.camera.sensor.loadAnalogCal(self.calLocation)
 
-        # Re-run initial black calibration.
-        yield from self.camera.startCalibration(zeroTimeBlackCal=True)
+        # Reload, or generate initial calibration data.
+        if not self.loadCalibration():
+            yield from self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True, saveCal=False)
 
         # Re-configure the video system back into live display.
         res = self.camera.resolution
@@ -584,7 +583,7 @@ class powerTimer:
         self.camera = camera
 
     def __call__(self, *args):
-        self.camera.power.nonBlockPowerSocket(self.camera.power)
+        self.camera.power.checkPowerSocket()
         if self.camera.power.lastAcAdaptorPresent != self.camera.power.acAdaptorPresent:
             self.camera.externalPowerChanged()
         return True
