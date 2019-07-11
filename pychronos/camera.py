@@ -1049,14 +1049,25 @@ class camera:
     def dateTime(self):
         """str: The current date and time in ISO-8601 format."""
         return datetime.datetime.now().isoformat()
-    
-    
+
+    @camProperty(notify=True)
+    def shippingMode(self):
+        """bool: True when the camera is configured for shipping mode"""
+        return bool(self.power.flags & POWER_SHIPPING_MODE)
+
     @camProperty(notify=True)
     def externalPower(self):
         """bool: True when the AC adaptor is present, and False when on battery power."""
-        logging.warn('Value not implemented, using dummy.')
-        return bool(self.power.flags & 2)
+        return bool(self.power.flags & POWER_ADAPTOR_PRESENT)
     
+    def externalPowerChanged(self):
+        self.__propChange("externalPower")
+
+    @camProperty()
+    def batteryPresent(self):
+        """bool: True when the battery is installed, and False when the camera is only running on adaptor power"""
+        return bool(self.power.flags & POWER_BATTERY_PRESENT)
+
     @camProperty()
     def batteryChargePercent(self):
         """float: Estimated battery charge, with 0% being fully depleted and 100% being fully charged."""
@@ -1070,10 +1081,7 @@ class camera:
     @camProperty()
     def batteryVoltage(self):
         """float: The voltage that is currently being output from the removable battery. A healthy and fully charged battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
-        #TEMPORARY query:
-        self.power.queryPowerSocket(self.power)
-
-        return self.power.battVoltageCam
+        return self.power.battVoltageCam / 1000
         
     @camProperty(notify=True, save=True, derivedFrom='saveAndPowerDownLowBatteryLevelPercent')
     def saveAndPowerDownLowBatteryLevelNormalized(self):
@@ -1093,7 +1101,6 @@ class camera:
         
     @saveAndPowerDownLowBatteryLevelPercent.setter
     def saveAndPowerDownLowBatteryLevelPercent(self, val):
-        logging.warn('Value not implemented, using dummy.')
         self._saveAndPowerDownLowBatteryLevelPercent = val
         self.__propChange("saveAndPowerDownLowBatteryLevelNormalized")
         self.__propChange("saveAndPowerDownLowBatteryLevelPercent")
@@ -1102,27 +1109,31 @@ class camera:
     @camProperty(notify=True, save=True)
     def saveAndPowerDownWhenLowBattery(self):
         """bool: Should the camera try to turn off gracefully when the battery is low? The low level is set by `saveAndPowerDownLowBatteryLevelPercent` (or `saveAndPowerDownLowBatteryLevelNormalized`). The opposite of `powerOnWhenMainsConnected`. See `powerOnWhenMainsConnected` for an example which sets the camera to turn on and off when external power is supplied."""
-        logging.warn('Value not implemented, using dummy.')
         return self._saveAndPowerDownWhenLowBattery
         
     @saveAndPowerDownWhenLowBattery.setter
     def saveAndPowerDownWhenLowBattery(self, val):
-        logging.warn('Value not implemented, using dummy.')
+        print("SAVEANDPOWERDOWN:", val)
+        #logging.warn('Value not implemented, using dummy.')
         self._saveAndPowerDownWhenLowBattery = val
+        self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
         self.__propChange("saveAndPowerDownWhenLowBattery")
+
     
     _powerOnWhenMainsConnected = False
     @camProperty(notify=True, save=True)
     def powerOnWhenMainsConnected(self):
         """bool: Set to `True` to have the camera turn itself on when it is plugged in. The inverse of this, turning off when the charger is disconnected, is achieved by setting the camera to turn off at any battery percentage. For example, to make the camera turn off when it is unpowered and turn on when it is powered again - effectively only using the battery to finish saving - you could make the following call: `api.set({ 'powerOnWhenMainsConnected':True, 'saveAndPowerDownWhenLowBattery':True, 'saveAndPowerDownLowBatteryLevelPercent':100.0 })`."""
-        logging.warn('Value not implemented, using dummy.')
+        #logging.warn('Value not implemented, using dummy.')
         return self._powerOnWhenMainsConnected
         
     @powerOnWhenMainsConnected.setter
     def powerOnWhenMainsConnected(self, val):
-        logging.warn('Value not implemented, using dummy.')
+        #logging.warn('Value not implemented, using dummy.')
+        print("AUTOPOWERON:", val)
         self._powerOnWhenMainsConnected = val
         self.__propChange("powerOnWhenMainsConnected")
+        self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
     
     
     _backlightEnabled = True
@@ -1136,9 +1147,7 @@ class camera:
         logging.warn('Value not implemented, using dummy.')
         self._backlightEnabled = isEnabled
         self.__propChange("backlightEnabled")
-    
-    
-    
+
     @camProperty()
     def externalStorage(self):
         """dict: The currently attached external storage partitions and their status. The sizes
@@ -1302,7 +1311,7 @@ class camera:
         # Changing resolution affects recording length.
         self.__propChange("cameraMaxFrames")
         self.__propChange("recMaxFrames")
-    
+
     @camProperty(notify=True)
     def minFramePeriod(self):
         """int: The minimum frame period, in nanoseconds, at the current resolution settings."""
