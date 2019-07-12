@@ -3,15 +3,6 @@ import socket
 import sys
 import select
 
-# Power information bit masks
-POWER_BATTERY_PRESENT   = 1 << 0
-POWER_ADAPTOR_PRESENT   = 1 << 1
-POWER_CHARGING          = 1 << 2
-POWER_AUTO_POWERON      = 1 << 3
-POWER_OVER_TEMP         = 1 << 4
-POWER_SHIPPING_MODE     = 1 << 5
-POWER_SHUTDOWN_REQUEST  = 1 << 6
-
 def within(x, min, max):
     if x > max:
         return max
@@ -20,6 +11,15 @@ def within(x, min, max):
     return x
 
 class power:
+    # Power flag bitmasks.
+    FLAG_BATTERY_PRESENT   = 1 << 0
+    FLAG_ADAPTOR_PRESENT   = 1 << 1
+    FLAG_CHARGING          = 1 << 2
+    FLAG_AUTO_POWERON      = 1 << 3
+    FLAG_OVER_TEMP         = 1 << 4
+    FLAG_SHIPPING_MODE     = 1 << 5
+    FLAG_SHUTDOWN_REQUEST  = 1 << 6
+
     def __init__(self, path="/tmp/pcUtil.socket"):
         self.battCapacityPercent = 0
         self.battSOHPercent = 0
@@ -74,15 +74,15 @@ class power:
                 self.flags = value
             elif element == "fanPWM":
                 self.fanPWM = value
-        if self.flags & POWER_CHARGING:	
+        if self.flags & self.FLAG_CHARGING:	
             self.battCapacityPercent = within((self.battVoltageCam/1000.0 - 10.75) / (12.4 - 10.75) * 80, 0.0, 80.0) + \
                 20 - 20*within((self.battCurrentCam/1000.0 - 0.1) / (1.28 - 0.1), 0.0, 1.0) 
         else:
             self.battCapacityPercent = within((self.battVoltageCam/1000.0 - 9.75) / (11.8 - 9.75) * 100, 0.0, 100.0)
-        if not self.flags & POWER_ADAPTOR_PRESENT:
+        if not self.flags & self.FLAG_ADAPTOR_PRESENT:
             self.battVoltageCam = 0
             self.battCapacityPercent = 0
-        self.acAdaptorPresent = bool(self.flags & POWER_ADAPTOR_PRESENT)
+        self.acAdaptorPresent = bool(self.flags & self.FLAG_ADAPTOR_PRESENT)
 
     def checkPowerSocket(self):
         if not self.gclient:
@@ -93,12 +93,12 @@ class power:
         readable, writeable, exceptional = select.select(inputs, outputs, inputs, 0)
         if (readable):
             try:
-                ret = gclient.recv(1000)
-                self.parsePower(self, ret)
+                ret = self.gclient.recv(1000)
+                self.parsePower(ret)
                 return True
             except KeyboardInterrupt as k:
                 logging.info("Shutting down.")
-                gclient.close()
+                self.gclient.close()
                 return False
         return False
 

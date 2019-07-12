@@ -1051,12 +1051,12 @@ class camera:
     @camProperty(notify=True)
     def shippingMode(self):
         """bool: True when the camera is configured for shipping mode"""
-        return bool(self.power.flags & POWER_SHIPPING_MODE)
+        return bool(self.power.flags & self.power.FLAG_SHIPPING_MODE)
 
     @camProperty(notify=True)
     def externalPower(self):
         """bool: True when the AC adaptor is present, and False when on battery power."""
-        return bool(self.power.flags & POWER_ADAPTOR_PRESENT)
+        return bool(self.power.flags & self.power.FLAG_ADAPTOR_PRESENT)
     
     def externalPowerChanged(self):
         self.__propChange("externalPower")
@@ -1064,7 +1064,7 @@ class camera:
     @camProperty()
     def batteryPresent(self):
         """bool: True when the battery is installed, and False when the camera is only running on adaptor power"""
-        return bool(self.power.flags & POWER_BATTERY_PRESENT)
+        return bool(self.power.flags & self.power.FLAG_BATTERY_PRESENT)
 
     @camProperty()
     def batteryChargePercent(self):
