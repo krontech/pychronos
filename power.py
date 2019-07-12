@@ -12,6 +12,9 @@ POWER_OVER_TEMP         = 1 << 4
 POWER_SHIPPING_MODE     = 1 << 5
 POWER_SHUTDOWN_REQUEST  = 1 << 6
 
+AUTOPOWER_ON 			= 1 << 0
+AUTOPOWER_OFF			= 1 << 1
+
 gclient = None
 
 def within(x, min, max):
@@ -108,17 +111,25 @@ class powerClass:
 		return False
 
 	def setShippingMode(self, en):
+
 		"""This sets whether shipping mode is enabled"""
 		if en:
-			gclient.send("SET_SHIPPING_MODE_ENABLED".encode('utf-8'))
+			self.sendToPcUtil(self, "SET_SHIPPING_MODE_ENABLED")
 		else:
-			gclient.send("SET_SHIPPING_MODE_DISABLED".encode('utf-8'))
+			self.sendToPcUtil(self, "SET_SHIPPING_MODE_DISABLED")
 
 	def setPowerMode(self, powerOn, powerOff):
 		"""This sets the automatic power-on and automatic save and power-off, when the power supply is connected or disconnected"""
-		num = powerOn + 2*powerOff
-		modeStr = "SET_POWERUP_MODE_" + str(num)
-		gclient.send(modeStr.encode('utf-8'))				
+		num = powerOn + 2 * powerOff
+		if (num == 0): modeStr = "SET_POWERUP_MODE_0"
+		elif (num == 1): modeStr = "SET_POWERUP_MODE_1"
+		elif (num == 2): modeStr = "SET_POWERUP_MODE_2"
+		elif (num == 3): modeStr = "SET_POWERUP_MODE_3"
+		self.sendToPcUtil(self, modeStr)
+
+	def sendToPcUtil(self, msg):
+		logging.info("Send to pcUtil:", msg)
+		gclient.send(msg.encode('utf-8'))				
 
 if os.path.exists("/tmp/pcUtil.socket"):
 	gclient = socket.socket(socket.AF_UNIX) #, socket.SOCK_STREAM)

@@ -111,7 +111,11 @@ class camera:
 
         self.ioInterface = regmaps.ioInterface()
 
-        
+        self.__powerOnWhenMainsConnected = False
+        self.__powerOffWhenMainsDisconnected = False
+        self.__saveAndPowerDownLowBatteryLevelPercent = 5
+        self.__saveAndPowerDownWhenLowBattery = True
+        self.__shippingMode = False
         
     def __propChange(self, name):
         """Quick and dirty wrapper to throw an on-change event by name"""
@@ -730,6 +734,7 @@ class camera:
     def cameraIdNumber(self):
         """int: Unique camera number assigned by the user"""
         return self.idNumber
+
     @cameraIdNumber.setter
     def cameraIdNumber(self, value):
         try:
@@ -1005,23 +1010,29 @@ class camera:
         """str: The current date and time in ISO-8601 format."""
         return datetime.datetime.now().isoformat()
 
-    @camProperty(notify=True)
+    @camProperty(notify=True, save = True)
     def shippingMode(self):
         """bool: True when the camera is configured for shipping mode"""
-        return bool(self.power.flags & POWER_SHIPPING_MODE)
+        return self.__shippingMode
+    @shippingMode.setter
+    def shippingMode(self, val):
+        self.__shippingMode = val
+        self.__propChange("shippingMode")
+        self.power.setShippingMode(self.power, val)
 
     @camProperty(notify=True)
     def externalPower(self):
         """bool: True when the AC adaptor is present, and False when on battery power."""
-        return bool(self.power.flags & POWER_ADAPTOR_PRESENT)
+        return bool(self.power.flags & power.POWER_ADAPTOR_PRESENT)
     
+    # A helper function
     def externalPowerChanged(self):
         self.__propChange("externalPower")
 
     @camProperty()
     def batteryPresent(self):
         """bool: True when the battery is installed, and False when the camera is only running on adaptor power"""
-        return bool(self.power.flags & POWER_BATTERY_PRESENT)
+        return bool(self.power.flags & power.POWER_BATTERY_PRESENT)
 
     @camProperty()
     def batteryChargePercent(self):
@@ -1041,54 +1052,50 @@ class camera:
     @camProperty(notify=True, save=True, derivedFrom='saveAndPowerDownLowBatteryLevelPercent')
     def saveAndPowerDownLowBatteryLevelNormalized(self):
         """float: Equivalent to `saveAndPowerDownLowBatteryLevelPercent`, but based against `batteryChargeNormalized` which is always 1% of `batteryChargePercent`."""
-        return self.saveAndPowerDownLowBatteryLevelPercent / 100
-        
+        return self.__saveAndPowerDownLowBatteryLevelPercent / 100
     @saveAndPowerDownLowBatteryLevelNormalized.setter
     def saveAndPowerDownLowBatteryLevelNormalized(self, val):
-        self.saveAndPowerDownLowBatteryLevelPercent = val * 100
+        self.__saveAndPowerDownLowBatteryLevelPercent = val * 100
     
-    _saveAndPowerDownLowBatteryLevelPercent = 4
     @camProperty(notify=True, save=True)
     def saveAndPowerDownLowBatteryLevelPercent(self):
         """float: Turn off the camera if the battery charge level, reported by `batteryChargePercent`, falls below this level. The camera will start saving any recorded footage before it powers down. If this level is too low, the camera may run out of battery and stop before it finishes saving."""
-        logging.warn('Value not implemented, using dummy.')
-        return self._saveAndPowerDownLowBatteryLevelPercent
-        
+        return self.__saveAndPowerDownLowBatteryLevelPercent
     @saveAndPowerDownLowBatteryLevelPercent.setter
     def saveAndPowerDownLowBatteryLevelPercent(self, val):
-        self._saveAndPowerDownLowBatteryLevelPercent = val
+        self.__saveAndPowerDownLowBatteryLevelPercent = val
         self.__propChange("saveAndPowerDownLowBatteryLevelNormalized")
         self.__propChange("saveAndPowerDownLowBatteryLevelPercent")
     
-    _saveAndPowerDownWhenLowBattery = False
     @camProperty(notify=True, save=True)
     def saveAndPowerDownWhenLowBattery(self):
         """bool: Should the camera try to turn off gracefully when the battery is low? The low level is set by `saveAndPowerDownLowBatteryLevelPercent` (or `saveAndPowerDownLowBatteryLevelNormalized`). The opposite of `powerOnWhenMainsConnected`. See `powerOnWhenMainsConnected` for an example which sets the camera to turn on and off when external power is supplied."""
-        return self._saveAndPowerDownWhenLowBattery
-        
+        return self.__saveAndPowerDownWhenLowBattery
     @saveAndPowerDownWhenLowBattery.setter
     def saveAndPowerDownWhenLowBattery(self, val):
-        print("SAVEANDPOWERDOWN:", val)
-        #logging.warn('Value not implemented, using dummy.')
-        self._saveAndPowerDownWhenLowBattery = val
-        self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
+        self.__saveAndPowerDownWhenLowBattery = val
         self.__propChange("saveAndPowerDownWhenLowBattery")
 
     
-    _powerOnWhenMainsConnected = False
     @camProperty(notify=True, save=True)
     def powerOnWhenMainsConnected(self):
-        """bool: Set to `True` to have the camera turn itself on when it is plugged in. The inverse of this, turning off when the charger is disconnected, is achieved by setting the camera to turn off at any battery percentage. For example, to make the camera turn off when it is unpowered and turn on when it is powered again - effectively only using the battery to finish saving - you could make the following call: `api.set({ 'powerOnWhenMainsConnected':True, 'saveAndPowerDownWhenLowBattery':True, 'saveAndPowerDownLowBatteryLevelPercent':100.0 })`."""
-        #logging.warn('Value not implemented, using dummy.')
-        return self._powerOnWhenMainsConnected
-        
+        """bool: Set to `True` to have the camera turn itself on when it is plugged in.""" 
+        return self.__powerOnWhenMainsConnected
     @powerOnWhenMainsConnected.setter
     def powerOnWhenMainsConnected(self, val):
-        #logging.warn('Value not implemented, using dummy.')
-        print("AUTOPOWERON:", val)
-        self._powerOnWhenMainsConnected = val
+        self.__powerOnWhenMainsConnected = val
         self.__propChange("powerOnWhenMainsConnected")
-        self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
+        self.power.setPowerMode(self.power, self.__powerOnWhenMainsConnected, self.__powerOffWhenMainsDisconnected)
+    
+    @camProperty(notify=True, save=True)
+    def powerOffWhenMainsDisconnected(self):
+        """bool: Set to `True` to have the camera turn itself off when it is unplugged. The camera effectively only uses the battery to finish saving."""
+        return self.__powerOffWhenMainsDisconnected
+    @powerOffWhenMainsDisconnected.setter
+    def powerOffWhenMainsDisconnected(self, val):
+        self.__powerOffWhenMainsDisconnected = val
+        self.__propChange("powerOffWhenMainsDisconnected")
+        self.power.setPowerMode(self.power, self.__powerOnWhenMainsConnected, self.__powerOffWhenMainsDisconnected)
     
     
     _backlightEnabled = True
