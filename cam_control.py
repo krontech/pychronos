@@ -440,7 +440,7 @@ class controlApi(dbus.service.Object):
         self.loadConfig()
 
         # Reload, or generate initial calibration data.
-        if not self.loadCalibration():
+        if not self.camera.loadCalibration():
             yield from self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True, saveCal=False)
 
         # Re-configure the video system back into live display.
