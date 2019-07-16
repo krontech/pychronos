@@ -1112,7 +1112,7 @@ class camera:
     @saveAndPowerDownWhenLowBattery.setter
     def saveAndPowerDownWhenLowBattery(self, val):
         self._saveAndPowerDownWhenLowBattery = val
-        self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
+        self.power.setPowerMode(self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
         self.__propChange("saveAndPowerDownWhenLowBattery")
 
     _powerOnWhenMainsConnected = False
@@ -1125,7 +1125,7 @@ class camera:
     def powerOnWhenMainsConnected(self, val):
         self._powerOnWhenMainsConnected = val
         self.__propChange("powerOnWhenMainsConnected")
-        self.power.setPowerMode(self.power, self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
+        self.power.setPowerMode(self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
     
     
     _backlightEnabled = True
