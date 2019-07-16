@@ -283,8 +283,8 @@ class ioInterface(pychronos.fpgamap):
         the returned dictionary matches the requirements for setSourceConfiguration.
         '''
         propSource        = self.__class__.__dict__.get('%sSource'%(name))
-        propInvertInput   = self.__class__.__dict__.get('%sDebounce'%(name))
-        propDebounce      = self.__class__.__dict__.get('%sInvertInput'%(name))
+        propInvertInput   = self.__class__.__dict__.get('%sInvertInput'%(name))
+        propDebounce      = self.__class__.__dict__.get('%sDebounce'%(name))
         propDriveStrength = self.__class__.__dict__.get('%sDriveStrength'%(name))
         propTriggersFrame = self.__class__.__dict__.get('%sTriggersFrame'%(name))
         if not propSource:
