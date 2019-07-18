@@ -91,6 +91,7 @@ class camera:
         self.__recMaxFrames = 0
         self.__recSegments = 1
         self.__recPreBurst = 1
+        self.__recTrigDelay = 0
         self.__exposureMode = 'normal'
         self.__exposurePeriod = self.sensor.getCurrentExposure()
         self.__tallyMode = 'auto'
@@ -315,6 +316,7 @@ class camera:
         
         # Begin recording.
         self.__setState('recording')
+        seq.trigDelay = self.__recTrigDelay
         seq.control |= seq.START_REC
         seq.control &= ~seq.START_REC
 
@@ -354,16 +356,16 @@ class camera:
             yield from self.startCustomRecording([cmd])
         elif mode == 'segmented':
             # Record into segments 
-            cmd = regmaps.seqcommand(blockSize=self.recMaxFrames / self.recSegments,
-                            blkTermFull=True, blkTermRising=True,
-                            recTermMemory=True, recTermBlockEnd=(self.recSegments > 1))
+            cmd = regmaps.seqcommand(blockSize=self.recMaxFrames // self.recSegments,
+                            blkTermFull=False, blkTermRising=True,
+                            recTermMemory=False, recTermBlockEnd=False)
             yield from self.startCustomRecording([cmd])
         elif mode == 'burst':
             # When trigger is inactive, save the pre-record into a ring buffer.
-            precmd = regmaps.seqcommand(blockSize=self.recPreBurst, blkTermHigh=True)
+            precmd = regmaps.seqcommand(blockSize=self.recPreBurst, blkTermRising=True)
             # While trigger is active, save frames into the remaining memory.
             burstcmd = regmaps.seqcommand(blockSize=self.recMaxFrames - self.recPreBurst - 1,
-                            blkTermLow=True, recTermMemory=True)
+                            blkTermFalling=True, recTermMemory=False)
             yield from self.startCustomRecording([precmd, burstcmd])
         else:
             raise ValueError("recording mode of '%s' is not supported" % (mode))
@@ -1241,8 +1243,22 @@ class camera:
         if value < 1:
             raise ValueError("recPreBurst must be greater than zero")
         self.__checkState('idle')
-        self.__recSegments = value
+        self.__recPreBurst = value
         self.__propChange("recPreBurst")
+    
+    @camProperty(notify=True, save=True)
+    def recTrigDelay(self):
+        """int: The number of frames to delay the trigger rising edge by in 'normal' and 'segmented' recording modes."""
+        return self.__recTrigDelay
+    @recTrigDelay.setter
+    def recTrigDelay(self, value):
+        if not isinstance(value, int):
+            raise TypeError("recTrigDelay must be an integer")
+        if value < 0:
+            raise ValueError("recTrigDelay must be positive")
+        self.__checkState('idle')
+        self.__recTrigDelay = value
+        self.__propChange("recTrigDelay")
 
     @camProperty(notify=True)
     def cameraMaxFrames(self):
@@ -1472,6 +1488,7 @@ class camera:
     ioMappingShutter     = __camIoMapping('shutter',     'Shutter (signal to timing block) configuration')
     ioMappingStartRec    = __camIoMapping('start',       'Start recording (signal to record sequencer) configuration')
     ioMappingStopRec     = __camIoMapping('stop',        'Stop or end recording (signal to record sequencer) configuration')
+    ioMappingTrigger     = __camIoMapping('trigger',     'Trigger signal configuration')
 
     ioInputConfigIo1     = __camIoInputConfig('io1In', 'Input 1 config such as threshhold')
     ioInputConfigIo2     = __camIoInputConfig('io2In', 'Input 2 config such as threshhold')

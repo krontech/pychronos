@@ -93,7 +93,7 @@ class ioInterface(pychronos.fpgamap):
     gateSignalOut    = __bitprop_ro(0x10, 4, 14, 1, 'gate signal output state')
     toggleSignalOut  = __bitprop_ro(0x10, 4, 15, 1, 'toggle block signal output state')
     shutterSignalOut = __bitprop_ro(0x10, 4, 16, 1, 'shutter signal output state')
-    cpuIntSignalOut  = __bitprop_ro(0x10, 4, 17, 1, 'cpu interrupt signal output state')
+    triggerSignalOut = __bitprop_ro(0x10, 4, 17, 1, 'trigger signal output state')
 
     # raw channels
     channelStatus    = __regprop(0x14, 4,           'raw channel status')
@@ -204,10 +204,10 @@ class ioInterface(pychronos.fpgamap):
             self._shutterTriggersFrame = 0
             self._oldRegExtShutterCtl = 0
             
-    cpuIntSourceReg        = __regprop(0x3E, 2,       'cpuInt driver source and flags')
-    cpuIntSource           = __srcprop(0x3E,          'cpuInt source')
-    cpuIntInvertInput      = __bitprop(0x3E, 2, 8, 1, 'invert flag')
-    cpuIntDebounce         = __bitprop(0x3E, 2, 9, 1, 'debounce flag')
+    triggerSourceReg       = __regprop(0x3E, 2,       'trigger driver source and flags')
+    triggerSource          = __srcprop(0x3E,          'trigger source')
+    triggerInvertInput     = __bitprop(0x3E, 2, 8, 1, 'invert flag')
+    triggerDebounce        = __bitprop(0x3E, 2, 9, 1, 'debounce flag')
 
 
     # because there's a couple old registers still needed
@@ -228,7 +228,7 @@ class ioInterface(pychronos.fpgamap):
     #------------------------------------------------------------------------------------------------------
     # Source register controls
     validSourceControlNames = ['io1', 'io2', 'combOr1', 'combOr2', 'combOr3', 'combAnd', 'combXOr', 'delay',
-                               'toggleSet', 'toggleClear', 'toggleFlip', 'gate', 'start', 'stop', 'shutter', 'cpuInt']
+                               'toggleSet', 'toggleClear', 'toggleFlip', 'gate', 'start', 'stop', 'shutter', 'trigger']
 
     def setSourceConfiguration(self, name, structure):
         '''This helper function connects a given source to the signal with the given
@@ -236,7 +236,7 @@ class ioInterface(pychronos.fpgamap):
         
         The 'name' field must be one of:
             io1, io2, combOr1, combOr2, combOr3, combAnd, combXOr, delay, toggleSet,
-            toggleClear, toggleFlip, gate, start, stop, shutter or cpuInt
+            toggleClear, toggleFlip, gate, start, stop, shutter or trigger
 
         the structure is a dictionary with the following optional fields:
         'source' - a string or integer stating which source is to be connected
@@ -278,7 +278,7 @@ class ioInterface(pychronos.fpgamap):
 
         'name' must be one of: 
             io1, io2, combOr1, combOr2, combOr3, combAnd, combXOr, delay, toggleSet,
-            toggleClear, toggleFlip, gate, start, stop, shutter or cpuInt
+            toggleClear, toggleFlip, gate, start, stop, shutter or trigger
 
         the returned dictionary matches the requirements for setSourceConfiguration.
         '''
