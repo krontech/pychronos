@@ -44,6 +44,12 @@ computer. For example, on linux,
 sudo apt install python3 build-essential python3-sphinx sphinx-doc python3-numpy
 ```
 
+**To run the API webserver**, you will need the following additional packages.
+They can be installed on the camera by running
+```
+apt install python3-twisted python3-txdbus
+```
+
 In the base folder of the project, you can then build the documentation. This
 build will be output to the `~/docs` folder, so that [github
 pages](https://krontech.github.io/pychronos/) recognises it and
