@@ -1,7 +1,7 @@
-import os, time
+import os
 import socket
-import sys
 import select
+import re
 
 # Power information bit masks
 POWER_BATTERY_PRESENT   = 1 << 0
@@ -12,8 +12,8 @@ POWER_OVER_TEMP         = 1 << 4
 POWER_SHIPPING_MODE     = 1 << 5
 POWER_SHUTDOWN_REQUEST  = 1 << 6
 
-AUTOPOWER_ON 			= 1 << 0
-AUTOPOWER_OFF			= 1 << 1
+AUTOPOWER_ON            = 1 << 0
+AUTOPOWER_OFF           = 1 << 1
 
 gclient = None
 
@@ -25,7 +25,6 @@ def within(x, min, max):
 	return x
 
 class powerClass:
-
 	battCapacityPercent = 0
 	battSOHPercent = 0
 	battVoltage = 0
@@ -40,43 +39,17 @@ class powerClass:
 	acAdaptorPresent = False
 	lastAcAdaptorPresent = False
 	
-	bufferSize = 1000;
-	PATH = "/var/run/bmsFifo";
+	bufferSize = 1000
+	PATH = "/var/run/bmsFifo"
 	pipe = None
 	client = None
 
-	def parsePower(self, str):
-		"""Parse a string containing battery data"""
-		self.lastAcAdaptorPresent = self.acAdaptorPresent
-		elements = str.split()
-		if elements[0].decode('utf8') != "battCapacityPercent":
-			return
-		size = len(elements)
-		for i in range(0, size//2):
-			element = elements[2*i].decode('utf8')
-			value = int(elements[2*i + 1].decode('utf8'))
-			if element == "battCapacityPercent":
-				self.battCapacityPercent = value
-			elif element == "battSOHPercent":
-				self.battSOHPercent = value
-			elif element == "battVoltage":
-				self.battVoltage = value
-			elif element == "battCurrent":
-				self.battCurrent = value
-			elif element == "battHiResCap":
-				self.battHiResCap = value
-			elif element == "battHiResSOC":
-				self.battHiResSOC = value
-			elif element == "battVoltageCam":
-				self.battVoltageCam = value
-			elif element == "battCurrentCam":
-				self.battCurrentCam = value
-			elif element == "mbTemperature":
-				self.mbTemperature = value
-			elif element == "flags":
-				self.flags = value
-			elif element == "fanPWM":
-				self.fanPWM = value
+	parsePowerRegex = re.compile(b'([a-zA-Z]+) ([0-9]+)')
+	def parsePower(self, powerControllerMessages: bytes):
+		"""Parse bytes containing battery data."""
+		for key, value in self.parsePowerRegex.findall(powerControllerMessages):
+			setattr(self, key.decode('utf8'), int(value))
+		
 		if self.flags & POWER_CHARGING:	
 			self.battCapacityPercent = within((self.battVoltageCam/1000.0 - 10.75) / (12.4 - 10.75) * 80, 0.0, 80.0) + \
 				20 - 20*within((self.battCurrentCam/1000.0 - 0.1) / (1.28 - 0.1), 0.0, 1.0) 
@@ -85,6 +58,7 @@ class powerClass:
 		if not self.flags & POWER_ADAPTOR_PRESENT:
 			self.battVoltageCam = 0
 			self.battCapacityPercent = 0
+		self.lastAcAdaptorPresent = self.acAdaptorPresent
 		self.acAdaptorPresent = bool(self.flags & POWER_ADAPTOR_PRESENT)
 
 	def openPowerSocket(self):
@@ -104,7 +78,7 @@ class powerClass:
 					ret = gclient.recv(1000)
 					self.parsePower(self, ret)
 					return True
-				except KeyboardInterrupt as k:
+				except KeyboardInterrupt:
 					print("Shutting down.")
 					gclient.close()
 					break
