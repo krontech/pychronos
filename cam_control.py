@@ -53,6 +53,12 @@ class controlApi(dbus.service.Object):
         self.io = regmaps.ioInterface()
         self.display = regmaps.display()
 
+        # Try creating the calibration directory if it doesn't exist.
+        try:
+            os.makedirs(self.calLocation)
+        except OSError as e:
+            logging.info("Unable to create calibration directory at %s: %s", self.calLocation, e)
+
         # Install a callback to catch parameter and state changes.
         self.camera.setOnChange(self.onChangeHandler)
         self.changeset = None

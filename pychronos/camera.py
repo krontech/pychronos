@@ -574,10 +574,14 @@ class camera:
 
         # Write the FPN data to file.
         if saveLocation:
-            fName = saveLocation + "/fpn/fpn%dx%doffset%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset)
-            fpnFile = self.sensor.calFilename(fName, '.raw')
-            logging.info("Saving black calibration to %s", fpnFile)
-            numpy.array(fAverage / numFrames, dtype=numpy.uint16).tofile(fpnFile)
+            try:
+                os.makedirs(saveLocation + "/fpn")
+                fName = saveLocation + "/fpn/fpn%dx%doffset%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset)
+                fpnFile = self.sensor.calFilename(fName, '.raw')
+                logging.info("Saving black calibration to %s", fpnFile)
+                numpy.array(fAverage / numFrames, dtype=numpy.uint16).tofile(fpnFile)
+            except OSError as e:
+                logging.error("Failed to write black calibration: %s", e)
 
     def __startZeroTimeBlackCal(self):
         """Begin the black calibration procedure using a zero-time exposure.
