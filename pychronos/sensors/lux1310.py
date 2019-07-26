@@ -130,8 +130,10 @@ class lux1310(api):
         
         ## ADC Calibration state
         self.adcOffsets = [0] * self.ADC_CHANNELS
-
         self.__nTrigFrames = 5
+
+        ## Save the real resolution for when cal is in progress.
+        self.fSizeReal = None
 
         self.currentProgram = self.timing.PROGRAM_STANDARD
         self.frameClocks = int(0.001 * self.LUX1310_SENSOR_HZ)
@@ -273,6 +275,10 @@ class lux1310(api):
         return size
     
     def getCurrentGeometry(self):
+        # If calibration is in progress, return the saved geometry instead.
+        if self.fSizeReal:
+            return copy.deepcopy(self.fSizeReal)
+        
         fSize = self.getMaxGeometry()
         fSize.hRes = self.regs.regXend - 0x20 + 1
         fSize.hOffset = self.regs.regXstart - 0x20
@@ -757,8 +763,8 @@ class lux1310(api):
 
     def startAnalogCal(self, saveLocation=None):     
         # Retrieve the current resolution and frame period.
-        fSizePrev = self.getCurrentGeometry()
-        fSizeCal = copy.deepcopy(fSizePrev)
+        self.fSizeReal = self.getCurrentGeometry()
+        fSizeCal = copy.deepcopy(self.fSizeReal)
         fPeriod = self.frameClocks / self.LUX1310_SENSOR_HZ
 
         # Enable black bars if not already done.
@@ -797,8 +803,9 @@ class lux1310(api):
         logging.debug("Restoring sensor configuration")
         self.timing.programInterm()
         time.sleep(0.01) # Extra delay to allow frame readout to finish. 
-        self.updateReadoutWindow(fSizePrev)
-        self.updateWavetable(fSizePrev, frameClocks=self.frameClocks, gaincal=False)
+        self.updateReadoutWindow(self.fSizeReal)
+        self.updateWavetable(self.fSizeReal, frameClocks=self.frameClocks, gaincal=False)
+        self.fSizeReal = None
 
         # Restore the timing program
         if (self.currentProgram == self.timing.PROGRAM_STANDARD):
