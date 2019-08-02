@@ -53,7 +53,7 @@ class power:
                 20 - 20*within((self.battCurrentCam/1000.0 - 0.1) / (1.28 - 0.1), 0.0, 1.0) 
         else:
             self.battCapacityPercent = within((self.battVoltageCam/1000.0 - 9.75) / (11.8 - 9.75) * 100, 0.0, 100.0)
-        if not self.flags & self.FLAG_ADAPTOR_PRESENT:
+        if not self.flags & self.FLAG_BATTERY_PRESENT:
             self.battVoltageCam = 0
             self.battCapacityPercent = 0
         
