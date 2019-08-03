@@ -5,16 +5,20 @@ import math
 import copy
 import numpy
 import logging
+import json
 
-from pychronos.regmaps import sequencer
+from pychronos.error import *
+from pychronos.regmaps import sequencer, ioInterface
 from pychronos.sensors import api, frameGeometry
+from . import lux2100regs, lux2100wt, lux2100timing
 
 class lux2100(api):
-    """Driver for the Luxima LUX1310 image sensor.
+    """Driver for the Luxima LUX2100 image sensor.
 
     The board dictionary may provide the following pins:
         lux2100-spidev: Path to the spidev driver for the voltage DAC.
         lux2100-dac-cs: Path to the chip select for the voltage DAC.
+        lux2100-color: Path to the GPIO to read for color detection.
 
     Parameters
     ----------
@@ -25,18 +29,32 @@ class lux2100(api):
     # Image sensor geometry constraints
     MAX_HRES = 1920
     MAX_VRES = 1080
-    MIN_HRES = 1920
-    MIN_VRES = 1080
+    MIN_HRES = 640
+    MIN_VRES = 480
     HRES_INCREMENT = 32
     VRES_INCREMENT = 2
     MAX_VDARK = 8
     BITS_PER_PIXEL = 12
 
+    VLOW_BOUNDARY = 8
+    VHIGH_BOUNDARY = 8
+    HLEFT_DARK = 32
+    HRIGHT_DARK = 32
+
+    # Expected constants
+    LUX2100_CHIP_ID = 0x28
+    LUX2100_SOF_DELAY = 10
+    LUX2100_LV_DELAY = 8
+    LUX2100_MIN_HBLANK = 2
     LUX2100_SENSOR_HZ = 75000000
-    LUX2100_TIMING_HZ = 100000000
     ADC_CHANNELS = 32
+    ADC_FOOTROOM = 32
     ADC_OFFSET_MIN = -1023
     ADC_OFFSET_MAX = 1023
+
+    # These are actually more of an FPGA thing...
+    COL_GAIN_FRAC_BITS = 12
+    COL_CURVE_FRAC_BITS = 21
 
     # Constants for the DAC configuration
     DAC_VABL = 0        # Pixel Anti-Blooming Low Voltage
@@ -67,16 +85,82 @@ class lux2100(api):
         DAC_VPIX_OP:    ( 499,      499 + 100,  None),
         DAC_VDR2:       ( 1,        1,          None),
         DAC_VPIX_LDO:   ( 422,      165,        3.68),
+        DAC_VRSTPIX:    ( 1,        1,          None),
     }
 
     DAC_FULL_SCALE  = 4095
     DAC_VREF        = 3.3
     DAC_AUTOUPDATE  = 0x9
 
+    @property
+    def name(self):
+        return "LUX2100"
+    
+    @property
+    def cfaPattern(self):
+        try:
+            fp = open(self.board["lux2100-color"])
+            if int(fp.read()) == 1:
+                return 'GRBG'
+            else:
+                return None
+        except:
+            return None
+    
+    @property
+    def baseIso(self):
+        if self.cfaPattern:
+            return 580
+        else:
+            return 1160
+
+    @property
+    def hMin(self):
+        return self.MIN_HRES
+    
+    @property
+    def hIncrement(self):
+        return self.HRES_INCREMENT
+
+    @property
+    def vMin(self):
+        return self.MIN_VRES
+    
+    @property
+    def vIncrement(self):
+        return self.VRES_INCREMENT
+
+    def __init__(self, board={
+            "lux2100-spidev":  "/dev/spidev3.0",
+            "lux2100-dac-cs": "/sys/class/gpio/gpio33/value",
+            "lux2100-color":  "/sys/class/gpio/gpio34/value"} ):
+        ## Hardware Resources
+        self.spidev = board["lux2100-spidev"]
+        self.spics = board["lux2100-dac-cs"]
+        self.board = board
+        self.regs = lux2100regs.lux2100regs()
+        self.wavetables = lux2100wt.wavetables
+        self.timing = lux2100timing.lux2100timing()
+        self.io     = ioInterface()
+        
+        ## ADC Calibration state
+        self.adcOffsets = [0] * self.ADC_CHANNELS
+
+        ## Save the real resolution for when cal is in progress.
+        self.fSizeReal = None
+
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.frameClocks = int(0.001 * self.LUX2100_SENSOR_HZ)
+        self.exposureClocks = int(self.frameClocks * 0.95)
+
+        self.colorBinning = True
+        
+        super().__init__()
+
     def writeDAC(self, dac, voltage):
         """Write the DAC voltage"""
         # Convert the DAC value
-        dacdata=bytearray([0, DAC_AUTOUPDATE << 4, 0, DAC_AUTOUPDATE << 4])
+        dacdata=bytearray([0, self.DAC_AUTOUPDATE << 4, 0, self.DAC_AUTOUPDATE << 4])
         mul, div, offs = self.dacmap[dac]
         if (offs):
             voltage = offs - voltage
@@ -87,118 +171,365 @@ class lux2100(api):
         
         if (dac < 8):
             dacval |= (dac << 12)
-            dacdata[0] = (dacval & 0x00ff) >> 0
-            dacdata[1] = (dacval & 0xff00) >> 8
-        else:
-            dacval |= ((dac-8) << 12)
             dacdata[2] = (dacval & 0x00ff) >> 0
             dacdata[3] = (dacval & 0xff00) >> 8
+        else:
+            dacval |= ((dac-8) << 12)
+            dacdata[0] = (dacval & 0x00ff) >> 0
+            dacdata[1] = (dacval & 0xff00) >> 8
         
         # Write the DAC value to the SPI.
         pychronos.writespi(device=self.spidev, csel=self.spics, mode=1, bitsPerWord=16, data=dacdata)
 
-    @property
-    def name(self):
-        return "LUX2100"
-    
-    @property
-    def cfaPattern(self):
-        # TODO: Color Detection
-        return None
-
-    def __init__(self, board={
-            "lux2100-spidev":  "/dev/spidev3.0",
-            "lux2100-dac-cs": "/sys/class/gpio/gpio33/value"} ):
-        ## Hardware Resources
-        self.spidev = board["lux2100-spidev"]
-        self.spics = board["lux2100-dac-cs"]
-        self.board = board
-        self.regs = lux1310regs.lux1310regs()
-
-        ## ADC Calibration state
-        self.adcOffsets = [0] * self.HRES_INCREMENT
-
-        super().__init__()
-
-    @property
-    def name(self):
-        return "LUX2100"
-    
-    @property
-    def cfaPattern(self):
-        # FIXME: Need a way to check for color/mono
-        return ['R', 'G', 'G', 'B']
-    
     #--------------------------------------------
     # Sensor Configuration and Control API
     #--------------------------------------------
+    def __autoPhaseCal(self):
+        self.regs.clkPhase = 0
+        self.regs.clkPhase = 1
+        self.regs.clkPhase = 0
+        logging.info("Phase calibration dataCorrect=%s", self.regs.dataCorrect)
+    
     def reset(self, fSize=None):
-        # TODO: Implement Me!
-        pass
+        # Enable the timing engine, but disable integration during setup.
+        self.timing.enabled = True
+        self.timing.programInterm()
+        
+        # Configure the DAC to autoupdate when written.
+        pychronos.writespi(device=self.spidev, csel=self.spics, mode=1, bitsPerWord=16,
+            data=bytearray([0, self.DAC_AUTOUPDATE << 4, 0, self.DAC_AUTOUPDATE << 4]))
+
+        # Initialize the DAC voltage levels.
+        self.writeDAC(self.DAC_VRSTH,   3.3)
+        self.writeDAC(self.DAC_VTX2L,   0.0)
+        self.writeDAC(self.DAC_VRSTPIX, 2.0)
+        self.writeDAC(self.DAC_VABL,    0.0)
+        self.writeDAC(self.DAC_VTXH,    3.3)
+        self.writeDAC(self.DAC_VTX2H,   3.3)
+        self.writeDAC(self.DAC_VTXL,    0.0)
+        self.writeDAC(self.DAC_VDR1,    2.5)
+        self.writeDAC(self.DAC_VDR2,    2.0)
+        self.writeDAC(self.DAC_VDR3,    1.5)
+        self.writeDAC(self.DAC_VRDH,    0.0)
+        self.writeDAC(self.DAC_VPIX_LDO, 3.3)
+        self.writeDAC(self.DAC_VPIX_OP, 0.0)
+        time.sleep(0.01) # Settling time
+
+        # Force a reset of the image sensor.
+        self.regs.control |= self.regs.RESET
+        self.regs.control &= ~self.regs.RESET
+        time.sleep(0.001)
+
+        # Reset the SCI interface.
+        self.regs.regSresetB = 0
+        rev = self.regs.regChipId
+        if (rev != self.LUX2100_CHIP_ID):
+            logging.error("LUX2100 regChipId returned an invalid ID (%s)", hex(rev))
+            return False
+        else:
+            logging.info("Initializing LUX2100 silicon revision %s", self.regs.revChip)
+
+        # Setup ADC training.
+        self.regs.regPclkVblank = 0xFC0 # Set blanking pattern for ADC training.
+        self.regs.regCustDigPat = 0xFC0 # Set custom data pattern for ADC training.
+        self.regs.regDigPatSel = 1      # Enable custom data pattern.
+        self.__autoPhaseCal()
+
+        # Return to normal data mode
+        self.regs.regPclkVblank = 0xf00         # PCLK channel output during vertical blanking
+        self.regs.regPclkOpticalBlack = 0xfc0   # PCLK channel output during dark pixel readout
+        self.regs.regDigPatSel = 0              # Disable custom data pattern for pixel readout.
+        self.regs.regSelRdoutDly = 7            # Delay to match ADC latency
+
+        # Setup for 66-clock wavetable and 1080p with binning.
+        self.regs.regRdoutDly = 66
+        self.regs.regMono = not self.colorBinning
+        self.regs.regRow2En = True
+        self.regs.regColbin2 = True
+        self.regs.regPoutsel = 2
+        self.regs.regInvertAnalog = True
+        self.regs.regXstart = self.HLEFT_DARK * 2
+        self.regs.regXend = (self.HLEFT_DARK + self.MAX_HRES) * 2 - 1
+        self.regs.regYstart = self.VLOW_BOUNDARY * 2
+        self.regs.regYend = (self.VLOW_BOUNDARY + self.MAX_VRES - 1) * 2
+
+        # Set internal control registers to fine tune the performance of the sensor
+        self.regs.regHblank = self.LUX2100_MIN_HBLANK   # Set horizontal blanking period
+        self.regs.regLvDelay = self.LUX2100_LV_DELAY    # Line valid delay to match internal ADC latency
+        self.regs.regSofDelay = self.LUX2100_SOF_DELAY
+
+        # Undocumented internal registers from Luxima
+        self.regs.regSensor[0x5F] = 0x0000 # internal control register
+        self.regs.regSensor[0x78] = 0x0803 # internal clock timing
+        self.regs.regSensor[0x2D] = 0x008C # state for idle controls
+        self.regs.regSensor[0x2E] = 0x0000 # state for idle controls
+        self.regs.regSensor[0x2F] = 0x0040 # state for idle controls
+        self.regs.regSensor[0x62] = 0x2603 # ADC clock controls
+        self.regs.regSensor[0x60] = 0x0300 # enable on chip termination
+        self.regs.regSensor[0x79] = 0x0003 # internal control register
+        self.regs.regSensor[0x7D] = 0x0001 # internal control register
+        self.regs.regSensor[0x6A] = 0xAA88 # internal control register
+        self.regs.regSensor[0x6B] = 0xAC88 # internal control register
+        self.regs.regSensor[0x6C] = 0x8AAA # internal control register
+        self.regs.regData[0x05] = 0x0007 # delay to match ADC latency
+        
+        # Configure for nominal gain.
+        self.regs.regGainSelSamp = 0x007f
+        self.regs.regGainSelFb = 0x007f
+        self.regs.regGainBit = 0x03
+
+        # Enable ADC offset correction.
+        for x in range(0, self.ADC_CHANNELS):
+            self.regs.regAdcOs[x] = 0
+        self.regs.regAdcOsEn = True
+
+        # Load the default (longest) wavetable and enable the timing engine.
+        self.regs.wavetable(self.wavetables[0].wavetab)
+        self.regs.regTimingEn = True
+        time.sleep(0.01)
+
+        # Start the FPGA timing engine using the standard timing program.
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.frameClocks = int(0.001 * self.LUX2100_SENSOR_HZ)
+        self.exposureClocks = int(self.frameClocks * 0.95)
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
+        return True
 
     #--------------------------------------------
     # Frame Geometry Configuration Functions
     #--------------------------------------------
     def getMaxGeometry(self):
-        return frameGeometry(
+        size = frameGeometry(
             hRes=self.MAX_HRES, vRes=self.MAX_VRES,
             hOffset=0, vOffset=0,
             vDarkRows=self.MAX_VDARK,
             bitDepth=self.BITS_PER_PIXEL)
-        
+        size.minFrameTime = self.getMinFrameClocks(size) / self.LUX2100_SENSOR_HZ
+        return size
+    
     def getCurrentGeometry(self):
-        return frameGeometry(
-            hRes=self.MAX_HRES, vRes=self.MAX_VRES,
-            hOffset=0, vOffset=0, vDarkRows=0,
-            bitDepth=self.BITS_PER_PIXEL)
+        # If calibration is in progress, return the saved geometry instead.
+        if self.fSizeReal:
+            return copy.deepcopy(self.fSizeReal)
+        
+        fSize = self.getMaxGeometry()
+        fSize.hOffset = (self.regs.regXstart // 2) - self.HLEFT_DARK
+        fSize.hRes = (self.regs.regXend // 2) - self.HLEFT_DARK - fSize.hOffset + 1
+        fSize.vOffset = (self.regs.regYstart // 2) - self.VLOW_BOUNDARY
+        fSize.vRes = (self.regs.regYend // 2) - self.VLOW_BOUNDARY - fSize.vOffset + 1
+        fSize.vDarkRows = self.regs.regNbDrkRowsTop // 2
+        fSize.minFrameTime = self.getMinFrameClocks(fSize) / self.LUX2100_SENSOR_HZ
+        return fSize
+
+    def isValidResolution(self, size):
+            # Enforce resolution limits.
+        if ((size.hRes < self.MIN_HRES) or (size.hRes + size.hOffset) > self.MAX_HRES):
+            return False
+        if ((size.vRes < self.MIN_VRES) or (size.vRes + size.vOffset) > self.MAX_VRES):
+            return False
+        if (size.vDarkRows > self.MAX_VDARK):
+            return False
+        if (size.bitDepth != self.BITS_PER_PIXEL):
+            return False
+        
+        # Enforce minimum pixel increments.
+        if ((size.hRes % self.HRES_INCREMENT) != 0):
+            return False
+        if ((size.vRes % self.VRES_INCREMENT) != 0):
+            return False
+        if ((size.vDarkRows % self.VRES_INCREMENT) != 0):
+            return False
+        
+        # Otherwise, the resultion and offset are valid.
+        return True
+    
+    def updateWavetable(self, size, frameClocks):
+        # Select the longest wavetable that gives a frame period longer than
+        # the target frame period. Note that the wavetables are sorted by length
+        # in descending order.
+        wavetab = None
+        for x in self.wavetables:
+            wavetab = x
+            if (frameClocks >= self.getMinFrameClocks(size, x.clocks)):
+                break
+        
+        logging.debug("Selecting WT%d for %dx%d", wavetab.clocks, size.hRes, size.vRes)
+
+        # If a suitable wavetable exists, then load it.
+        if (wavetab):
+            self.regs.regTimingEn = False
+            self.regs.regRdoutDly = wavetab.clocks
+            self.regs.wavetable(wavetab.wavetab)
+            self.regs.regTimingEn = True
+            self.regs.startDelay = wavetab.abnDelay
+            self.regs.linePeriod = max((size.hRes // self.HRES_INCREMENT) + 2, wavetab.clocks + 3) - 1
+
+            # set the pulsed pattern timing
+            self.timing.setPulsedPattern(wavetab.clocks)
+        # Otherwise, the frame period was probably too short for this resolution.
+        else:
+            raise ValueError("Frame period too short, no suitable wavetable found")
+
+    def updateReadoutWindow(self, size):
+        # Configure the image sensor resolution
+        hStartBlocks = size.hOffset // self.HRES_INCREMENT
+        hEndBlocks = hStartBlocks + size.hRes // self.HRES_INCREMENT
+        vLastRow = self.MAX_VRES + self.VLOW_BOUNDARY + self.VHIGH_BOUNDARY + self.MAX_VDARK
+        
+        # Binned operation - everything is x2 because its really a 4K sensor
+        self.regs.regXstart = (self.HLEFT_DARK + hStartBlocks * self.HRES_INCREMENT) * 2
+        self.regs.regXend = (self.HLEFT_DARK + hEndBlocks * self.HRES_INCREMENT) * 2 - 1
+        self.regs.regYstart = (self.VLOW_BOUNDARY + size.vOffset) * 2
+        self.regs.regYend = (self.VLOW_BOUNDARY + size.vOffset + size.vRes - 1) * 2
+        self.regs.regDrkRowsStAddr = (vLastRow - size.vDarkRows) * 2
+        self.regs.regNbDrkRowsTop = size.vDarkRows * 2
+
+    def setResolution(self, size):
+        if (not self.isValidResolution(size)):
+            raise ValueError("Invalid frame resolution")
+        
+        # Select the minimum frame period if not specified.
+        minPeriod, maxPeriod = self.getPeriodRange(size)
+        if not size.minFrameTime:
+            fClocks = self.getMinFrameClocks(size)
+        elif ((size.minFrameTime * self.LUX2100_SENSOR_HZ) >= minPeriod):
+            fClocks = size.minFrameTime * self.LUX2100_SENSOR_HZ
+        else:
+            fClocks = self.getMinFrameClocks(size)
+
+        # Disable the FPGA timing engine and wait for the current readout to end.
+        self.timing.programInterm()
+        time.sleep(0.01) # Extra delay to allow frame readout to finish. 
+
+        # Switch to the desired resolution pick the best matching wavetable.
+        self.updateReadoutWindow(size)
+        self.updateWavetable(size, frameClocks=fClocks)
+        time.sleep(0.01)
+
+        # set the minimum frame period in the timing engine (set using wavetable periods or lines)
+        self.timing.minLines = size.vRes
+
+        # Set the frame period and the maximum shutter after changing resolution.
+        self.frameClocks = fClocks
+        self.exposureClocks = int(self.frameClocks * 0.95)
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
     
     #--------------------------------------------
     # Frame Timing Configuration Functions
     #--------------------------------------------
     def getMinFrameClocks(self, size, wtSize=0):
-        # Select the longest wavetable that fits within the line readout time,
-        # or fall back to the shortest wavetable for extremely small resolutions.
+        # Select the shortest wavetable that does not result in
+        # idle clocks during the row readout time.
         if (wtSize == 0):
-            ideal = (size.hRes // self.HRES_INCREMENT) + self.LUX1310_MIN_HBLANK - 3
+            ideal = (size.hRes // self.HRES_INCREMENT) + self.LUX2100_MIN_HBLANK - 3
             for x in self.wavetables:
-                wtSize = x.clocks
-                if (wtSize <= ideal):
+                if (x.clocks < ideal):
                     break
+                wtSize = x.clocks
+            # If all else fails, select the longest wavetable.
+            if (wtSize == 0):
+                wtSize = self.wavetables[0].clocks
 
-        # Compute the minimum number of 90MHz LUX1310 sensor clocks per frame.
+        # TODO: Doublecheck this against the LUX2100 datasheet.
+        # Compute the minimum number of 75MHz LUX2100 sensor clocks per frame.
         # Refer to section 7.1 of the LUX1310 datasheet version v3.0
         tRead = size.hRes // self.HRES_INCREMENT
-        tTx = 25        # hard-coded to 25 clocks in the FPGA, should be at least 350ns
-        tRow = max(tRead + self.LUX1310_MIN_HBLANK, wtSize + 3)
-        tFovf = self.LUX1310_SOF_DELAY + wtSize + self.LUX1310_LV_DELAY + 10
-        tFovb = 41      # Duration between PRSTN falling and TXN falling (I think)
-        tFrame = tRow * (size.vRes + size.vDarkRows) + tTx + tFovf + tFovb - self.LUX1310_MIN_HBLANK
+        tTx = 50        # hard-coded to 50 clocks in the FPGA, should be at least 350ns
+        tRow = max(tRead + self.LUX2100_MIN_HBLANK, wtSize + 3)
+        tFovf = self.LUX2100_SOF_DELAY + wtSize + self.LUX2100_LV_DELAY + 10
+        tFovb = 50      # Duration between PRSTN falling and TXN falling (I think)
+        tFrame = tRow * (size.vRes + size.vDarkRows) + tTx + tFovf + tFovb - self.LUX2100_MIN_HBLANK
 
-        # Convert from LUX1310 sensor clocks to FPGA timing clocks.
-        return (tFrame * self.LUX2100_TIMING_HZ) // self.LUX1310_SENSOR_HZ
+        return tFrame
     
     def getPeriodRange(self, fSize):
-        # TODO: Need to validate the frame size.
-        # TODO: Probably need to enforce some maximum frame period.
-        clocks = self.getMinFrameClocks(fSize)
-        return (clocks / self.LUX2100_TIMING_HZ, 0)
+        # If a frame time was provided, find the longest matching wavetable.
+        if (fSize.minFrameTime):
+            fClocks = fSize.minFrameTime * self.LUX2100_SENSOR_HZ
+            for x in self.wavetables:
+                wtFrameClocks = self.getMinFrameClocks(fSize, x.clocks)
+                if (wtFrameClocks <= fClocks):
+                    return (wtFrameClocks / self.LUX2100_SENSOR_HZ, 0)
+            # This frame time could not be met.
+            raise ValueError("Invalid frame time for resolution given")
+        else:
+            fClocks = self.getMinFrameClocks(fSize)
+            return (fClocks / self.LUX2100_SENSOR_HZ, 0)
     
     def getCurrentPeriod(self):
-        return self.timing.frameTime / self.LUX2100_TIMING_HZ
+        return self.frameClocks / self.LUX2100_SENSOR_HZ
 
     def setFramePeriod(self, fPeriod):
         # TODO: Sanity-check the frame period.
-        logging.debug('frame time: %f', math.ceil(fPeriod * self.LUX2100_TIMING_HZ))
-        self.timing.frameTime = math.ceil(fPeriod * self.LUX2100_TIMING_HZ)
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.frameClocks = math.ceil(fPeriod * self.LUX2100_SENSOR_HZ)
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
     
     def getExposureRange(self, fSize, fPeriod):
         # Defaulting to 1us minimum exposure and infinite maximum exposure.
         # TODO: Need a better handle on the exposure overhead.
-        return (1.0 / 1000000, fPeriod - (500 / self.LUX2100_TIMING_HZ))
+        return (1.0 / 1000000, fPeriod - (500 / self.LUX2100_SENSOR_HZ))
 
     def getCurrentExposure(self):
-        return self.timing.integrationTime / self.LUX2100_TIMING_HZ
+        return self.exposureClocks / self.LUX2100_SENSOR_HZ
     
-    def setExposurePeriod(self, expPeriod):
+    def setExposureProgram(self, expPeriod):
         # TODO: Sanity-check the exposure time.
-        self.timing.integrationTime = math.ceil(expPeriod * self.LUX2100_TIMING_HZ)
+        if (expPeriod < 1.0 / 1000000):
+            expPeriod = 1.0 / 1000000
+        
+        # Disable HDR modes.
+        self.regs.regHidyEn = False
+
+        self.currentProgram = self.timing.PROGRAM_STANDARD
+        self.exposureClocks = math.ceil(expPeriod * self.LUX2100_SENSOR_HZ)
+        self.timing.programStandard(self.frameClocks, self.exposureClocks)
+
+    #--------------------------------------------
+    # Advanced Exposure and Timing Functions 
+    #--------------------------------------------
+    def getSupportedExposurePrograms(self):
+        return ("normal")
+
+    #--------------------------------------------
+    # Sensor Analog Calibration Functions
+    #--------------------------------------------
+    def getColorMatrix(self, cTempK=5500):
+        if not self.cfaPattern:
+            # Identity matrix for monochrome cameras.
+            return [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
+        else:
+            # CIECAM16/D55
+            return [ 1.9147, -0.5768, -0.2342, 
+                    -0.3056,  1.3895, -0.0969,
+                     0.1272, -0.9531,  1.6492]
+    
+    def getWhiteBalance(self, cTempK=5500):
+        if not self.cfaPattern:
+            return [1.0, 1.0, 1.0]
+        else:
+            return [1.5226, 1.0723, 1.5655]
+
+    @property
+    def maxGain(self):
+        return 1
+    
+    def setGain(self, gain):
+        pass
+
+    def getCurrentGain(self):
+        return 1
+
+    def startAnalogCal(self, saveLocation=None): 
+        yield 0
+        
+    def loadAnalogCal(self, calLocation):
+        return False
+
+    def calFilename(self, prefix, extension=""):
+        wtClocks = self.regs.regRdoutDly
+        gain = int(self.getCurrentGain())
+        return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)

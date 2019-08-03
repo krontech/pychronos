@@ -71,14 +71,6 @@ class camera:
     BYTES_PER_WORD = 32
     FRAME_ALIGN_WORDS = 64
 
-    MAX_FRAME_WORDS = 0x10000
-    CAL_REGION_START = 0
-    CAL_REGION_FRAMES = 3
-    LIVE_REGION_START = (CAL_REGION_START + MAX_FRAME_WORDS * CAL_REGION_FRAMES)
-    LIVE_REGION_FRAMES = 3
-    REC_REGION_START = (LIVE_REGION_START + MAX_FRAME_WORDS * LIVE_REGION_FRAMES)
-    FPN_ADDRESS = CAL_REGION_START
-
     def __init__(self, sensor, onChange=None):
         self.sensor = sensor
         self.power = power()
@@ -97,6 +89,15 @@ class camera:
         self.__tallyMode = 'auto'
         self.__wbCustom = [1.0, 1.0, 1.0]
         self.__miscScratchPad = {}
+
+        # Setup the reserved video memory.
+        self.MAX_FRAME_WORDS = self.getFrameSizeWords(sensor.getMaxGeometry())
+        self.CAL_REGION_START = 0
+        self.CAL_REGION_FRAMES = 3
+        self.LIVE_REGION_START = (self.CAL_REGION_START + self.MAX_FRAME_WORDS * self.CAL_REGION_FRAMES)
+        self.LIVE_REGION_FRAMES = 3
+        self.REC_REGION_START = (self.LIVE_REGION_START + self.MAX_FRAME_WORDS * self.LIVE_REGION_FRAMES)
+        self.FPN_ADDRESS = self.CAL_REGION_START
 
         # Probe the SODIMMs
         for slot in range(0, len(self.dimmSize)):
@@ -258,9 +259,7 @@ class camera:
     # Reconfigure the recording region for a given frame size.
     def setupRecordRegion(self, fSize, startAddr, frameCount=0):
         ## Figure out the frame size, in words.
-        fSizeWords = (fSize.size() + self.BYTES_PER_WORD - 1) // self.BYTES_PER_WORD
-        fSizeWords //= self.FRAME_ALIGN_WORDS
-        fSizeWords *= self.FRAME_ALIGN_WORDS
+        fSizeWords = self.getFrameSizeWords(fSize)
 
         seq = regmaps.sequencer()
         seq.frameSize = fSizeWords
@@ -273,13 +272,18 @@ class camera:
             ramSizeWords = (self.dimmSize[0] + self.dimmSize[1]) // self.BYTES_PER_WORD
             seq.regionStop = (ramSizeWords // fSizeWords) * fSizeWords
     
+    # Return the size of a frame in memory words.
+    def getFrameSizeWords(self, fSize):
+        fSizeWords = (fSize.size() + self.BYTES_PER_WORD - 1) // self.BYTES_PER_WORD
+        fSizeWords += self.FRAME_ALIGN_WORDS - 1
+        fSizeWords //= self.FRAME_ALIGN_WORDS
+        fSizeWords *= self.FRAME_ALIGN_WORDS
+        return fSizeWords
+    
     # Return the length of memory (in frames) minus calibration overhead.
     def getRecordingMaxFrames(self, fSize):
         ramSizeWords = (self.dimmSize[0] + self.dimmSize[1]) // self.BYTES_PER_WORD - self.REC_REGION_START
-        fSizeWords = (fSize.size() + self.BYTES_PER_WORD - 1) // self.BYTES_PER_WORD
-        fSizeWords //= self.FRAME_ALIGN_WORDS
-        fSizeWords *= self.FRAME_ALIGN_WORDS
-        return ramSizeWords // fSizeWords
+        return ramSizeWords // self.getFrameSizeWords(fSize)
     
     #===============================================================================================
     # API Methods: Recording Group

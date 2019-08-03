@@ -112,6 +112,31 @@ class lux2100regs(sensor):
     regSresetB =        __sensorprop(0x7e, 0x0001, "Soft reset: resets all registers")
     regSerSync =        __sensorprop(0x73, 0x0010, "Synchronizes the serializers")
 
+    # Data path registers.
+    regDpId =           __dataprop(0x00, 0x0001, "Datapath Identifier")
+    regBlockId =        __dataprop(0x00, 0xfffe, "Block Identifier")
+    regCrcEn =          __dataprop(0x01, 0x0001, "Insert CRC as first data of hblank")
+    regGainEnable =     __dataprop(0x01, 0x0010, "Enable per-channel gain")
+    regOddEvenSel =     __dataprop(0x01, 0x0100, "Apply oddeven offset to odd(1) or even rows(0)")
+    regOddEvenOsEn =    __dataprop(0x01, 0x1000, "Enables applying odd/even row offsets")
+    regNbBitSel =       __dataprop(0x02, 0x0003, "Number of bits per pixel to output")
+    regMsbFirstData =   __dataprop(0x02, 0x0010, "Output msb first for data channels")
+    regCustDigPat =     __dataprop(0x03, 0x0fff, "Custom pattern for blanking output")
+    regDigPatSel =      __dataprop(0x03, 0x3000, "Digital pattern insertion selection")
+    ## TODO: Special case for regDpScipEn
+    regSelRdoutDly =    __dataprop(0x05, 0x007f, "Delay to match ADC latency")
+    regLatchDlyLow =    __dataprop(0x06, 0x0001, "Delay for latch signal in high-speed data deserializers (low channels)")
+    regLatchDlyHigh =   __dataprop(0x46, 0x0001, "Delay for latch signal in high-speed data deserializers (high channels)")
+    regCalStart =       __dataprop(0x0A, 0x0001, "Start ADC offset calibration from scratch")
+    regRecalStart =     __dataprop(0x0A, 0x0010, "Restart ADC offset calibration from current setting")
+    regNbBitsSamplesAvg = __dataprop(0x0B, 0x000f, "Number of samples to average for offset cal")
+    regNbBitsOsCalIter =  __dataprop(0x0B, 0x00f0, "Max number of offset cal iterations")
+    regAdcOsSeqWidth =  __dataprop(0x0C, 0x003f, "Time to spend on applying each of the ADC offsets")
+    regOsTarget =       __dataprop(0x0D, 0x0fff, "Dark value target for ADC offset calibration")
+    regAdcOsEn =        __dataprop(0x0E, 0x0001, "Enables applying ADC offset registers during vertical blanking")
+    regAdcOsSignLow =   __dataprop(0x0F, 0xffff, "Sign for ADC offsets (low channels)")
+    regAdcOsSignHigh =  __dataprop(0x0F, 0xffff, "Sign for ADC offsets (high channels)")
+
     class sciBankedArrayView(sensor.sciArrayView):
         """Helper class to create an array view of one bank of the SCI
         register space that can be indexed or iterated upon to read and
@@ -133,10 +158,32 @@ class lux2100regs(sensor):
             self.bank = bank
 
         def __getitem__(self, key):
-            return self.parent.sciBankRead(self.offset + key, self.bank)
-        
+            # Special case for strange register split in DP0/DP1
+            if (self.bank and (key >= 16)):
+                return self.parent.sciBankRead(self.offset + key + 0x40, self.bank)
+            else:
+                return self.parent.sciBankRead(self.offset + key + 0x00, self.bank)
+                
         def __setitem__(self, key, value):
-            return self.parent.sciBankWrite(self.offset + key, self.bank, value)
+            # Special case for strange register split in DP0/DP1
+            if (self.bank and (key >= 16)):
+                return self.parent.sciBankWrite(self.offset + key + 0x40, self.bank, value)
+            else:
+                return self.parent.sciBankWrite(self.offset + key + 0x00, self.bank, value)
+
+    class adcOffsetArrayView(sciBankedArrayView):
+        """ADC offset arrayview helper class"""
+        def __getitem__(self, key):
+            value = super().__getitem__(key)
+            if (value & 0x400):
+                return -(value & 0x3ff)
+            else:
+                return value
+
+        def __setitem__(self, key, value):
+            if (value < 0):
+                value = (int(-value) & 0x3ff) | 0x400
+            super().__setitem__(key, value | 0x400)
     
     @property
     def regSensor(self):
@@ -147,3 +194,42 @@ class lux2100regs(sensor):
     def regData(self):
         """Raw SCI data registers"""
         return self.sciBankedArrayView(self, 0x00, 1, 0x7F)
+    
+    @property
+    def regAdcOs(self):
+        """ADC offsets"""
+        return self.adcOffsetArrayView(self, 0x10, 1, 32)
+    
+    @property
+    def regGainSetval(self):
+        """Per-channel digital gain"""
+        return self.sciBankedArrayView(self, 0x20, 1, 32)
+    
+    @property
+    def regOddEvenRowOs(self):
+        """Per-channel offset for odd or even rows only"""
+        return self.adcOffsetArrayView(self, 0x30, 1, 32)
+
+    def wavetable(self, wavetab):
+        """Helper function to write a wavetable into the image sensor registers
+        using the Serial Communication Interface protocol.
+
+        Parameters
+        ----------
+        wavetab : `bytes`
+            Wavetable to write.
+        """
+        # Switch to the sensor register bank.
+        self.sciWrite(0x04, 0, 0)
+
+        # Clear RW and reset the FIFO.
+        self.sciControl = self.SCI_RESET
+        self.sciAddress = 0x7F
+        self.sciDataLen = len(wavetab)
+        for b in wavetab:
+            self.sciFifoWrite = int(b)
+
+        # Start the write and wait for completion.
+        self.sciControl = self.SCI_RUN
+        while (self.sciControl & self.SCI_RUN) != 0:
+            pass

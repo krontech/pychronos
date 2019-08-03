@@ -17,7 +17,7 @@ from gi.repository import GLib
 
 from pychronos import camera
 from pychronos.error import *
-from pychronos.sensors import lux1310, frameGeometry
+from pychronos.sensors import frameGeometry
 import pychronos.regmaps as regmaps
 
 interface = 'ca.krontech.chronos.control'
@@ -601,6 +601,9 @@ if __name__ == "__main__":
 
     # Do argument parsing
     parser = argparse.ArgumentParser(description="Chronos control daemon")
+    parser.add_argument('--sensor', metavar='NAME', action='store',
+                        default='lux1310',
+                        help="Image sensor driver to use")
     parser.add_argument('--config', metavar='FILE', action='store',
                         default='/var/camera/apiConfig.json',
                         help="Configuration file path")
@@ -632,8 +635,13 @@ if __name__ == "__main__":
     # Use the GLib mainloop.    
     mainloop = GLib.MainLoop()
 
-    # Setup resources.
-    cam  = camera(lux1310())
+    # Import the desired sensor class.
+    sensorModule = __import__("pychronos.sensors", globals(), None, fromlist=[args.sensor])
+    sensorClass = sensorModule.__getattribute__(args.sensor)
+
+    # Create the camera and objects.
+    sensor = sensorClass()
+    cam  = camera(sensor)
 
     # Install a timer for battery data monitoring
     timer = powerTimer(cam)
