@@ -1,0 +1,16 @@
+[Unit]
+Description=⚠ Development version of the D-Bus control interface. ⚠
+After=chronos-video.service chronos-fpga.service
+Requires=chronos-video.service chronos-fpga.service
+
+[Service]
+Type=dbus
+BusName=ca.krontech.chronos.control
+WorkingDirectory=/root/pychronos
+EnvironmentFile=/etc/chronos-control-api.conf
+ExecStart=/usr/bin/python3 cam_control.py
+StandardOutput=journal+console
+StandardError=inherit
+
+[Install]
+WantedBy=multi-user.target
