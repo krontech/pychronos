@@ -45,10 +45,6 @@ class ioInterface(pychronos.fpgamap):
 
     IO_BLOCK_FREQUENCY = 100000000
     
-    def setPropertyBits(self, offset, size, bitOffset, nBits, value):
-        self.regWrite(offset, size, (self.regRead(offset, size) & ~((2**nBits-1)<<bitOffset) |
-                                     ((value & (2**nBits-1)) << bitOffset)))
-
     def __regprop(offset, size, docstring):
         return property(fget=lambda self: self.regRead(offset, size),
                         fset=lambda self, value: self.regWrite(offset, size, value),
@@ -57,16 +53,16 @@ class ioInterface(pychronos.fpgamap):
         return property(fget=lambda self: self.regRead(offset, size),
                         doc = docstring)
     def __bitprop(offset, size, bitOffset, nBits, docstring):
-        return property(fget=lambda self: ((self.regRead(offset, size) >> bitOffset) & (2**nBits-1)),
-                        fset=lambda self, value: self.setPropertyBits(offset, size, bitOffset, nBits, value),
+        return property(fget=lambda self: self.regRead(offset, size, (2**nBits-1) << bitOffset),
+                        fset=lambda self, value: self.regWrite(offset, size, value, (2**nBits-1) << bitOffset),
                         doc = docstring)
     def __bitprop_ro(offset, size, bitOffset, nBits, docstring):
-        return property(fget=lambda self: ((self.regRead(offset, size) >> bitOffset) & (2**nBits-1)),
+        return property(fget=lambda self: self.regRead(offset, size, (2**nBits-1) << bitOffset),
                         doc = docstring)
 
     def __srcprop(offset, docstring):
-        return property(fget=lambda self: self.SOURCES[self.regRead(offset, 2) & 0xF],
-                        fset=lambda self, value: self.regWrite(offset, 2, (self.regRead(offset, 2) & ~0xF) | value if (type(value) == int) else self.SOURCENUMBERS.get(value, 0)),
+        return property(fget=lambda self: self.SOURCES[self.regRead(offset, 2, 0xF)],
+                        fset=lambda self, value: self.regWrite(offset, 2, value if (type(value) == int) else self.SOURCENUMBERS.get(value, 0), 0xF),
                         doc = docstring)
 
     identifier     = __regprop_ro(0x00, 4, 'ID to make sure the module is there')
