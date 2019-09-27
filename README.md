@@ -143,18 +143,18 @@ electronic lens control up and running.
 These API parameters are proxy values for the equivalent parameters in the D-Bus
 API to the `chronos-cli` program.
 
-| Parameter         | G | S | N | Type   | Min   | Max   | Description
-|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
-| `overlayEnable`   |`G`|`x`|`x`| bool   |       |       |
-| `overlayFormat`   |`G`|`x`|`x`| string |       |       | A `printf`-style format string to set the overlay text.
-| `zebraLevel`      |`x`|`x`|`x`| float  | 0.0   | 1.0   | Fraction of the pixel's full scale value at which to apply zebra stripes.
-| `focusPeakLevel`  |`x`|`x`|`x`| float  | 0.0   | 1.0   | Focus peaking edge detection sensitivity (0 to disable, or 1.0 for maximum).
-| `focusPeakColor`  |`G`|`x`|`x`| enum   |       |       | One of Red, Green, Blue, Cyan, Magenta, Yellow, White and Black.
-| `videoState`      |`G`|   |`x`| enum   |       |       | One of `paused`, `live`, `playback` or `filesave`.
-| `playbackRate`    |`G`|`x`|`x`| int    |       |       | Framerate for plabyack when `videoState` is in `playback`.
-| `playbackPosition`|`G`|`S`|   | int    |       |       | Current frame number being displayed.
-| `playbackStart`   |`G`|`S`|`N`| int    |       |       | Initial frame to display when `videoStart` enters `playback`.
-| `playbackLength`  |`G`|`S`|`N`| int    |       |       | Number of frames to play back before returning to `playbackStart`.
+| Parameter           | G | S | N | Type   | Min   | Max   | Description
+|:--------------------|:--|:--|:--|:-------|:------|:------|:-----------
+| `overlayEnable`     |`G`|`x`|`x`| bool   |       |       |
+| `overlayFormat`     |`G`|`x`|`x`| string |       |       | A `printf`-style format string to set the overlay text.
+| `zebraLevel`        |`x`|`x`|`x`| float  | 0.0   | 1.0   | Fraction of the pixel's full scale value at which to apply zebra stripes.
+| `focusPeakingLevel` |`x`|`x`|`x`| float  | 0.0   | 1.0   | Focus peaking edge detection sensitivity (0 to disable, or 1.0 for maximum).
+| `focusPeakingColor` |`G`|`x`|`x`| enum   |       |       | One of Red, Green, Blue, Cyan, Magenta, Yellow, White and Black.
+| `videoState`        |`G`|   |`x`| enum   |       |       | One of `paused`, `live`, `playback` or `filesave`.
+| `playbackRate`      |`G`|`x`|`x`| int    |       |       | Framerate for plabyack when `videoState` is in `playback`.
+| `playbackPosition`  |`G`|`S`|   | int    |       |       | Current frame number being displayed.
+| `playbackStart`     |`G`|`S`|`N`| int    |       |       | Initial frame to display when `videoStart` enters `playback`.
+| `playbackLength`    |`G`|`S`|`N`| int    |       |       | Number of frames to play back before returning to `playbackStart`.
 
 ### Camera Info Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
