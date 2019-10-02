@@ -196,8 +196,8 @@ API to the `chronos-cli` program.
 ### Power and Battery Parameters
 | Parameter                                  | G | S | N | Type   | Min   | Max   | Description
 |:-------------------------------------------|:--|:--|:--|:-------|:------|:------|:-----------
-|`externalPower`                             |`x`|   |`x`| bool   | False | True  | True when the AC adaptor is present, and False when on battery power.
-|`batteryPresent`                            |`x`|   |   | bool   | False | True  | True when a battery is present, and False when there is no battery.
+|`externalPower`                             |`G`|   |`N`| bool   | False | True  | True when the AC adaptor is present, and False when on battery power.
+|`batteryPresent`                            |`G`|   |`N`| bool   | False | True  | True when a battery is present, and False when there is no battery.
 |`batteryChargeNormalized`                   |`x`|   |   | float  | 0.0   | 1.0   | Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged.
 |`batteryChargePercent`                      |`x`|   |   | float  | 0.0   | 100.0 | Estimated battery charge, with 0% being fully depleted and 100% being fully charged.
 |`batteryVoltage`                            |`x`|   |   | float  | 0.0   | 14ish | A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos.
