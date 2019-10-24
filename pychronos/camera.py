@@ -88,7 +88,7 @@ class camera:
         self.__exposurePeriod = self.sensor.getCurrentExposure()
         self.__tallyMode = 'auto'
         self.__wbTemperature = 5500
-        self.__wbCustom = self.getWhiteBalance(self.__wbTemperature)
+        self.__wbCustomColor = self.getWhiteBalance(self.__wbTemperature)
         self.__miscScratchPad = {}
 
         # Setup the reserved video memory.
@@ -239,7 +239,7 @@ class camera:
         # Reboot the sensor and return to the default resolution.
         self.sensor.reset()
         self.sensor.setResolution(self.geometry)
-        self.wbMatrix = self.getWhiteBalance()
+        self.wbColor = self.getWhiteBalance()
         self.colorMatrix = self.sensor.getColorMatrix()
         self.__setState('idle')
 
@@ -517,8 +517,8 @@ class camera:
 
         # Load it into the display block for immediate use.
         displayRegs = regmaps.display()
-        self.wbCustom = whiteBalance
-        self.wbMatrix = whiteBalance
+        self.__wbCustomColor = whiteBalance
+        self.wbColor = whiteBalance
         self.__setState('idle')
     
     def __applyBlackCal(self, fSize, fAverage):
@@ -1405,7 +1405,7 @@ class camera:
     #===============================================================================================
     # API Parameters: Color Space Group
     @camProperty(notify=True)
-    def wbMatrix(self):
+    def wbColor(self):
         """list(float): The Red, Green and Blue gain coefficients to achieve white balance."""
         display = regmaps.display()
         return [
@@ -1413,29 +1413,29 @@ class camera:
             display.whiteBalance[1] / display.WHITE_BALANCE_DIV,
             display.whiteBalance[2] / display.WHITE_BALANCE_DIV
         ]
-    @wbMatrix.setter
-    def wbMatrix(self, value):
+    @wbColor.setter
+    def wbColor(self, value):
         display = regmaps.display()
         display.whiteBalance[0] = int(value[0] * display.WHITE_BALANCE_DIV)
         display.whiteBalance[1] = int(value[1] * display.WHITE_BALANCE_DIV)
         display.whiteBalance[2] = int(value[2] * display.WHITE_BALANCE_DIV)
-        self.__propChange("wbMatrix")
+        self.__propChange("wbColor")
     
     @camProperty(notify=True, save=True)
-    def wbCustom(self):
+    def wbCustomColor(self):
         """list(float): The Red, Green and Blue gain coefficients last computed by `startWhiteBalance()`."""
-        return self.__wbCustom
-    @wbCustom.setter
-    def wbCustom(self, value):
-        self.__wbCustom[0] = value[0]
-        self.__wbCustom[1] = value[1]
-        self.__wbCustom[2] = value[2]
+        return self.__wbCustomColor
+    @wbCustomColor.setter
+    def wbCustomColor(self, value):
+        self.__wbCustomColor[0] = value[0]
+        self.__wbCustomColor[1] = value[1]
+        self.__wbCustomColor[2] = value[2]
         
         # A color temperature of zero means: use wbCustom.
         if (self.__wbTemperature == 0):
-            self.wbMatrix = self.__wbCustom
+            self.wbColor = self.__wbCustomColor
         
-        self.__propChange("wbCustom")
+        self.__propChange("wbCustomColor")
     
     @camProperty(notify=True, save=True)
     def wbTemperature(self):
@@ -1450,9 +1450,9 @@ class camera:
         
         # A color temperature of zero means: use wbCustom.
         if (value == 0):
-            self.wbMatrix = self.__wbCustom
+            self.wbColor = self.__wbCustomColor
         else:
-            self.wbMatrix = self.getWhiteBalance(value)
+            self.wbColor = self.getWhiteBalance(value)
         
         self.__wbTemperature = value
         self.__propChange("wbTemperature")

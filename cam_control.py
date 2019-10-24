@@ -509,8 +509,8 @@ class controlApi(dbus.service.Object):
 
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def revertAutoWhiteBalance(self, args):
-        """This copies the contents of `wbCustom` into `wbMatrix`."""
-        self.camera.wbMatrix = self.camera.wbCustom
+        """This copies the contents of `wbCustomColor` into `wbColor`."""
+        self.camera.wbColor = self.camera.wbCustomColor
         return {
             "state": self.camera.state
         }

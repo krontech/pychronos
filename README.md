@@ -213,16 +213,15 @@ API to the `chronos-cli` program.
 |`networkInterfaces`|`x`|   |   | dict   |       |       | Dictionary of dictionaries describing the network interfaces.
 |`networkHostname`  |`G`|`S`|   | string |       |       | Hostname to be used for system calls, DHCP requests, etc.
 
-
 ### Color Space
 TODO: As a longer term plan, these parameters should be moved into the display
 group and made more a part of the video display system.
 
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
-|`wbMatrix`         |`G`|`S`|`N`| array  |       |       | Current Red, Green, and Blue channel gains applied to the video stream.
-|`wbCustom`         |`G`|`S`|`N`| array  |       |       | Custom Red, Green and Blue channel gains to achieve white balance.
-|`wbTemperature`    |`G`|`S`|`N`| int    | 1800  | 10000 | Color temperature, in degrees Kelvin, to use for white balance, or zero to use `wbCustom`
+|`wbColor`          |`G`|`S`|`N`| array  |       |       | Current Red, Green, and Blue channel gains applied to the video stream.
+|`wbCustomColor`    |`G`|`S`|`N`| array  |       |       | Custom Red, Green and Blue channel gains to achieve white balance.
+|`wbTemperature`    |`G`|`S`|`N`| int    | 1800  | 10000 | Color temperature, in degrees Kelvin, to use for white balance, or zero to use `wbCustomColor`
 |`colorMatrix`      |`G`|`S`|`N`| array  |       |       | Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order.
 
 ### IO Group
@@ -338,7 +337,7 @@ of the supported methods are as follows:
 | `get`                       |`G`| array of names   |              | Retrieve one or more parameters from the control API.
 | `set`                       |`S`| dict(parameters) |              | Modify one or more parameters in the control API.
 | `startAutoWhiteBalance`     |`S`| dict(none)       | `whitebal`   | Take a reference image from the live display and compute the white balance.
-| `revertAutoWhiteBalance`    |`S`| none             |              | This copies the contents of `wbCustom` into `wbMatrix`.
+| `revertAutoWhiteBalance`    |`S`| none             |              | This copies the contents of `wbCustomColor` into `wbColor`.
 | `startAutoFocus`            |   | dict(location)   |              | Attempt to automatically focus the camera on a subject.
 | `startCalibration`          |`S`| dict(calTypes)   | varies       | Perform full calibration operations. Dict can have `blackCal`, `analogCal`, ior `zeroTimeBlackCal` set to true or false.
 | `startRecording`            |`S`| none             | `recording`  | Begin recording video data to memory.
