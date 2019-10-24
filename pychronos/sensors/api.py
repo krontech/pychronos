@@ -116,6 +116,10 @@ class api(ABC):
         """int: The minimum step size, in pixels, for changes in vertical resolution"""
         return 1
     
+    @property
+    def wbPresets(self):
+        """Dict[List[float]]: Dictionary of white balance points, indexed by their color temperature."""
+    
     #--------------------------------------------
     # Frame Geometry Configuration Functions
     #--------------------------------------------

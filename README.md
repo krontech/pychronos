@@ -220,9 +220,9 @@ group and made more a part of the video display system.
 
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
 |:------------------|:--|:--|:--|:-------|:------|:------|:-----------
-|`wbMatrix`         |`G`|`S`|`N`| array  |       |       | Array of Red, Green, and Blue gain coefficients to achieve white balance.
-|`wbCustom`         |`G`|`S`|`N`| array  |       |       | Automatically-generated white balance gain coefficients.
-|`wbTemperature`    |`x`|`x`|`x`| int    | 1800  | 10000 | Estimated lighting temperature in degrees Kelvin.
+|`wbMatrix`         |`G`|`S`|`N`| array  |       |       | Current Red, Green, and Blue channel gains applied to the video stream.
+|`wbCustom`         |`G`|`S`|`N`| array  |       |       | Custom Red, Green and Blue channel gains to achieve white balance.
+|`wbTemperature`    |`G`|`S`|`N`| int    | 1800  | 10000 | Color temperature, in degrees Kelvin, to use for white balance, or zero to use `wbCustom`
 |`colorMatrix`      |`G`|`S`|`N`| array  |       |       | Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order.
 
 ### IO Group

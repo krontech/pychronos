@@ -87,7 +87,8 @@ class camera:
         self.__exposureMode = 'normal'
         self.__exposurePeriod = self.sensor.getCurrentExposure()
         self.__tallyMode = 'auto'
-        self.__wbCustom = [1.0, 1.0, 1.0]
+        self.__wbTemperature = 5500
+        self.__wbCustom = self.getWhiteBalance(self.__wbTemperature)
         self.__miscScratchPad = {}
 
         # Setup the reserved video memory.
@@ -238,7 +239,7 @@ class camera:
         # Reboot the sensor and return to the default resolution.
         self.sensor.reset()
         self.sensor.setResolution(self.geometry)
-        self.wbMatrix = self.sensor.getWhiteBalance()
+        self.wbMatrix = self.getWhiteBalance()
         self.colorMatrix = self.sensor.getColorMatrix()
         self.__setState('idle')
 
@@ -284,6 +285,44 @@ class camera:
     def getRecordingMaxFrames(self, fSize):
         ramSizeWords = (self.dimmSize[0] + self.dimmSize[1]) // self.BYTES_PER_WORD - self.REC_REGION_START
         return ramSizeWords // self.getFrameSizeWords(fSize)
+    
+    # Compute the white balance for a given color temperature.
+    def getWhiteBalance(self, cTempK=5500):
+        if (len(self.sensor.wbPresets) == 0):
+            # No white balance presets exists, probably monochrome.
+            return [1.0, 1.0, 1.0]
+        elif (cTempK in self.sensor.wbPresets):
+            # A white balance preset exists for this color temperature.
+            return self.sensor.wbPresets[cTempK]
+        else:
+            # We Must interpolate the white balance matrices.
+            cTempList = list(self.sensor.wbPresets.keys())
+            cTempList.sort()
+
+            # Find the highest preset below the target.
+            cTempLow = cTempList[0]
+            cTempHi = cTempList[-1]
+            if (cTempLow > cTempK):
+                return self.sensor.wbPresets[cTempLow]
+            if (cTempHi < cTempK):
+                return self.sensor.wbPresets[cTempHi]
+            for k in cTempList:
+                if (k == cTempK):
+                    return self.sensor.wbPresets[cTempK]
+                elif (k < cTempK):
+                    cTempLow = k
+                elif (k > cTempK):
+                    cTempHi = k
+                    break
+            
+            # Interpolate!
+            wbHigh = self.sensor.wbPresets[cTempHi]
+            wbLow = self.sensor.wbPresets[cTempLow]
+            return [
+                (wbHigh[0] * (cTempK - cTempLow) + wbLow[0] * (cTempHi - cTempK)) / (cTempHi - cTempLow),
+                (wbHigh[1] * (cTempK - cTempLow) + wbLow[1] * (cTempHi - cTempK)) / (cTempHi - cTempLow),
+                (wbHigh[2] * (cTempK - cTempLow) + wbLow[1] * (cTempHi - cTempK)) / (cTempHi - cTempLow),
+            ]
     
     #===============================================================================================
     # API Methods: Recording Group
@@ -1365,7 +1404,7 @@ class camera:
     
     #===============================================================================================
     # API Parameters: Color Space Group
-    @camProperty(notify=True, save=True)
+    @camProperty(notify=True)
     def wbMatrix(self):
         """list(float): The Red, Green and Blue gain coefficients to achieve white balance."""
         display = regmaps.display()
@@ -1391,7 +1430,32 @@ class camera:
         self.__wbCustom[0] = value[0]
         self.__wbCustom[1] = value[1]
         self.__wbCustom[2] = value[2]
+        
+        # A color temperature of zero means: use wbCustom.
+        if (self.__wbTemperature == 0):
+            self.wbMatrix = self.__wbCustom
+        
         self.__propChange("wbCustom")
+    
+    @camProperty(notify=True, save=True)
+    def wbTemperature(self):
+        """int: Color temperature, in degrees Kelvin, to use for white balance."""
+        return self.__wbTemperature
+    @wbTemperature.setter
+    def wbTemperature(self, value):
+        if not isinstance(value, int):
+            raise TypeError("wbTemperature must be an integer")
+        if value < 0:
+            raise ValueError("wbTemperature must be greater than absolute zero")
+        
+        # A color temperature of zero means: use wbCustom.
+        if (value == 0):
+            self.wbMatrix = self.__wbCustom
+        else:
+            self.wbMatrix = self.getWhiteBalance(value)
+        
+        self.__wbTemperature = value
+        self.__propChange("wbTemperature")
 
     @camProperty(notify=True, save=True)
     def colorMatrix(self):

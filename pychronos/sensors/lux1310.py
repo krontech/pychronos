@@ -532,12 +532,17 @@ class lux1310(api):
                     -0.3056,  1.3895, -0.0969,
                      0.1272, -0.9531,  1.6492]
     
-    def getWhiteBalance(self, cTempK=5500):
-        if not self.cfaPattern:
-            return [1.0, 1.0, 1.0]
-        else:
-            return [1.5226, 1.0723, 1.5655]
-
+    @property
+    def wbPresets(self):
+        return {
+            3200: [1.02, 1.00, 1.91],
+            4600: [1.22, 1.00, 1.74],
+            5250: [1.30, 1.00, 1.61],
+            5600: [1.35, 1.00, 1.584],
+            6500: [1.42, 1.00, 1.46],
+            8000: [1.53, 1.00, 1.35],
+        }
+    
     @property
     def maxGain(self):
         return 16
