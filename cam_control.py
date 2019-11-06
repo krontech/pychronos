@@ -216,10 +216,10 @@ class controlApi(dbus.service.Object):
         filename = args.pop('filename', time.strftime('vid_%F_%H-%M-%S')) + suffixes.get(saveFormat)
 
         # Assemble the full pathname for recorded file.
-        extStorate = self.camera.externalStorage
+        extStorage = self.camera.externalStorage
         if devName not in extStorage:
             raise ValueError('Invalid storage device given for recording')
-        storage = extStorate[devName]
+        storage = extStorage[devName]
         filepath = os.path.abspath(os.path.join(storage['mount'], filename))
         if not filepath.startswith(storage['mount']):
             raise ValueError('Invalid filename given for recording')
@@ -229,7 +229,7 @@ class controlApi(dbus.service.Object):
 
         # Make the real call to save the file and pass through the remaining arguments.
         args['filename'] = filepath
-        video.recordfile(args, reply_handler=onReply, error_handler=onError)
+        self.video.recordfile(args, reply_handler=onReply, error_handler=onError)
     
     #===============================================================================================
     #Method('get', arguments='as', returns='a{sv}')
