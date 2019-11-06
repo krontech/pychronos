@@ -2,7 +2,6 @@
 Description=Control interface for the Chronos Camera
 After=chronos-fpga.service chronos-video.service
 Requires=chronos-fpga.service
-Conflicts=chronos-gui.service
 
 [Service]
 Type=dbus
