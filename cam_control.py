@@ -213,19 +213,28 @@ class controlApi(dbus.service.Object):
 
         # Remove some arguments for sanitiziation.
         devName = args.pop('device')
-        filename = args.pop('filename', time.strftime('vid_%F_%H-%M-%S')) + suffixes.get(saveFormat)
+
+        filename = args.pop('filename', time.strftime('vid_%F_%H-%M-%S'))
+        if (saveFormat != 'dng'):
+            filename = filename + suffixes.get(saveFormat)
 
         # Assemble the full pathname for recorded file.
         extStorage = self.camera.externalStorage
         if devName not in extStorage:
             raise ValueError('Invalid storage device given for recording')
         storage = extStorage[devName]
+    #    print("### filename =", filename)
+    #    print("### storage =", storage)
+    #    print("### mount =",storage['mount'])
+    #    print("### join =", os.path.join(storage['mount'], filename))
         filepath = os.path.abspath(os.path.join(storage['mount'], filename))
         if not filepath.startswith(storage['mount']):
-            raise ValueError('Invalid filename given for recording')
+            raise ValueError('Invalid filename given for recording')        
+    #    print ("### filepath =", filepath)
         # TODO: Check for available space or any other sanity checking.
         # TODO: Start a saveDoneTimer to monitor available storage space?
         # TODO: Maybe launch the saveDoneTimer from the SOF/EOF signal.
+        # TODO: Look for sneaky path tricks, like /../..
 
         # Make the real call to save the file and pass through the remaining arguments.
         args['filename'] = filepath
