@@ -528,7 +528,7 @@ class camera:
     def __loadBlackCal(self, calLocation, factoryLocation=None):
         display = regmaps.display()
         fSize = self.sensor.getCurrentGeometry()
-        suffix = self.sensor.calFilename("/fpn%dx%doffset%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset), '.raw')
+        suffix = self.sensor.calFilename("/fpn_%dx%doff%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset), '.raw')
 
         # Load any sensor black calibration data.
         if not self.sensor.loadBlackCal(calLocation, factoryLocation):
@@ -594,7 +594,7 @@ class camera:
         if saveLocation:
             try:
                 os.makedirs(saveLocation, exist_ok=True)
-                fName = saveLocation + "/fpn%dx%doffset%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset)
+                fName = saveLocation + "/fpn_%dx%doff%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset)
                 fpnFile = self.sensor.calFilename(fName, '.raw')
                 logging.info("Saving black calibration to %s", fpnFile)
                 numpy.array(fAverage / numFrames, dtype=numpy.uint16).tofile(fpnFile)

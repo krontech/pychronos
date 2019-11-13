@@ -796,21 +796,21 @@ class lux1310(api):
         self.__backupSettings()
 
         # Retrieve the current resolution and frame period.
-        fSizeCal = copy.deepcopy(self.fSizeReal)
+        fSize = copy.deepcopy(self.fSizeReal)
         fPeriod = self.frameClocks / self.LUX1310_SENSOR_HZ
         iterations=16
 
         # Enable black bars if not already done.
-        if (fSizeCal.vDarkRows == 0):
+        if (fSize.vDarkRows == 0):
             logging.debug("Enabling dark pixel readout")
-            fSizeCal.vDarkRows = self.MAX_VDARK // 2
-            fSizeCal.vOffset += fSizeCal.vDarkRows
-            fSizeCal.vRes -= fSizeCal.vDarkRows
+            fSize.vDarkRows = self.MAX_VDARK // 2
+            fSize.vOffset += fSize.vDarkRows
+            fSize.vRes -= fSize.vDarkRows
 
             # Disable the FPGA timing engine and apply the changes.
             self.timing.programInterm()
             time.sleep(0.01) # Extra delay to allow frame readout to finish. 
-            self.updateReadoutWindow(fSizeCal)
+            self.updateReadoutWindow(fSize)
             self.regs.regHidyEn = False
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
@@ -827,19 +827,21 @@ class lux1310(api):
         self.regs.regAdcCalEn = True
         for i in range(0, iterations):
             yield tRefresh
-            yield from self.autoAdcOffsetIteration(fSizeCal)
+            yield from self.autoAdcOffsetIteration(fSize)
         
         # Save the black calibration results if a location was provided.
         if saveLocation:
+            filename = "/offset_%dx%doff%dx%d" % (self.fSizeReal.hRes, self.fSizeReal.vRes, self.fSizeReal.hOffset, self.fSizeReal.vOffset)
             adcOffsetData = numpy.asarray(self.adcOffsets, dtype=numpy.int16)
-            adcOffsetData.tofile(self.calFilename(saveLocation + '/lux1310offsets', ".bin"))
+            adcOffsetData.tofile(self.calFilename(saveLocation + filename, ".bin"))
 
         # Restore the frame period and wavetable.
         self.__restoreSettings()
     
     def loadBlackCal(self, calLocation, factoryLocation=None):
         # Generate the calibration filename.
-        suffix = self.calFilename("/lux1310offsets", ".bin")
+        fSize = self.getCurrentGeometry()
+        suffix = self.calFilename("/offset_%dx%doff%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset), ".bin")
         filename = calLocation + suffix
         if (factoryLocation and not os.path.isfile(filename)):
             filename = factoryLocation + suffix
