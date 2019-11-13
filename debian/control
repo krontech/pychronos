@@ -35,7 +35,7 @@ Description: Python bindings for the Chronos High Speed Camera (common documenta
 Package: chronos-control
 Architecture: all
 Depends: ${python3:Depends}, ${misc:Depends},
-        python3-pychronos, python3-dbus,
+        python3-pychronos, python3-dbus, python3-gobject,
         chronos-fpga, chronos-video
 Suggests: python-pychronos-doc
 Description: Control daemon for the Chronos High Speed Camera

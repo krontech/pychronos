@@ -55,7 +55,7 @@ class controlApi(dbus.service.Object):
 
         # Try creating the calibration directory if it doesn't exist.
         try:
-            os.makedirs(self.calLocation)
+            os.makedirs(self.calLocation, exist_ok=True)
         except OSError as e:
             logging.info("Unable to create calibration directory at %s: %s", self.calLocation, e)
 

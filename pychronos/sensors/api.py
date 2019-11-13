@@ -382,6 +382,30 @@ class api(ABC):
             >>>    time.sleep(delay)
         """
         pass
+    
+    def startBlackCal(self, saveLocation=None):
+        """Perform sensor black calibration routines at the current settings.
+
+        Any calibration steps that the sensor can perform while assuming a black
+        reference image, should be performed by this call.
+
+        Args:
+            saveLocation (string, optional): Filesystem path to the directory where
+                calibration data should should be stored.
+
+        Yields:
+            float: The sleep time, in seconds, between steps of the calibration procedure.
+        
+        Examples:
+            This function returns a generator iterator with the sleep time between the
+            steps of the analog calibration procedure. The caller may use this for
+            cooperative multithreading, or can complete the calibration sychronously
+            as follows:
+
+            >>> for delay in sensor.startBlackCal():
+            >>>    time.sleep(delay)
+        """
+        yield from ()
 
     def calFilename(self, prefix, extension=""):
         """Generate the filename for sensor calibration data at the current settings.
@@ -407,8 +431,28 @@ class api(ABC):
         Args:
             calLocation (string): Filesystem path to the directory where
                 calibration data is stored.
+        
+        Returns:
+            bool: `True` if the calibration data was successfully loaded, or
+                `False` if calibration data was expected but not found.
         """
-        raise False
+        return False
+    
+    def loadBlackCal(self, calLocation, factoryLocation):
+        """Loads stored black calibration data from a file, if supported
+
+        Args:
+            calLocation (string): Filesystem path to the directory where
+                user calibration data is stored.
+            factoryLocation (string, optional): Filesystem path to a directory
+                where factory calibration can be loaded if no user calibration
+                data is present
+        
+        Returns:
+            bool: `True` if the calibration data was successfully loaded, or
+                `False` if calibration data was expected but not found.
+        """
+        return False
     
     @abstractmethod
     def setGain(self, gain):

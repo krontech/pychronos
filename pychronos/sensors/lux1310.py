@@ -2,6 +2,7 @@
 import pychronos
 import time
 import math
+import os
 import copy
 import numpy
 import logging
@@ -594,48 +595,40 @@ class lux1310(api):
         
         return (sampnbits / fbacknbits) * gsMap[gsernbits]
     
-    def autoAdcOffsetIteration(self, fSize, numFrames=4):
-        # Read out the calibration frames.
-        fAverage = numpy.zeros((fSize.vDarkRows * fSize.hRes // self.ADC_CHANNELS, self.ADC_CHANNELS), dtype=numpy.uint32)
-        seq = sequencer()
-        for x in range(0, numFrames):
-            yield from seq.startLiveReadout(fSize.hRes, fSize.vDarkRows)
-            if not seq.liveResult:
-                logging.error("ADC offset training failed to read frame")
-                return
-            fAverage += numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
-        
-        # Train the ADC offsets for a target of Average = Footroom + StandardDeviation
-        fAverage //= numFrames
-        adcAverage = numpy.average(fAverage, 0)
-        adcStdDev = numpy.std(fAverage, 0)
-        for col in range(0, self.ADC_CHANNELS):
-            self.adcOffsets[col] -= (adcAverage[col] - adcStdDev[col] - self.ADC_FOOTROOM) / 2
-            if (self.adcOffsets[col] < self.ADC_OFFSET_MIN):
-                self.adcOffsets[col] = self.ADC_OFFSET_MIN
-            elif (self.adcOffsets[col] > self.ADC_OFFSET_MAX):
-                self.adcOffsets[col] = self.ADC_OFFSET_MAX
-            
-            # Update the image sensor
-            self.regs.regAdcOs[col] = self.adcOffsets[col]
+    def __backupSettings(self):
+        # Save the sensor settings, before they get messed up by calibration.
+        self.fSizeReal = self.getCurrentGeometry()
 
-    def autoAdcOffsetCal(self, fSize, iterations=16):
-        tRefresh = (self.frameClocks * 3) / self.LUX1310_SENSOR_HZ
-        tRefresh += (1/60)
+    def __restoreSettings(self):
+        # Restore the sensor settings after they get messed up by calibration.
+        logging.debug("Restoring sensor configuration")
+        self.timing.programInterm()
+        time.sleep(0.01) # Extra delay to allow frame readout to finish. 
+        self.updateReadoutWindow(self.fSizeReal)
+        self.updateWavetable(self.fSizeReal, frameClocks=self.frameClocks, gaincal=False)
+        self.fSizeReal = None
 
-        # Clear out the ADC offsets
-        for i in range(0, self.ADC_CHANNELS):
-            self.adcOffsets[i] = 0
-            self.regs.regAdcOs[i] = 0
-        
-        # Enable ADC calibration and iterate on the offsets.
-        self.regs.regAdcCalEn = True
-        for i in range(0, iterations):
-            yield tRefresh
-            yield from self.autoAdcOffsetIteration(fSize)
+        # Restore the timing program
+        if (self.currentProgram == self.timing.PROGRAM_STANDARD):
+            self.timing.programStandard(self.frameClocks, self.exposureClocks)
+        elif (self.currentProgram == self.timing.PROGRAM_SHUTTER_GATING):
+            self.timing.programShutterGating()
+        elif (self.currentProgram == self.timing.PROGRAM_FRAME_TRIG):
+            self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
+        elif (self.currentProgram == self.timing.PROGRAM_2POINT_HDR):
+            self.setHdrExposureProgram(self.exposureClocks / self.LUX1310_SENSOR_HZ, 2)
+        elif (self.currentProgram == self.timing.PROGRAM_3POINT_HDR):
+            self.setHdrExposureProgram(self.exposureClocks / self.LUX1310_SENSOR_HZ, 3)
+        else:
+            logging.error("Invalid timing program, reverting to standard exposure")
+            self.timing.programStandard(self.frameClocks, self.exposureClocks)
 
-    def autoAdcGainCal(self, fSize):
+    def startAnalogCal(self, saveLocation=None):
+        logging.debug('Starting ADC gain calibration')
+        self.__backupSettings()
+
         # Setup some math constants
+        fSize = self.fSizeReal
         numRows = 64
         tRefresh = (self.frameClocks * 10) / self.LUX1310_SENSOR_HZ
         pixFullScale = (1 << fSize.bitDepth)
@@ -727,50 +720,85 @@ class lux1310(api):
         predict = lowColumns + (diff * (vmid - vlow) / (vhigh - vlow))
         err2pt = midColumns - predict
 
+        # Load and enable 2-point calibration.
         logging.debug("ADC Columns 2-point gain: %s" % (gain2pt))
         logging.debug("ADC Columns 2-point error: %s" % (err2pt))
-
-        # Add a parabola to compensate for the curvature. This parabola should have
-        # zeros at the high and low measurement points, and a curvature to compensate
-        # for the error at the middle range. Such a parabola is therefore defined by:
-        #
-        #  f(X) = a*(X - Xlow)*(X - Xhigh), and
-        #  f(Xmid) = -error
-        #
-        # Solving for the curvature gives:
-        #
-        #  a = error / ((Xmid - Xlow) * (Xhigh - Xmid))
-        #
-        # The resulting 3-point calibration function is therefore:
-        #
-        #  Y = a*X^2 + (b - a*Xhigh - a*Xlow)*X + c
-        #  a = three-point curvature correction.
-        #  b = two-point gain correction.
-        #  c = some constant (black level).
-        self.curve3pt = err2pt / ((midColumns - lowColumns) * (highColumns - midColumns))
-        self.gain3pt = gain2pt - self.curve3pt * (highColumns + lowColumns)
-
-        logging.debug("ADC Columns 3-point gain: %s" % (self.gain3pt))
-        logging.debug("ADC Columns 3-point curve: %s" % (self.curve3pt))
-
-        # Load and enable the 3-point calibration.
+        
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
         colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
         for col in range(self.MAX_HRES):
-            curvature = int(self.curve3pt[col % self.ADC_CHANNELS] * (1 << self.COL_CURVE_FRAC_BITS))
-            colGainRegs.mem16[col] = int(self.gain3pt[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
-            if (curvature > 0):
-                colCurveRegs.mem16[col] = curvature
-            else:
-                colCurveRegs.mem16[col] = (0x10000 + curvature) & 0xffff
+            colGainRegs.mem16[col] = int(gain2pt[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
+            colCurveRegs.mem16[col] = 0
+        
         display = pychronos.regmaps.display()
-        display.gainControl |= display.GAINCTL_3POINT
+        display.gainControl &= ~display.GAINCTL_3POINT
 
-    def startAnalogCal(self, saveLocation=None):     
+        # Save the black calibration results if a location was provided.
+        if saveLocation:
+            colGainData = numpy.asarray(gain2pt, dtype=numpy.float)
+            colGainData.tofile(self.calFilename(saveLocation + '/colGain', ".bin"))
+        
+        # Restore the frame period and wavetable.
+        self.__restoreSettings()
+
+    def loadAnalogCal(self, calLocation):
+        # Generate the calibration filename.
+        suffix = self.calFilename("/colGain", ".bin")
+        filename = calLocation + suffix
+        
+        # Load calibration!
+        display = pychronos.regmaps.display()
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
+        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
+        try:
+            logging.info("Loading column gain calibration from %s", filename)
+            colGainData = numpy.fromfile(filename, dtype=numpy.float, count=self.ADC_CHANNELS)
+            for col in range(0, self.MAX_HRES):
+                colGainRegs.mem16[col] = int(colGainData[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
+                colCurveRegs.mem16[col] = 0
+            display.gainControl &= ~display.GAINCTL_3POINT
+            return True
+        except Exception as err:
+            logging.info("Clearing column gain calibration data")
+            for col in range(0, self.MAX_HRES):
+                colGainRegs.mem16[col] = (1 << self.COL_GAIN_FRAC_BITS)
+                colCurveRegs.mem16[col] = 0
+            display.gainControl &= ~display.GAINCTL_3POINT
+            return False
+    
+    def autoAdcOffsetIteration(self, fSize, numFrames=4):
+        # Read out the calibration frames.
+        fAverage = numpy.zeros((fSize.hRes // self.ADC_CHANNELS, self.ADC_CHANNELS), dtype=numpy.uint32)
+        seq = sequencer()
+        for x in range(0, numFrames):
+            yield from seq.startLiveReadout(fSize.hRes, 1)
+            if not seq.liveResult:
+                logging.error("ADC offset training failed to read frame")
+                return
+            fAverage += numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
+        
+        # Train the ADC offsets for a target of Average = Footroom + StandardDeviation
+        fAverage //= numFrames
+        adcAverage = numpy.average(fAverage, 0)
+        adcStdDev = numpy.std(fAverage, 0)
+        for col in range(0, self.ADC_CHANNELS):
+            self.adcOffsets[col] -= (adcAverage[col] - adcStdDev[col] - self.ADC_FOOTROOM) / 2
+            if (self.adcOffsets[col] < self.ADC_OFFSET_MIN):
+                self.adcOffsets[col] = self.ADC_OFFSET_MIN
+            elif (self.adcOffsets[col] > self.ADC_OFFSET_MAX):
+                self.adcOffsets[col] = self.ADC_OFFSET_MAX
+            
+            # Update the image sensor
+            self.regs.regAdcOs[col] = self.adcOffsets[col]
+        
+    def startBlackCal(self, saveLocation=None):
+        logging.debug('Starting ADC offset calibration')
+        self.__backupSettings()
+
         # Retrieve the current resolution and frame period.
-        self.fSizeReal = self.getCurrentGeometry()
         fSizeCal = copy.deepcopy(self.fSizeReal)
         fPeriod = self.frameClocks / self.LUX1310_SENSOR_HZ
+        iterations=16
 
         # Enable black bars if not already done.
         if (fSizeCal.vDarkRows == 0):
@@ -787,89 +815,49 @@ class lux1310(api):
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
         # Perform ADC offset calibration using the optical black regions.
-        logging.debug('Starting ADC offset calibration')
-        yield from self.autoAdcOffsetCal(fSizeCal)
+        tRefresh = (self.frameClocks * 3) / self.LUX1310_SENSOR_HZ
+        tRefresh += (1/60)
 
-        # Perform ADC column gain calibration using the dummy voltage.
-        logging.debug('Starting ADC gain calibration')
-        yield from self.autoAdcGainCal(fSizeCal)
-
-        # Save the analog calibration results if a location was provided.
+        # Clear out the ADC offsets
+        for i in range(0, self.ADC_CHANNELS):
+            self.adcOffsets[i] = 0
+            self.regs.regAdcOs[i] = 0
+        
+        # Enable ADC calibration and iterate on the offsets.
+        self.regs.regAdcCalEn = True
+        for i in range(0, iterations):
+            yield tRefresh
+            yield from self.autoAdcOffsetIteration(fSizeCal)
+        
+        # Save the black calibration results if a location was provided.
         if saveLocation:
-            caldata = {
-                "offsets": self.adcOffsets,
-                "gain": list(self.gain3pt),
-                "curve": list(self.curve3pt)
-            }
-            with open(self.calFilename(saveLocation + '/lux1310cal', '.json'), 'w') as fp:
-                json.dump(caldata, fp)
+            adcOffsetData = numpy.asarray(self.adcOffsets, dtype=numpy.int16)
+            adcOffsetData.tofile(self.calFilename(saveLocation + '/lux1310offsets', ".bin"))
 
         # Restore the frame period and wavetable.
-        logging.debug("Restoring sensor configuration")
-        self.timing.programInterm()
-        time.sleep(0.01) # Extra delay to allow frame readout to finish. 
-        self.updateReadoutWindow(self.fSizeReal)
-        self.updateWavetable(self.fSizeReal, frameClocks=self.frameClocks, gaincal=False)
-        self.fSizeReal = None
+        self.__restoreSettings()
+    
+    def loadBlackCal(self, calLocation, factoryLocation=None):
+        # Generate the calibration filename.
+        suffix = self.calFilename("/lux1310offsets", ".bin")
+        filename = calLocation + suffix
+        if (factoryLocation and not os.path.isfile(filename)):
+            filename = factoryLocation + suffix
 
-        # Restore the timing program
-        if (self.currentProgram == self.timing.PROGRAM_STANDARD):
-            self.timing.programStandard(self.frameClocks, self.exposureClocks)
-        elif (self.currentProgram == self.timing.PROGRAM_SHUTTER_GATING):
-            self.timing.programShutterGating()
-        elif (self.currentProgram == self.timing.PROGRAM_FRAME_TRIG):
-            self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
-        elif (self.currentProgram == self.timing.PROGRAM_2POINT_HDR):
-            self.setHdrExposureProgram(self.exposureClocks / self.LUX1310_SENSOR_HZ, 2)
-        elif (self.currentProgram == self.timing.PROGRAM_3POINT_HDR):
-            self.setHdrExposureProgram(self.exposureClocks / self.LUX1310_SENSOR_HZ, 3)
-        else:
-            logging.error("Invalid timing program, reverting to standard exposure")
-            self.timing.programStandard(self.frameClocks, self.exposureClocks)
-
-    def loadAnalogCal(self, calLocation):
-        loadSuccessful = False
-        loadFilename = self.calFilename(calLocation + '/lux1310cal', '.json')
+        # Load calibration!
         try:
-            with open(loadFilename, 'r') as fp:
-                # Read calibration from the file.
-                logging.info("Loading lux1310 calibration data from %s", loadFilename)
-                calData = json.load(fp)
-                self.adcOffsets = list(calData['offsets'])
-                self.gain3pt = numpy.array(calData['gain'], dtype=numpy.float)
-                self.curve3pt = numpy.array(calData['curve'], dtype=numpy.float)
-                if (len(self.adcOffsets) < self.ADC_CHANNELS):
-                    raise ValueError("Invalid array size for ADC offset calibration data")
-                if (len(self.gain3pt) < self.ADC_CHANNELS):
-                    raise ValueError("Invalid array size for ADC gain calibration data")
-                if (len(self.curve3pt) < self.ADC_CHANNELS):
-                    raise ValueError("Invalid array size for ADC gain calibration data")
-                loadSuccessful = True
+            logging.info("Loading offset calibration from %s", filename)
+            adcOffsetData = numpy.fromfile(filename, dtype=numpy.int16, count=self.ADC_CHANNELS)
+            for i in range(0, self.ADC_CHANNELS):
+                self.adcOffsets[i] = adcOffsetData[i]
+                self.regs.regAdcOs[i] = adcOffsetData[i]
+            return True
         except Exception as err:
-            # Load some sensible defaults.
-            logging.error("Failed to load lux1310 calibration data from %s", loadFilename)
-            self.adcOffsets = [0] * self.ADC_CHANNELS
-            self.gain3pt = numpy.full(self.ADC_CHANNELS, 1.0)
-            self.curve3pt = numpy.full(self.ADC_CHANNELS, 0.0)
-
-        # Program the ADC offsets.
-        for col in range(self.ADC_CHANNELS):
-            self.regs.regAdcOs[col] = self.adcOffsets[col]
-
-        # Load and enable the 3-point calibration.
-        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
-        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
-        for col in range(self.MAX_HRES):
-            curvature = int(self.curve3pt[col % self.ADC_CHANNELS] * (1 << self.COL_CURVE_FRAC_BITS))
-            colGainRegs.mem16[col] = int(self.gain3pt[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
-            if (curvature > 0):
-                colCurveRegs.mem16[col] = curvature
-            else:
-                colCurveRegs.mem16[col] = (0x10000 + curvature) & 0xffff
-        display = pychronos.regmaps.display()
-        display.gainControl |= display.GAINCTL_3POINT
-
-        return loadSuccessful
+            logging.info("Clearing offset calibration data")
+            for i in range(0, self.ADC_CHANNELS):
+                self.adcOffsets[i] = 0
+                self.regs.regAdcOs[i] = 0
+            return False
 
     def calFilename(self, prefix, extension=""):
         wtClocks = self.regs.regRdoutDly
