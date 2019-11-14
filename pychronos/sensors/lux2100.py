@@ -1,6 +1,7 @@
-#Luxima LUX1310 Image Sensor Class
+#Luxima LUX2100 Image Sensor Class
 import pychronos
 import time
+import os
 import math
 import copy
 import numpy
@@ -594,11 +595,148 @@ class lux2100(api):
             logging.error("Invalid timing program, reverting to standard exposure")
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
 
-    def startAnalogCal(self, saveLocation=None): 
-        yield from ()
+    def startAnalogCal(self, saveLocation=None):
+        logging.debug('Starting ADC gain calibration')
+
+        # Setup some math constants
+        numRows = 64
+        fSize = self.getCurrentGeometry()
+        tRefresh = (self.frameClocks * 10) / self.LUX2100_SENSOR_HZ
+        pixFullScale = (1 << fSize.bitDepth)
+
+        seq = sequencer()
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
+        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
+
+        # Enable the analog test mode.
+        self.regs.regPoutsel = 3
+        self.regs.regSelVdum = 3
+        self.regs.regSelVlnkeepRst = 0
+
+        # Search for a dummy voltage high reference point.
+        vhigh = 31
+        while (vhigh > 0):
+            self.regs.regSelVlnkeepRst = vhigh
+            yield tRefresh
+
+            # Read a frame and compute the column averages and minimum.
+            yield from seq.startLiveReadout(fSize.hRes, numRows)
+            if not seq.liveResult:
+                raise CalibrationError("Failed to acquire frames during calibration")
+            frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
+            highColumns = numpy.average(frame, 0)
+
+            # High voltage should be less than 7/8ths of full scale.
+            if (numpy.amax(highColumns) <= (pixFullScale - (pixFullScale / 8))):
+                break
+            else:
+                vhigh -= 1
+        
+        # Search for a dummy voltage low reference point.
+        vlow = 0
+        while (vlow < vhigh):
+            self.regs.regSelVlnkeepRst = vlow
+            yield tRefresh
+            
+            # Read a frame and compute the column averages and minimum.
+            yield from seq.startLiveReadout(fSize.hRes, numRows)
+            if not seq.liveResult:
+                raise CalibrationError("Failed to acquire frames during calibration")
+            frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
+            lowColumns = numpy.average(frame, 0)
+
+            # Find the minum voltage that does not clip.
+            if (numpy.amin(lowColumns) >= self.ADC_FOOTROOM):
+                break
+            else:
+                vlow += 1
+
+        # Sample the midpoint, which should be somewhere around quarter scale.
+        vmid = (vhigh + 3*vlow) // 4
+        self.regs.regSelVlnkeepRst = vmid
+        yield tRefresh
+
+        # Read a frame out of the live display.
+        yield from seq.startLiveReadout(fSize.hRes, numRows)
+        if not seq.liveResult:
+            raise CalibrationError("Failed to acquire frames during calibration")
+        frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
+        midColumns = numpy.average(frame, 0)
+
+        # Disable the analog test mode.
+        self.regs.regSelVlnkeepRst = 30
+        self.regs.regSelVdum = 0
+        self.regs.regPoutsel = 2
+
+        logging.debug("ADC Gain calibration voltages=[%s, %s, %s]" % (vlow, vmid, vhigh))
+        logging.debug("ADC Gain calibration averages=[%s, %s, %s]" %
+                (numpy.average(lowColumns), numpy.average(midColumns), numpy.average(highColumns)))
+
+        # Determine which column has the strongest response and sanity-check the gain
+        # measurements. If things are out of range, then give up on gain calibration
+        # and apply a gain of 1.0 instead.
+        maxColumn = 0
+        for col in range(0, self.ADC_CHANNELS):
+            minrange = (pixFullScale // 16)
+            diff = highColumns[col] - lowColumns[col]
+            if ((highColumns[col] <= (midColumns[col] + minrange)) or (midColumns[col] <= (lowColumns[col] + minrange))):
+                for x in range(0, self.MAX_HRES):
+                    colGainRegs.mem16[x] = (1 << self.COL_GAIN_FRAC_BITS)
+                    colCurveRegs.mem16[x] = 0
+                raise CalibrationError("ADC Auto calibration range error")
+            if (diff > maxColumn):
+                maxColumn = diff
+
+        # Compute the 2-point calibration coefficient.
+        diff = (highColumns - lowColumns)
+        gain2pt = numpy.full(self.ADC_CHANNELS, maxColumn) / diff
+
+        # Predict the ADC to be linear with dummy voltage and find the error.
+        predict = lowColumns + (diff * (vmid - vlow) / (vhigh - vlow))
+        err2pt = midColumns - predict
+
+        # Load and enable 2-point calibration.
+        logging.debug("ADC Columns 2-point gain: %s" % (gain2pt))
+        logging.debug("ADC Columns 2-point error: %s" % (err2pt))
+        
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
+        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
+        for col in range(self.MAX_HRES):
+            colGainRegs.mem16[col] = int(gain2pt[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
+            colCurveRegs.mem16[col] = 0
+        
+        display = pychronos.regmaps.display()
+        display.gainControl &= ~display.GAINCTL_3POINT
+
+        # Save the black calibration results if a location was provided.
+        if saveLocation:
+            colGainData = numpy.asarray(gain2pt, dtype=numpy.float)
+            colGainData.tofile(self.calFilename(saveLocation + '/colGain', ".bin"))
         
     def loadAnalogCal(self, calLocation):
-        return True
+        # Generate the calibration filename.
+        suffix = self.calFilename("/colGain", ".bin")
+        filename = calLocation + suffix
+        
+        # Load calibration!
+        display = pychronos.regmaps.display()
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
+        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
+        try:
+            logging.info("Loading column gain calibration from %s", filename)
+            colGainData = numpy.fromfile(filename, dtype=numpy.float, count=self.ADC_CHANNELS)
+            for col in range(0, self.MAX_HRES):
+                colGainRegs.mem16[col] = int(colGainData[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
+                colCurveRegs.mem16[col] = 0
+            display.gainControl &= ~display.GAINCTL_3POINT
+            return True
+        except Exception as err:
+            logging.info("Clearing column gain calibration data")
+            for col in range(0, self.MAX_HRES):
+                colGainRegs.mem16[col] = (1 << self.COL_GAIN_FRAC_BITS)
+                colCurveRegs.mem16[col] = 0
+            display.gainControl &= ~display.GAINCTL_3POINT
+            return False
     
     def autoAdcOffsetIteration(self, fSize, numFrames=4):
         # Read out the calibration frames.
@@ -625,13 +763,13 @@ class lux2100(api):
             # Update the image sensor
             self.regs.regAdcOs[col] = self.adcOffsets[col]
     
-    def startBlackCal(self, saveLocation=None);
+    def startBlackCal(self, saveLocation=None):
         logging.debug('Starting ADC offset calibration')
         self.__backupSettings()
 
         # Retrieve the current resolution and frame period.
         fSize = copy.deepcopy(self.fSizeReal)
-        fPeriod = self.frameClocks / self.LUX1310_SENSOR_HZ
+        fPeriod = self.frameClocks / self.LUX2100_SENSOR_HZ
         iterations=16
 
         # Enable black bars if not already done.
@@ -649,7 +787,7 @@ class lux2100(api):
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
         # Perform ADC offset calibration using the optical black regions.
-        tRefresh = (self.frameClocks * 3) / self.LUX1310_SENSOR_HZ
+        tRefresh = (self.frameClocks * 3) / self.LUX2100_SENSOR_HZ
         tRefresh += (1/60)
 
         # Clear out the ADC offsets
