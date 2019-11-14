@@ -441,6 +441,11 @@ class lux2100(api):
         tFovb = 50      # Duration between PRSTN falling and TXN falling (I think)
         tFrame = tRow * (size.vRes + size.vDarkRows) + tTx + tFovf + tFovb - self.LUX2100_MIN_HBLANK
 
+        # Add the overhead to flush the deserializer FIFO to DDR memory, otherwise
+        # we will get frame corruption at the maximum framerate. I am reasonably
+        # sure that this is a bug in the FPGA.
+        tFrame += 280   # Approximately 3.75us
+
         return tFrame
     
     def getPeriodRange(self, fSize):
@@ -523,16 +528,172 @@ class lux2100(api):
         return 1
     
     def setGain(self, gain):
-        pass
+        gainConfig = {  # Sampling Cap, Feedback Cap, Serial Gain
+            1:          ( 0x007f,       0x007f,       0x3),
+            2:          ( 0x01ff,       0x000f,       0x3),
+            4:          ( 0x0fff,       0x001f,       0x1),
+            8:          ( 0x0fff,       0x001f,       0x0),
+            16:         ( 0x0fff,       0x000f,       0x0),
+        }
+        if (not int(gain) in gainConfig):
+            raise ValueError("Unsupported image gain setting")
+        
+        samp, feedback, sgain = gainConfig[int(gain)]
+        self.regs.regGainSelSamp = samp
+        self.regs.regGainSelFb = feedback
+        self.regs.regGainBit = sgain
 
     def getCurrentGain(self):
-        return 1
+        gsMap = {
+            0: 2.0,
+            1: 1.456,
+            2: 1.0,
+            3: 0.763
+        }
+        sampnbits = 4
+        fbacknbits = 1
+        gsernbits = 0
+
+        x = self.regs.regGainSelSamp
+        while (x != 0):
+            sampnbits += (x & 1)
+            x >>= 1
+        
+        x = self.regs.regGainSelFb
+        while (x != 0):
+            fbacknbits += (x & 1)
+            x >>= 1
+
+        x = self.regs.regGainBit
+        while (x != 0):
+            gsernbits += (x & 1)
+            x >>= 1
+        
+        return (sampnbits / fbacknbits) * gsMap[gsernbits]
+
+    def __backupSettings(self):
+        # Save the sensor settings, before they get messed up by calibration.
+        self.fSizeReal = self.getCurrentGeometry()
+
+    def __restoreSettings(self):
+        # Restore the sensor settings after they get messed up by calibration.
+        logging.debug("Restoring sensor configuration")
+        self.timing.programInterm()
+        time.sleep(0.01) # Extra delay to allow frame readout to finish. 
+        self.updateReadoutWindow(self.fSizeReal)
+        self.fSizeReal = None
+
+        # Restore the timing program
+        if (self.currentProgram == self.timing.PROGRAM_STANDARD):
+            self.timing.programStandard(self.frameClocks, self.exposureClocks)
+        elif (self.currentProgram == self.timing.PROGRAM_SHUTTER_GATING):
+            self.timing.programShutterGating()
+        elif (self.currentProgram == self.timing.PROGRAM_FRAME_TRIG):
+            self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
+        else:
+            logging.error("Invalid timing program, reverting to standard exposure")
+            self.timing.programStandard(self.frameClocks, self.exposureClocks)
 
     def startAnalogCal(self, saveLocation=None): 
-        yield 0
+        yield from ()
         
     def loadAnalogCal(self, calLocation):
-        return False
+        return True
+    
+    def autoAdcOffsetIteration(self, fSize, numFrames=4):
+        # Read out the calibration frames.
+        fAverage = numpy.zeros((fSize.hRes // self.ADC_CHANNELS, self.ADC_CHANNELS), dtype=numpy.uint32)
+        seq = sequencer()
+        for x in range(0, numFrames):
+            yield from seq.startLiveReadout(fSize.hRes, 1)
+            if not seq.liveResult:
+                logging.error("ADC offset training failed to read frame")
+                return
+            fAverage += numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
+        
+        # Train the ADC offsets for a target of Average = Footroom + StandardDeviation
+        fAverage //= numFrames
+        adcAverage = numpy.average(fAverage, 0)
+        adcStdDev = numpy.std(fAverage, 0)
+        for col in range(0, self.ADC_CHANNELS):
+            self.adcOffsets[col] -= (adcAverage[col] - adcStdDev[col] - self.ADC_FOOTROOM) / 2
+            if (self.adcOffsets[col] < self.ADC_OFFSET_MIN):
+                self.adcOffsets[col] = self.ADC_OFFSET_MIN
+            elif (self.adcOffsets[col] > self.ADC_OFFSET_MAX):
+                self.adcOffsets[col] = self.ADC_OFFSET_MAX
+            
+            # Update the image sensor
+            self.regs.regAdcOs[col] = self.adcOffsets[col]
+    
+    def startBlackCal(self, saveLocation=None);
+        logging.debug('Starting ADC offset calibration')
+        self.__backupSettings()
+
+        # Retrieve the current resolution and frame period.
+        fSize = copy.deepcopy(self.fSizeReal)
+        fPeriod = self.frameClocks / self.LUX1310_SENSOR_HZ
+        iterations=16
+
+        # Enable black bars if not already done.
+        if (fSize.vDarkRows == 0):
+            logging.debug("Enabling dark pixel readout")
+            fSize.vDarkRows = self.MAX_VDARK // 2
+            fSize.vOffset += fSize.vDarkRows
+            fSize.vRes -= fSize.vDarkRows
+
+            # Disable the FPGA timing engine and apply the changes.
+            self.timing.programInterm()
+            time.sleep(0.01) # Extra delay to allow frame readout to finish. 
+            self.regs.regHidyEn = False
+            self.updateReadoutWindow(fSize)
+            self.timing.programStandard(self.frameClocks, self.exposureClocks)
+        
+        # Perform ADC offset calibration using the optical black regions.
+        tRefresh = (self.frameClocks * 3) / self.LUX1310_SENSOR_HZ
+        tRefresh += (1/60)
+
+        # Clear out the ADC offsets
+        for i in range(0, self.ADC_CHANNELS):
+            self.adcOffsets[i] = 0
+            self.regs.regAdcOs[i] = 0
+        
+        # Enable ADC calibration and iterate on the offsets.
+        self.regs.regAdcCalEn = True
+        for i in range(0, iterations):
+            yield tRefresh
+            yield from self.autoAdcOffsetIteration(fSize)
+        
+        # Save the black calibration results if a location was provided.
+        if saveLocation:
+            filename = "/offset_%dx%doff%dx%d" % (self.fSizeReal.hRes, self.fSizeReal.vRes, self.fSizeReal.hOffset, self.fSizeReal.vOffset)
+            adcOffsetData = numpy.asarray(self.adcOffsets, dtype=numpy.int16)
+            adcOffsetData.tofile(self.calFilename(saveLocation + filename, ".bin"))
+
+        # Restore the frame period and wavetable.
+        self.__restoreSettings()
+    
+    def loadBlackCal(self, calLocation, factoryLocation=None):
+        # Generate the calibration filename.
+        fSize = self.getCurrentGeometry()
+        suffix = self.calFilename("/offset_%dx%doff%dx%d" % (fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset), ".bin")
+        filename = calLocation + suffix
+        if (factoryLocation and not os.path.isfile(filename)):
+            filename = factoryLocation + suffix
+
+        # Load calibration!
+        try:
+            logging.info("Loading offset calibration from %s", filename)
+            adcOffsetData = numpy.fromfile(filename, dtype=numpy.int16, count=self.ADC_CHANNELS)
+            for i in range(0, self.ADC_CHANNELS):
+                self.adcOffsets[i] = adcOffsetData[i]
+                self.regs.regAdcOs[i] = adcOffsetData[i]
+            return True
+        except Exception as err:
+            logging.info("Clearing offset calibration data")
+            for i in range(0, self.ADC_CHANNELS):
+                self.adcOffsets[i] = 0
+                self.regs.regAdcOs[i] = 0
+            return False
 
     def calFilename(self, prefix, extension=""):
         wtClocks = self.regs.regRdoutDly

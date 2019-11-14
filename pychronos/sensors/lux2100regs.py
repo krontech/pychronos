@@ -182,9 +182,12 @@ class lux2100regs(sensor):
 
         def __setitem__(self, key, value):
             if (value < 0):
-                value = (int(-value) & 0x3ff) | 0x400
-            super().__setitem__(key, value | 0x400)
-    
+                value = int(-value) & 0x3ff
+                super().__setitem__(key, value | 0x400)
+            else:
+                value = int(value) & 0x3ff
+                super().__setitem__(key, value)
+
     @property
     def regSensor(self):
         """Raw SCI sensor registers"""
