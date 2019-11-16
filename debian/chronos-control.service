@@ -1,7 +1,7 @@
 [Unit]
 Description=Control interface for the Chronos Camera
-After=chronos-fpga.service chronos-video.service
-Requires=chronos-fpga.service
+After=chronos-fpga.service chronos-pwrutil.service chronos-video.service
+Requires=chronos-fpga.service chronos-pwrutil.service
 
 [Service]
 Type=dbus

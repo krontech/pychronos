@@ -1,5 +1,7 @@
-pychronos (0.4.0~alpha111) unstable; urgency=medium
+pychronos (0.4.0~alpha113) unstable; urgency=medium
 
+  * Add package and service dependency on chronos-pwrutil
+  * Update debian scripts for automated package builds.
   * Remove conflict dependency with chronos-gui package.
   * lux2100: Implement column gain calibration algorithm.
   * lux2100: Implement ADC offset training algorithm.
@@ -67,7 +69,9 @@ pychronos (0.4.0~alpha111) unstable; urgency=medium
   * Added exposureNormalized to compliment exposurePercent. Cleaned up docs. ☺
   * Add Conflicts dependency between cam-control and camApp
   * Add frameGeometry to sensor autodocumentation.
-  * Fixed issue with 'config' parameter not being gettable. Also changed timing system so calls from the same mode don't go to the interm mode while changing - This needs further testing and validation.
+  * Fixed issue with 'config' parameter not being gettable. Also changed timing system so calls from 
+    the same mode don't go to the interm mode while changing - This needs further testing and 
+    validation.
   * Fixed an issue where if it was unable to get a frame it would cause issues
   * fixed bug in lux1310 and made idnum able to convert from strings
   * Fix bug preventing normal recording from using the ring buffer.
@@ -113,4 +117,4 @@ pychronos (0.4.0~alpha111) unstable; urgency=medium
   * Add version.py to maintain a single API version number.
   * Upstream release v0.4.0-alpha
 
- -- Owen Kirby <oskirby@gmail.com>  Thu, 14 Nov 2019 12:07:36 -0800
+ -- Owen Kirby <oskirby@gmail.com>  Fri, 15 Nov 2019 17:32:10 -0800

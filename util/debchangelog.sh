@@ -18,12 +18,22 @@ if [ $REVISION -gt 0 ]; then
 	VERSION="${VERSION}${REVISION}"
 fi
 
-# Output the Debian changelog 
+# Convert a list of change descriptions (one per line) and convert
+# them into a bullet-point list with sensible word-wrapping.
+gen_changelog() {
+	while read -r change; do
+		echo -n "  * "
+		echo "$change" | fold -s -w 100 | sed '1 ! s/^/    /g' 
+	done
+}
+
+# Output the Debian changelog
 cat << EOF
 ${DEBSOURCE} (${VERSION}) unstable; urgency=medium
 
-$(git log --oneline ${TAGGED}..HEAD | sed -e 's/^[0-9a-f]*/  \*/g')
+$(git log --oneline ${TAGGED}..HEAD | sed -e 's/^[0-9a-f]*\s*//g' | gen_changelog)
   * Upstream release ${TAGGED}
 
  -- ${DEBFULLNAME} <${DEBEMAIL}>  $(date -R)
 EOF
+
