@@ -113,27 +113,36 @@ class controlApi(dbus.service.Object):
             # Just a plain old function, call directly but force it to return False
             GLib.timeout_add(msec, lambda *args, **kwargs: callback(*args, **kwargs) and False, *args, **kwargs)
     
+    ## Internal helper to merge multiple dictionaries together into D-Bus
+    ## compatible types.
+    def dbusifyMerge(self, *args, variant_level=0):
+        result = dbus.types.Dictionary(variant_level=variant_level, signature='sv')
+        for src in args:
+            for key in src:
+                value = src[key]
+                if isinstance(value, bool) or isinstance(value, dbus.types.Boolean):
+                    result[key] = dbus.types.Boolean(value, variant_level=1)
+                elif isinstance(value, int):
+                    result[key] = dbus.types.Int32(value, variant_level=1)
+                elif isinstance(value, float):
+                    result[key] = dbus.types.Double(value, variant_level=1)
+                elif isinstance(value, (dict, list)):
+                    result[key] = self.dbusifyTypes(value, variant_level=1)
+                else:
+                    result[key] = dbus.types.String(value, variant_level=1)
+
+        return result
+
     ## Internal helper to convert types into D-Bus compatible versions. For
     ## now this only applies to dictionaries, where the key/value pairs are
     ## converted into an 'a{sv}' signature.
     def dbusifyTypes(self, src, variant_level=0):
-        # For everything other than dicts - do nothing.
-        if not isinstance(src, dict):
+        if isinstance(src, dict):
+            # For dicts, convert all values into variants.
+            return self.dbusifyMerge(src, variant_level=variant_level)
+        else:
+            # For everything other than dicts - do nothing.
             return src
-        
-        # For dicts, convert all values into variants.
-        result = dbus.types.Dictionary(variant_level=variant_level, signature='sv')
-        for key in src:
-            value = src[key]
-            if isinstance(value, int):
-                result[key] = dbus.types.Int32(value, variant_level=1)
-            elif isinstance(value, float):
-                result[key] = dbus.types.Double(value, variant_level=1)
-            elif isinstance(value, (dict, list)):
-                result[key] = self.dbusifyTypes(value, variant_level=1)
-            else:
-                result[key] = dbus.types.String(value, variant_level=1)
-        return result
     
     def dbusReplyHandler(self, args):
         logging.debug("D-Bus reply: %s", args)
@@ -243,39 +252,43 @@ class controlApi(dbus.service.Object):
     #===============================================================================================
     #Method('get', arguments='as', returns='a{sv}')
     #Method('set', arguments='a{sv}', returns='a{sv}')
-    @dbus.service.method(interface, in_signature='as', out_signature='a{sv}')
-    def get(self, attrs): #Use "attrs", not "args", because too close to "*args".
+    def onGetReply(self, a, b, onReply=None):
+        """Internal helper to handle an async reply when proxying a get/set to the video API."""
+        if onReply:
+            onReply(self.dbusifyMerge(a, b))
+    
+    def onGetError(self, results, keys, err, onReply):
+        """Internal helper to handle an async error when proxying a get/set to the video API."""
+        x = {}
+        if 'error' in results:
+            x.update(results['error'])
+        for name in keys:
+            x[name] = str(err)
+        
+        if onReply:
+            onReply(self.dbusifyMerge(results, {'error': x}))
+
+    @dbus.service.method(interface, in_signature='as', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
+    def get(self, attrs, onReply=None, onError=None): #Use "attrs", not "args", because too close to "*args".
         """Retrieve named values from the control API and the video API."""
         
-        try:
-            controlAttrs = [
-                name
-                for name in attrs 
-                if name in self.ownKeys()
-            ]
-            videoAttrs = [
-                str(name)
-                for name in attrs 
-                if name not in controlAttrs
-            ]
-            
-            data = self.video.get(videoAttrs, timeout=150) if videoAttrs else {}
-            for name in controlAttrs:
-                data[name] = self.dbusifyTypes(getattr(self.camera, name))
-            return data
+        # Get any parameters we can handle locally.
+        results = {}
+        notfound = []
+        for name in attrs:
+            try:
+                results[name] = self.dbusifyTypes(getattr(self.camera, name))
+            except AttributeError as e:
+                notfound.append(name)
         
-        except dbus.exceptions.DBusException as e:
-            if e.get_dbus_name() != 'ca.krontech.chronos.UnknownAttribute':
-                raise e
-            else:
-                #Video didn't have the attr, we don't have the attr, return a nice error message saying _which_ attr is causing issues and why.
-                raise dbus.exceptions.DBusException(
-                    'ca.krontech.chronos.UnknownAttribute',
-                    "'%s' is not a known attribute. Known attributes are: %s" % (
-                        e.get_dbus_message().split()[0], #attribute name
-                        sorted(set(self.availableKeys()))
-                    )
-                )
+        if notfound:
+            # If there were not-found parameters, check the video API.
+            self.video.getz(notfound, timeout=150,
+                reply_handler=lambda vresults: self.onGetReply(results, vresults, onReply),
+                error_handler=lambda err: self.onGetError(results, notfound, err, onReply))
+        elif onReply:
+            # Otherwise, we can reply immediately.
+            onReply(results)
     
     def paramsort(self, name):
         """Internal helper function to sort a parameter by priority"""
@@ -285,13 +298,14 @@ class controlApi(dbus.service.Object):
         except:
             return 0
     
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def set(self, newValues):
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}',  async_callbacks=('onReply', 'onError'))
+    def set(self, newValues, onReply=None, onError=None):
         """Set named values in the control API and the video API."""
         
         keys = sorted(newValues.keys(), key=self.paramsort, reverse=True)
         failedAttributes = {}
         videoAttributes = {}
+        localKeys = []
         startCal = self.camera.sensor.calFilename("test", ".bin")
         resChange = False
         for name in keys:
@@ -303,6 +317,7 @@ class controlApi(dbus.service.Object):
                 try:
                     setattr(self.camera, name, value)
                     logging.debug("Set %s -> %s", name, value)
+                    localKeys.append(name)
                     if (name == 'resolution'):
                         resChange = True
                 except Exception as e:
@@ -326,32 +341,25 @@ class controlApi(dbus.service.Object):
                     self.runGenerator(self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True, saveCal=False))
                 finally:
                     pass
-
-        # For any keys that don't exist - try setting them in the video API.
-        # TODO: We should catch the async response and pass errors back to the
-        # caller, but for now we just assume that everything succeeded.
-        if videoAttributes:
-            self.video.set(self.dbusifyTypes(videoAttributes),
-                reply_handler=self.dbusReplyHandler,
-                error_handler=self.dbusErrorHandler,
-                timeout=150)
         
-        #HACK: Manually poke the video pipeline back into live display after changing
-        # the display resolution. This should eventually go away by making the video
-        # system more autonomous with regards to the live display res.
-        if ('resolution' in newValues):
-            res = self.camera.resolution
-            logging.info('Notifying cam-pipeline to reconfigure display')
-            self.video.livedisplay({
-                'hres':dbus.types.Int32(res['hRes'], variant_level=1),
-                'vres':dbus.types.Int32(res['vRes'], variant_level=1)
-            }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler, timeout=150)
-        
-        # Return the settings as they've been applied.
-        result = self.get(keys)
+        # Get the results of the local attributes.
+        results = {}
+        for name in localKeys:
+            try:
+                results[name] = self.dbusifyTypes(getattr(self.camera, name))
+            except Exception as e:
+                failedAttributes[name] = str(e)
         if failedAttributes:
-            result['error'] = self.dbusifyTypes(failedAttributes)
-        return result
+            results['error'] = self.dbusifyTypes(failedAttributes)
+        
+        if videoAttributes:
+            # If there were keys that didn't exist, try setting them in the video API.
+            self.video.set(self.dbusifyTypes(videoAttributes), timeout=150,
+                reply_handler=lambda vresults: self.onGetReply(results, vresults, onReply),
+                error_handler=lambda err: self.onGetError(results, videoAttributes.keys(), err, onReply))
+        elif onReply:
+            # Otherwise, we can return immediately.
+            onReply(results)
     
     #===============================================================================================
     #Method('availableKeys', arguments='', returns='as')
@@ -380,30 +388,13 @@ class controlApi(dbus.service.Object):
             
             For a list of functions, see org.freedesktop.DBus.Properties.GetAll."""
         
-        #Video API doesn't know which keys it owns; hack it in here for now. (DDR 2019-05-06)
         try:
-            videoKeys = self.video.availableKeys(timeout=150)
+            videoKeys = self.video.describe(timeout=150)
         except dbus.exceptions.DBusException:
             logging.error('could not load video available keys')
-            videoKeys = {
-                'videoState': {'get': True, 'set': False, 'notifies': True},
-                'overlayEnable': {'get': True, 'set': True, 'notifies': True},
-                'overlayFormat': {'get': True, 'set': True, 'notifies': True},
-                'focusPeakingColor': {'get': True, 'set': True, 'notifies': True},
-                'focusPeakingLevel': {'get': True, 'set': True, 'notifies': True},
-                'zebraLevel': {'get': True, 'set': True, 'notifies': True},
-                'playbackRate': {'get': True, 'set': True, 'notifies': True},
-                'playbackPosition': {'get': True, 'set': True, 'notifies': False},
-                'playbackStart': {'get': True, 'set': True, 'notifies': True},
-                'playbackLength': {'get': True, 'set': True, 'notifies': True},
-                'totalFrames': {'get': True, 'set': False, 'notifies': True},
-                'totalSegments': {'get': True, 'set': False, 'notifies': True},
-            }
+            videoKeys = {}
         
-        keys = videoKeys
-        keys.update(self.ownKeys())
-        return self.dbusifyTypes(keys)
-    
+        return self.dbusifyMerge(self.ownKeys(), videoKeys)
     
     #===============================================================================================
     #Method('status', arguments='', returns='a{sv}')
