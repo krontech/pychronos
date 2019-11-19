@@ -283,7 +283,7 @@ class controlApi(dbus.service.Object):
         
         if notfound:
             # If there were not-found parameters, check the video API.
-            self.video.getz(notfound, timeout=150,
+            self.video.get(notfound, timeout=150,
                 reply_handler=lambda vresults: self.onGetReply(results, vresults, onReply),
                 error_handler=lambda err: self.onGetError(results, notfound, err, onReply))
         elif onReply:
