@@ -340,6 +340,7 @@ of the supported methods are as follows:
 | `revertAutoWhiteBalance`    |`S`| none             |              | This copies the contents of `wbCustomColor` into `wbColor`.
 | `startAutoFocus`            |   | dict(location)   |              | Attempt to automatically focus the camera on a subject.
 | `startCalibration`          |`S`| dict(calTypes)   | varies       | Perform full calibration operations. Dict can have `blackCal`, `analogCal`, ior `zeroTimeBlackCal` set to true or false.
+| `clearCalibration`          |`S`| dict(factory)    |              | Clear user calibration data. Dict can optionally set `factory` to remove factory calibration data too. 
 | `startRecording`            |`S`| none             | `recording`  | Begin recording video data to memory.
 | `stopRecording`             |`S`| none             | `idle`       | Terimnate recording of video data to memory.
 | `flushRecording`            |`S`| none             |              | Flush recoreded video data from memory.

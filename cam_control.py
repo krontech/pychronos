@@ -486,6 +486,20 @@ class controlApi(dbus.service.Object):
                 "error": str(e)
             }
     
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def clearCalibration(self, args):
+        """ Remove calibration data, returning to factory calibration. """
+        try:
+            self.camera.clearCalibration(**args)
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
+            }
+    
     #===============================================================================================
     #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
     #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),

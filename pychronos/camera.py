@@ -730,6 +730,31 @@ class camera:
         self.sensor.loadAnalogCal("/var/camera/cal")
         return self.__loadBlackCal("/var/camera/userFPN", "/var/camera/cal/factoryFPN")
 
+    def clearCalibration(self, factory=False):
+        """Remove calibration data to return the camera to its factory calibration.
+
+        Args:
+            factory (bool, optional): Also remove factory calibration data. (default: false)
+        """
+        for root, dirs, files in os.walk("/var/camera/userFPN", topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+                logging.debug("FILE: %s", os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+                logging.debug("DIR: %s", os.path.join(root, name))
+        
+        if not factory:
+            return None
+        
+        for root, dirs, files in os.walk("/var/camera/cal", topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+                logging.debug("FILE: %s", os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+                logging.debug("DIR: %s", os.path.join(root, name))
+
     #===============================================================================================
     # API Parameters: Configuration Dictionary
     @camProperty()
