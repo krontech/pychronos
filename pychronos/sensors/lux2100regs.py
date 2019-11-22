@@ -136,7 +136,16 @@ class lux2100regs(sensor):
     regAdcOsEn =        __dataprop(0x0E, 0x0001, "Enables applying ADC offset registers during vertical blanking")
     regAdcOsSignLow =   __dataprop(0x0F, 0xffff, "Sign for ADC offsets (low channels)")
     regAdcOsSignHigh =  __dataprop(0x0F, 0xffff, "Sign for ADC offsets (high channels)")
-
+    
+    # Datapath selection register.
+    @property
+    def regDpScipEn(self):
+        """Register page communication selection"""
+        return self.sciRead(0x04, mask=0x0003)
+    @regDpScipEn.setter
+    def regDpScipEn(self, value):
+        return self.sciWrite(0x04, value, mask=0x0003)
+ 
     class sciBankedArrayView(sensor.sciArrayView):
         """Helper class to create an array view of one bank of the SCI
         register space that can be indexed or iterated upon to read and
@@ -171,22 +180,70 @@ class lux2100regs(sensor):
             else:
                 return self.parent.sciBankWrite(self.offset + key + 0x00, self.bank, value)
 
-    class adcOffsetArrayView(sciBankedArrayView):
+    class adcOffsetArrayView:
+        channelMap = [
+            0,  8, 16, 24, 4, 12, 20, 28, # Data channels 0 to 7
+            2, 10, 18, 26, 6, 14, 22, 30, # Data channels 8 to 15
+            1,  9, 17, 25, 5, 13, 21, 29, # Data channels 16 to 23
+            3, 11, 19, 27, 7, 15, 23, 31  # Data channels 24 to 31
+        ]
+
+        def __init__(self, parent):
+            self.parent = parent
+
+        def __len__(self):
+            return 32
+
         """ADC offset arrayview helper class"""
         def __getitem__(self, key):
-            value = super().__getitem__(key)
-            if (value & 0x400):
-                return -(value & 0x3ff)
+            self.parent.regDpScipEn = 1 # Switch to datapath.
+            channel = self.channelMap[key]
+            baseoff = 0x00
+            if (channel >= 16):
+                baseoff = 0x40
+                channel -= 16
+
+            signbits = self.parent.sciRead(0x0f + baseoff)
+            offset = self.parent.sciRead(0x10 + baseoff + channel) & 0x3ff
+            if (signbits & (1 << channel)):
+                return -offset
             else:
-                return value
+                return offset
 
         def __setitem__(self, key, value):
+            self.parent.regDpScipEn = 1 # Switch to datapath.
+            channel = self.channelMap[key]
+            baseoff = 0x00
+            if (channel >= 16):
+                baseoff = 0x40
+                channel -= 16
+
+            signbits = self.parent.sciRead(0x0f)
             if (value < 0):
-                value = int(-value) & 0x3ff
-                super().__setitem__(key, value | 0x400)
+                self.parent.sciWrite(0x0f + baseoff, signbits | (1 << channel))
+                self.parent.sciWrite(0x10 + baseoff + channel, -int(value))
             else:
-                value = int(value) & 0x3ff
-                super().__setitem__(key, value)
+                self.parent.sciWrite(0x0f + baseoff, signbits & ~(1 << channel))
+                self.parent.sciWrite(0x10 + baseoff + channel, int(value))
+
+        # Iterator protocol.
+        class __adcIterator:
+            def __init__(self, parent):
+                self.parent = parent
+                self.key = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if (self.key >= self.parent.__len__()):
+                    raise StopIteration
+                value = self.parent[self.key]
+                self.key += 1
+                return value
+
+        def __iter__(self):
+            return self.__adcIterator(self)
 
     @property
     def regSensor(self):
@@ -201,7 +258,7 @@ class lux2100regs(sensor):
     @property
     def regAdcOs(self):
         """ADC offsets"""
-        return self.adcOffsetArrayView(self, 0x10, 1, 32)
+        return self.adcOffsetArrayView(self)
     
     @property
     def regGainSetval(self):

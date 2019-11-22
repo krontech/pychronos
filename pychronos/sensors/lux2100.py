@@ -651,26 +651,14 @@ class lux2100(api):
             else:
                 vlow += 1
 
-        # Sample the midpoint, which should be somewhere around quarter scale.
-        vmid = (vhigh + 3*vlow) // 4
-        self.regs.regSelVlnkeepRst = vmid
-        yield tRefresh
-
-        # Read a frame out of the live display.
-        yield from seq.startLiveReadout(fSize.hRes, numRows)
-        if not seq.liveResult:
-            raise CalibrationError("Failed to acquire frames during calibration")
-        frame = numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
-        midColumns = numpy.average(frame, 0)
-
         # Disable the analog test mode.
         self.regs.regSelVlnkeepRst = 30
         self.regs.regSelVdum = 0
         self.regs.regPoutsel = 2
 
-        logging.debug("ADC Gain calibration voltages=[%s, %s, %s]" % (vlow, vmid, vhigh))
-        logging.debug("ADC Gain calibration averages=[%s, %s, %s]" %
-                (numpy.average(lowColumns), numpy.average(midColumns), numpy.average(highColumns)))
+        logging.debug("ADC Gain calibration voltages=[%s, %s]" % (vlow, vhigh))
+        logging.debug("ADC Gain calibration averages=[%s, %s]" %
+                (numpy.average(lowColumns), numpy.average(highColumns)))
 
         # Determine which column has the strongest response and sanity-check the gain
         # measurements. If things are out of range, then give up on gain calibration
@@ -679,7 +667,7 @@ class lux2100(api):
         for col in range(0, self.ADC_CHANNELS):
             minrange = (pixFullScale // 16)
             diff = highColumns[col] - lowColumns[col]
-            if ((highColumns[col] <= (midColumns[col] + minrange)) or (midColumns[col] <= (lowColumns[col] + minrange))):
+            if (highColumns[col] <= (lowColumns[col] + minrange)):
                 for x in range(0, self.MAX_HRES):
                     colGainRegs.mem16[x] = (1 << self.COL_GAIN_FRAC_BITS)
                     colCurveRegs.mem16[x] = 0
@@ -690,15 +678,9 @@ class lux2100(api):
         # Compute the 2-point calibration coefficient.
         diff = (highColumns - lowColumns)
         gain2pt = numpy.full(self.ADC_CHANNELS, maxColumn) / diff
-
-        # Predict the ADC to be linear with dummy voltage and find the error.
-        predict = lowColumns + (diff * (vmid - vlow) / (vhigh - vlow))
-        err2pt = midColumns - predict
-
-        # Load and enable 2-point calibration.
         logging.debug("ADC Columns 2-point gain: %s" % (gain2pt))
-        logging.debug("ADC Columns 2-point error: %s" % (err2pt))
         
+        # Load the 2-point gain calibration 
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
         colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
         for col in range(self.MAX_HRES):
