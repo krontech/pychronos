@@ -105,6 +105,16 @@ class camera:
             spdData = spd.spdRead(slot)
             if (spdData):
                 self.dimmSize[slot] = spdData.size
+
+        # Probe for the sensor's temperature sensor.
+        self.__sensorTemperatureAddr = 0
+        for x in range(0x48, 0x50):
+            try:
+                result = utils.smbusRead(x, 1)
+                self.__sensorTemperatureAddr = x
+                break
+            except Exception as err:
+                pass
         
         self.onChange = onChange
         self.description = "Chronos SN:%s" % (self.cameraSerial)
@@ -798,19 +808,18 @@ class camera:
     @camProperty()
     def cameraSerial(self):
         """str: Unique camera serial number"""
-        I2C_SLAVE = 0x0703 # From linux/i2c-dev.h
         EEPROM_ADDR = 0x54 # From the C++ app
-
-        # Open the I2C bus and set the EEPROM address.
-        fd = os.open("/dev/i2c-1", os.O_RDWR)
-        fcntl.ioctl(fd, I2C_SLAVE, EEPROM_ADDR)
-
-        # Set readout offset and read the serial number.
-        os.write(fd, bytearray([0, 0]))
-        serial = os.read(fd, 12)
-        os.close(fd)
         try:
-            return serial.decode("utf-8").strip('\0')
+            serial = utils.smbusRead(EEPROM_ADDR, 12, setup=bytearray([0, 0]))
+            serlength = 0
+            
+            # Truncate up to the first NULL byte.
+            for i in range(0, len(serial)):
+                serlength = i                
+                if not serial[i]:
+                    break
+            
+            return serial[0:serlength].decode("utf-8").strip('\0')
         except:
             return ""
     
@@ -950,6 +959,19 @@ class camera:
         fSize = self.sensor.getMaxGeometry()
         return fSize.vDarkRows
     
+    @camProperty()
+    def sensorTemperature(self):
+        if not self.__sensorTemperatureAddr:
+            return 0.0
+
+        try:
+            tempaddr = self.__sensorTemperatureAddr
+            tempdata = utils.smbusRead(tempaddr, 2, setup=bytearray([0]))
+            sign = -1.0 if (tempdata[0] & 0x80) else 1.0
+            return sign * ((tempdata[0] & 0x7f) + (tempdata[1] / 256))
+        except:
+            return 0.0
+
     #===============================================================================================
     # API Parameters: Exposure Group
     def __setupExposure(self, expPeriod, expMode):

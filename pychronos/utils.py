@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # Utility methods to enumerate storage devices.
 import os
+import fcntl
 import subprocess
 import json
 import re
@@ -59,6 +60,23 @@ def setHostname(name):
         newHostname = setHostnameMask.sub('', name)
         fp.write('Chronos-%s\n' % newHostname)
 
+
+def smbusRead(addr, length, setup=None):
+    fd = os.open("/dev/i2c-1", os.O_RDWR)
+    try:
+        I2C_SLAVE = 0x0703 # From linux/i2c-dev.h
+        fcntl.ioctl(fd, I2C_SLAVE, addr)
+
+        # Write an optional setup blob first.
+        if setup:
+            os.write(fd, setup)
+
+        data = os.read(fd, length)
+        os.close(fd)
+        return data
+    except Exception as e:
+        os.close(fd)
+        raise e
 
 if __name__ == '__main__':
     print("externalStorage = " + json.dumps(getStorageDevices(), sort_keys=True, indent=4))
