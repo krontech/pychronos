@@ -190,10 +190,11 @@ class power:
     
     @fanOverride.setter
     def fanOverride(self, value):
-        self.cache.fanOverride = bool(value)
         if (value):
+            self.cache.fanOverride = 0
             self.sendMessage('SET_FAN_OFF')
         else:
+            self.cache.fanOverride = "auto"
             self.sendMessage('SET_FAN_AUTO')
         self.__propChange("fanOverride")
 
