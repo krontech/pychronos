@@ -225,71 +225,83 @@ group and made more a part of the video display system.
 |`colorMatrix`      |`G`|`S`|`N`| array  |       |       | Array of 9 floats describing the 3x3 color matrix from image sensor color space in to sRGB, stored in row-scan order.
 
 ### IO Group
-| Parameter         | G | S | N | Type   | Min   | Max   | Description
-|:------------------|:--|:--|:--|:-------|:------|:------|:-----------
-|`ioMapping`        |`G`|`S`|`N`| dict   |       |       | A dictionary of the output mappings
-|`ioDelayTime`      |`G`|`S`|   | float  | 0.0   |       | An alias to ioMapping.delay.delayTime
+The camera has a programmable IO block that allows the user to connect any IO function to
+a selection of available signals. Several fixed function blocks are provided that can be
+combined to modify the behavior of IO signals on the camera.
 
-The `ioMapping` dictionary contains the following members:
+The combinatorial logic block combines up to 5 inputs through a series of AND, OR and XOR
+gates to form simple logic circuits. The boolean logic diagram of the combinatorial
+logic block is shown below:
+![Combinatorial logic block](io-comb-block.png)
 
-| Output            | Note | Description
-|:------------------|:-----|:-----------
-|`io1`              | 1    | Output Driver - IO 1
-|`io2`              | 1    | Output Driver - IO 2
-|`combOr1`          |      | Combinatorial OR 1 input
-|`combOr2`          |      | Combinatorial OR 2 input
-|`combOr3`          |      | Combinatorial OR 3 input
-|`combAnd`          |      | Combinatorial AND input
-|`combXOr`          |      | Combinatorial XOR input
-|`delay`            | 2    | Delay source
-|`toggleSet`        |      | Toggle block SET source
-|`toggleClear`      |      | Toggle block CLEAR source
-|`toggleFlip`       |      | Toggle block FLIP source
-|`shutter`          | 3    | Shutter source - used for Shutter Gatting (while active, open shutter)
-|`io1In`            | 4    | input configuration for io1
-|`io2In`            | 4    | input configuration for io2
+The programmable delay block uses a bucket-brigade memory block to delay its input
+waveform by a programmable number of clocks. This block also includes a prescaler which
+can extend the delay time at the expense of precision.
 
-1 - Parameters for IO drive strength
-2 - Parameters for delay function
-3 - Parameters for shutter function
-4 - Special input configuration
+The toggle block operates a flip-flop whose input can be set, cleared, or inverted whenever
+a rising edge is detected on one if its input signals.
 
-Each of the `Output` blocks is a dictionary that contains:
+| Parameter             | G | S | N | Type   | Min   | Max   | Description
+|:----------------------|:--|:--|:--|:-------|:------|:------|:-----------
+|`ioMappingIo1`         |`G`|`S`|`N`| dict   |       |       | Ouput driver 1 configuration.
+|`ioMappingIo2`         |`G`|`S`|`N`| dict   |       |       | Ouput driver 2 configuration.
+|`ioMappingCombOr1`     |`G`|`S`|`N`| dict   |       |       | Combinatorial block OR input 1 configuration.
+|`ioMappingCombOr2`     |`G`|`S`|`N`| dict   |       |       | Combinatorial block OR input 2 configuration.
+|`ioMappingCombOr3`     |`G`|`S`|`N`| dict   |       |       | Combinatorial block OR input 3 configuration.
+|`ioMappingCombAnd`     |`G`|`S`|`N`| dict   |       |       | Combinatorial block AND input configuration.
+|`ioMappingCombXor`     |`G`|`S`|`N`| dict   |       |       | Combinatorial block XOR input configuration.
+|`ioMappingDelay`       |`G`|`S`|`N`| dict   |       |       | Programmable delay block input configuration.
+|`ioMappingToggleSet`   |`G`|`S`|`N`| dict   |       |       | Toggle/flip-flop block SET input configuration.
+|`ioMappingToggleClear` |`G`|`S`|`N`| dict   |       |       | Toggle/flip-flop block CLEAR input configuration.
+|`ioMappingToggleFlip`  |`G`|`S`|`N`| dict   |       |       | Toggle/flip-flop block FLIP input configuration.
+|`ioMappingShutter`     |`G`|`S`|`N`| dict   |       |       | Timing block shutter control signal configuration.
+|`ioMappingStartRec`    |`G`|`S`|`N`| dict   |       |       | Recording start signal configuration.
+|`ioMappingStopRec`     |`G`|`S`|`N`| dict   |       |       | Recording stop signal configuration.
+|`ioMappingTrigger`     |`G`|`S`|`N`| dict   |       |       | Recording trigger signal configuration.
+|`ioThresholdIo1`       |`G`|`S`|`N`| float  | 0.0   | 5.0   | Voltage threshold at which trigger input signal 1 should go high.
+|`ioThresholdIo2`       |`G`|`S`|`N`| float  | 0.0   | 5.0   | Voltage threshold at which trigger input signal 2 should go high. 
+|`ioDelayTime`          |`G`|`S`|   | float  | 0.0   |       | Delay time, in seconds, for the programmable delay block.
+|`ioSourceStatus`       |`G`|   |   | dict   |       |       | A dictionary of the available IO signals and their current values.
+|`ioOutputStatus`       |`G`|   |   | dict   |       |       | A dictionary of the output signals and their current values.
+|`ioDetailedStatus`     |`G`|   |   | dict   |       |       | A dictionary of IO signals, routing configuration and edge timers.
 
-| Parameter            | Type  | Min | Max | Description
-|:---------------------|:------|:----|:----|:-----------
-|`source`              | enum  |     |     | Which input is connected to this - see list bellow
-|`invert`              | bool  |     |     | If true, invert the input
-|`debounce`            | bool  |     |     | If true, a debounce circuit is used
-|`driveStrength`       | int   | 0   | 3   | For IO drive pins only - sets the output drive strength (io1: 0, 1mA, 20mA, 21mA; io2: 0, 20mA, 20mA, 20mA)
-|`shutterTriggersFrame`| bool  |     |     | If true, shutter signal is forwarded to timing block. If false, this function is disabled
-|`delayTime`           | float | 0.0 |     | The time the delay block delays the incoming signal for in seconds. Values of 0.00000001 through 32768.0 are possible with varying internal resolution
+Each of the `ioMapping` parameters accepts a dictionary containing the following members:
 
-The source can be one of the following
+| Name              | Type   | Description
+|:------------------|:-------|:-----------
+|`source`           | string | Name or id of the IO signal to connect this function to.
+|`invert`           | bool   | Whether the signal should be inverted before use.
+|`debounce`         | bool   | Whether the signal should be debounced to remove high-frequency edges.
+|`drive`            | int    | Configurable drive strength (available for output pins `io1` and `io2` only).
 
-| Source               | Description
-|:---------------------|:-----------
-|`none`                | Always 0
-|`io1`                 | Input 1
-|`io2`                 | Input 2
-|`io3`                 | Isolated input
-|`comb`                | Combinatorial block output
-|`delay`               | Delay block output
-|`toggle`              | Toggle block output
-|`shutter`             | Signal from the old timing engine - currently integrating
-|`recording`           | Signal from the record sequencer - active while not in live preview mode
-|`dispFrame`           | Signal from the record sequencer - pulses on each frame
-|`startRec`            | Signal from the record sequencer - pulses when recording starts
-|`endRec`              | Signal from the record sequencer - pulses when recording stopped
-|`nextSeg`             | Signal from the record sequencer - pulses on new segment
-|`timingIo`            | Signal from the new timing engine - adjustable, normally integrating
-|`alwaysHigh`          | Always 1
+The `source` member can be selected from one of the following values:
 
-The input configuration has a single parameter:
+| Source               | ID |Description
+|:---------------------|:---|:-----------
+|`none`                | 0  | Always low
+|`io1`                 | 1  | Trigger input signal 1
+|`io2`                 | 2  | Trigger input signal 2
+|`io3`                 | 3  | Isolated trigger input signal
+|`comb`                | 4  | Combinatorial block output
+|`software`            | 5  | Software trigger signal
+|`delay`               | 6  | Delay block output
+|`toggle`              | 7  | Toggle block output
+|`shutter`             | 8  | Output signal from sensor timing engine whenever integrating.
+|`recording`           | 9  | Output signal from recording sequencer whenever recording is active.
+|`dispFrame`           | 10 | Output pulse from recording sequencer on the start of a frame.
+|`startRec`            | 11 | Output pulse from recording sequencer on the start of recording.
+|`endRec`              | 12 | Output pulse from recording sequencer on the end of recording.
+|`nextSeg`             | 13 | Output pulse from recording sequencer on the end of a segment.
+|`timingIo`            | 14 | Programmable output signal from sensor timing engine.
+|`alwaysHigh`          | 15 | Always high
 
-| Parameter            | type  | Min | Max | Description
-|:---------------------|:------|:----|:----|:-----------
-|`threshold`           | float | 0.0 | 5.0 | Input threshhold in volts
+The `ioDetailedStatus` parameter contains a nested dictionary with the following contents:
+
+| Name              | Type   | Description
+|:------------------|:-------|:-----------
+|`sources`          | dict   | The same contents as the `ioStatus` parameter.
+|`outputs`          | dict   | The same contents as the `ioOuputStatus` parameter.
+|`edgeTimers`       | dict   | Each member names an input signal, and has as its value a nested dictionary giving the `rising` and `falling` times, in seconds, since the last edge was detected.
 
 ### Recording Group
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
