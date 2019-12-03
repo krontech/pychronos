@@ -70,13 +70,16 @@ class timing(pychronos.fpgamap):
     invertAbnPulsedMode = __bitprop(0x08, 2, 0x0200, 'invert the ABN signal when in pulsed mode')
     wavetableLatch      = __bitprop(0x08, 2, 0x0400, 'causes change to happen only on hsync period between wavetables')
 
+    # Control signals output by the timing program
     ABN         = 0x01000000
     ABN2        = 0x02000000
-    TXN         = 0x08000000
     PRSTN       = 0x04000000
+    TXN         = 0x08000000
     IODRIVE     = 0x10000000
+    DROPFRAME   = 0x20000000
     NONE        = 0x00000000
     
+    # Special timing durations
     TIMING_RESTART           = 0x00000000
     TIMING_WAIT_FOR_ACTIVE   = 0x00FFFFFF
     TIMING_WAIT_FOR_INACTIVE = 0x00FFFFFE

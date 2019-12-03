@@ -12,71 +12,47 @@ from pychronos.power import power
 from pychronos.error import *
 
 from . import utils
-
-def camProperty(notify=False, save=False, derivedFrom=None, prio=0):
-    """@camProperty: Like @property, but include metadata.
-        
-        The camera properties, themselves, have certain
-        properties we care about. They are all gettable,
-        which we specify with a getter using @property,
-        and can be settable. However, they can also emit a
-        notification signal when they change, which is not
-        a decorated feature. Some properties are derived
-        from other properties, and we don't want to save
-        those to disk. This decorator notes these last two
-        properties for use later.
-        
-        'notify': The property emits update events when it
-                  is changed (default: False)
-        'save':   The property can be saved to disk to
-                  preserve the configuration of the camera
-                  class (default: False)
-        'derivedFrom': The name of the backing property to save.
-                  Needed, because aliased properties need to
-                  save their master's value, or one of the
-                  values will get overwritten.
-        'prio':   The sort order to apply when setting multiple
-                  properties at once. High numbers should be
-                  set first (default: 0)
-        
-        Examples:
-            set:
-                @camProperty(notify=True, save=True)
-                def exposurePeriod(self):
-                    return ...
-            get:
-                type(self.camera).exposurePeriod
-                    .fget.isNotifiable
-        """
-    def camPropertyAnnotate(fn, *args, **kwargs):
-        """Helper function for camProperty decorator."""
-        setattr(fn, 'notifies', notify)
-        setattr(fn, 'saveable', save)
-        setattr(fn, 'derivedFrom', derivedFrom)
-        setattr(fn, 'prio', prio)
-        return property(fn, *args, **kwargs)
-
-    return camPropertyAnnotate
-
-# Parameter priority groups
-PARAM_PRIO_RESOLUTION = 3
-PARAM_PRIO_FRAME_TIME = 2
-PARAM_PRIO_EXPOSURE   = 1
+from . import props
+from .props import camProperty as camProperty
 
 # Recording LEDs
 REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 
+# Wrap a property that is inherited form a nested class.
+def propWrapper(membername, propname, propclass):
+    wrapper = property(fget = lambda self: getattr(getattr(self, membername), propname),
+                       fset = lambda self, value: setattr(getattr(self, membername), propname, value),
+                       doc=getattr(propclass, '__doc__'))
+    # Duplicate the property metadata.
+    wrapper.fget.notifies = propclass.fget.notifies
+    wrapper.fget.saveable = propclass.fget.saveable
+    wrapper.fget.derivedFrom = propclass.fget.derivedFrom
+    wrapper.fget.prio = propclass.fget.prio
+    return wrapper
+
+# Duplicate all properties from a member.
+def propClassInherit(xclass, membername):
+    children = {}
+    for propname in dir(xclass):
+        xprop = getattr(xclass, propname)
+        if (isinstance(xprop, property)):
+            children[propname] = propWrapper(membername, propname, xprop)
+    return children
+
 class camera:
     BYTES_PER_WORD = 32
     FRAME_ALIGN_WORDS = 64
+    
+    # Inherit properties from nested classes.
+    vars().update(propClassInherit(power, 'power'))
 
     def __init__(self, sensor, onChange=None):
         self.sensor = sensor
-        self.power = power()
         self.configFile = None
         self.dimmSize = [0, 0]
-
+        self.power = power(onChange=lambda n, v: self.onChange(n, v) if self.onChange else None)
+        
         # Setup internal defaults.
         self.__state = 'idle'
         self.__recMode = 'normal'
@@ -170,6 +146,10 @@ class camera:
             handler (callable): Callback method to invoke whenever a property is changed.
         """
         self.onChange = handler
+
+    def tick(self):
+        """Perfom background processing for the camera."""
+        self.power.checkPowerSocket()
 
     #===============================================================================================
     # API Methods: Reset Group
@@ -992,7 +972,7 @@ class camera:
         self.__exposurePeriod = expPeriod
         self.__exposureMode = expMode
 
-    @camProperty(notify=True, save=True, prio=PARAM_PRIO_EXPOSURE)
+    @camProperty(notify=True, save=True, prio=props.PRIO_EXPOSURE)
     def exposurePeriod(self):
         """int: Minimum period, in nanoseconds, that the image sensor is currently exposing frames for."""
         return int(self.__exposurePeriod * 1000000000)
@@ -1002,7 +982,7 @@ class camera:
         self.__setupExposure(value / 1000000000, self.__exposureMode)
         self.__propChange("exposurePeriod")
 
-    @camProperty(prio=PARAM_PRIO_EXPOSURE)
+    @camProperty(prio=props.PRIO_EXPOSURE)
     def exposurePercent(self):
         """float: The current exposure time rescaled between `exposureMin` and `exposureMax`.  This value is 0% when exposure is at minimum, and increases linearly until exposure is at maximum, when it is 100%."""
         fSize = self.sensor.getCurrentGeometry()
@@ -1019,7 +999,7 @@ class camera:
         self.__setupExposure((value * (expMax - expMin) / 100) + expMin, self.__exposureMode)
         self.__propChange("exposurePeriod")
 
-    @camProperty(prio=PARAM_PRIO_EXPOSURE)
+    @camProperty(prio=props.PRIO_EXPOSURE)
     def exposureNormalized(self):
         """float: The current exposure time rescaled between `exposureMin` and `exposureMax`.  This value is 0 when exposure is at minimum, and increases linearly until exposure is at maximum, when it is 1.0."""
         fSize = self.sensor.getCurrentGeometry()
@@ -1036,7 +1016,7 @@ class camera:
         self.__setupExposure((value * (expMax - expMin) / 1) + expMin, self.__exposureMode)
         self.__propChange("exposurePeriod")
 
-    @camProperty(prio=PARAM_PRIO_EXPOSURE)
+    @camProperty(prio=props.PRIO_EXPOSURE)
     def shutterAngle(self):
         """float: The angle in degrees for which frames are being exposed relative to the frame time."""
         fPeriod = self.sensor.getCurrentPeriod()
@@ -1136,86 +1116,6 @@ class camera:
         """str: The current date and time in ISO-8601 format."""
         return datetime.datetime.now().isoformat()
 
-    @camProperty(notify=True)
-    def shippingMode(self):
-        """bool: True when the camera is configured for shipping mode"""
-        return bool(self.power.flags & self.power.FLAG_SHIPPING_MODE)
-
-    @camProperty(notify=True)
-    def externalPower(self):
-        """bool: True when the AC adaptor is present, and False when on battery power."""
-        return bool(self.power.flags & self.power.FLAG_ADAPTOR_PRESENT)
-    
-    def externalPowerChanged(self):
-        self.__propChange("externalPower")
-
-    @camProperty()
-    def batteryPresent(self):
-        """bool: True when the battery is installed, and False when the camera is only running on adaptor power"""
-        return bool(self.power.flags & self.power.FLAG_BATTERY_PRESENT)
-
-    @camProperty()
-    def batteryChargePercent(self):
-        """float: Estimated battery charge, with 0% being fully depleted and 100% being fully charged."""
-        return self.power.battCapacityPercent
-    
-    @camProperty()
-    def batteryChargeNormalized(self):
-        """float: Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged."""
-        return self.power.battCapacityPercent / 100
-    
-    @camProperty()
-    def batteryVoltage(self):
-        """float: The voltage that is currently being output from the removable battery. A healthy and fully charged battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
-        return self.power.battVoltageCam / 1000
-        
-    @camProperty(notify=True, save=True, derivedFrom='saveAndPowerDownLowBatteryLevelPercent')
-    def saveAndPowerDownLowBatteryLevelNormalized(self):
-        """float: Equivalent to `saveAndPowerDownLowBatteryLevelPercent`, but based against `batteryChargeNormalized` which is always 1% of `batteryChargePercent`."""
-        return self.saveAndPowerDownLowBatteryLevelPercent / 100
-        
-    @saveAndPowerDownLowBatteryLevelNormalized.setter
-    def saveAndPowerDownLowBatteryLevelNormalized(self, val):
-        self.saveAndPowerDownLowBatteryLevelPercent = val * 100
-    
-    _saveAndPowerDownLowBatteryLevelPercent = 4
-    @camProperty(notify=True, save=True)
-    def saveAndPowerDownLowBatteryLevelPercent(self):
-        """float: Turn off the camera if the battery charge level, reported by `batteryChargePercent`, falls below this level. The camera will start saving any recorded footage before it powers down. If this level is too low, the camera may run out of battery and stop before it finishes saving."""
-        logging.warn('Value not implemented, using dummy.')
-        return self._saveAndPowerDownLowBatteryLevelPercent
-        
-    @saveAndPowerDownLowBatteryLevelPercent.setter
-    def saveAndPowerDownLowBatteryLevelPercent(self, val):
-        self._saveAndPowerDownLowBatteryLevelPercent = val
-        self.__propChange("saveAndPowerDownLowBatteryLevelNormalized")
-        self.__propChange("saveAndPowerDownLowBatteryLevelPercent")
-    
-    _saveAndPowerDownWhenLowBattery = False
-    @camProperty(notify=True, save=True)
-    def saveAndPowerDownWhenLowBattery(self):
-        """bool: Should the camera try to turn off gracefully when the battery is low? The low level is set by `saveAndPowerDownLowBatteryLevelPercent` (or `saveAndPowerDownLowBatteryLevelNormalized`). The opposite of `powerOnWhenMainsConnected`. See `powerOnWhenMainsConnected` for an example which sets the camera to turn on and off when external power is supplied."""
-        return self._saveAndPowerDownWhenLowBattery
-        
-    @saveAndPowerDownWhenLowBattery.setter
-    def saveAndPowerDownWhenLowBattery(self, val):
-        self._saveAndPowerDownWhenLowBattery = val
-        self.power.setPowerMode(self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
-        self.__propChange("saveAndPowerDownWhenLowBattery")
-
-    _powerOnWhenMainsConnected = False
-    @camProperty(notify=True, save=True)
-    def powerOnWhenMainsConnected(self):
-        """bool: Set to `True` to have the camera turn itself on when it is plugged in. The inverse of this, turning off when the charger is disconnected, is achieved by setting the camera to turn off at any battery percentage. For example, to make the camera turn off when it is unpowered and turn on when it is powered again - effectively only using the battery to finish saving - you could make the following call: `api.set({ 'powerOnWhenMainsConnected':True, 'saveAndPowerDownWhenLowBattery':True, 'saveAndPowerDownLowBatteryLevelPercent':100.0 })`."""
-        return self._powerOnWhenMainsConnected
-        
-    @powerOnWhenMainsConnected.setter
-    def powerOnWhenMainsConnected(self, val):
-        self._powerOnWhenMainsConnected = val
-        self.__propChange("powerOnWhenMainsConnected")
-        self.power.setPowerMode(self._powerOnWhenMainsConnected, self._saveAndPowerDownWhenLowBattery)
-    
-    
     _backlightEnabled = True
     @camProperty(notify=True, save=False) #Don't save, default to True so the camera is reasonably recoverable if the light was off. UI will reconfigure this for us.
     def backlightEnabled(self):
@@ -1247,8 +1147,6 @@ class camera:
         """
         return utils.getStorageDevices()
 
-
-    
     #===============================================================================================
     # API Parameters: Camera Network Group
     @camProperty()
@@ -1259,7 +1157,6 @@ class camera:
     @networkHostname.setter
     def networkHostname(self, name):
         utils.setHostname(name)
-
     
     #===============================================================================================
     # API Parameters: Recording Group
@@ -1352,7 +1249,7 @@ class camera:
         fSize = self.sensor.getCurrentGeometry()
         return self.getRecordingMaxFrames(fSize)
     
-    @camProperty(notify=True, save=True, prio=PARAM_PRIO_RESOLUTION)
+    @camProperty(notify=True, save=True, prio=props.PRIO_RESOLUTION)
     def resolution(self):
         """dict: Resolution geometry at which the image sensor should capture frames.
         
@@ -1413,7 +1310,7 @@ class camera:
         fpMin, fpMax = self.sensor.getPeriodRange(fSize)
         return int(fpMin * 1000000000)
 
-    @camProperty(notify=True, save=True, prio=PARAM_PRIO_FRAME_TIME)
+    @camProperty(notify=True, save=True, prio=props.PRIO_FRAME_TIME)
     def framePeriod(self):
         """int: The time, in nanoseconds, to record a single frame."""
         return int(self.sensor.getCurrentPeriod() * 1000000000)
@@ -1427,7 +1324,7 @@ class camera:
         self.__propChange("exposureMax")
         self.__propChange("exposurePeriod")
 
-    @camProperty(prio=PARAM_PRIO_FRAME_TIME)
+    @camProperty(prio=props.PRIO_FRAME_TIME)
     def frameRate(self):
         """float: The estimated estimated recording rate in frames per second (reciprocal of `framePeriod`)."""
         return 1 / self.sensor.getCurrentPeriod()

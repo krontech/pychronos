@@ -198,14 +198,14 @@ API to the `chronos-cli` program.
 |:-------------------------------------------|:--|:--|:--|:-------|:------|:------|:-----------
 |`externalPower`                             |`G`|   |`N`| bool   | False | True  | True when the AC adaptor is present, and False when on battery power.
 |`batteryPresent`                            |`G`|   |`N`| bool   | False | True  | True when a battery is present, and False when there is no battery.
-|`batteryChargeNormalized`                   |`x`|   |   | float  | 0.0   | 1.0   | Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged.
-|`batteryChargePercent`                      |`x`|   |   | float  | 0.0   | 100.0 | Estimated battery charge, with 0% being fully depleted and 100% being fully charged.
-|`batteryVoltage`                            |`x`|   |   | float  | 0.0   | 14ish | A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos.
-|`saveAndPowerDownLowBatteryLevelNormalized` |`x`|`x`|`x`| float  | 0.0   | 1.0   | Equivalent to `saveAndPowerDownLowBatteryLevelPercent`, but based against `batteryChargeNormalized` which is always 1% of `batteryChargePercent`.
-|`saveAndPowerDownLowBatteryLevelPercent`    |`x`|`x`|`x`| float  | 0.0   | 100.0 | Turn off the camera if the battery charge level, reported by `batteryChargePercent`, falls below this level. The camera will start saving any recorded footage before it powers down. If this level is too low, the camera may run out of battery and stop before it finishes saving.
-|`saveAndPowerDownWhenLowBattery`            |`x`|`x`|`x`| bool   | False | True  | Should the camera try to turn off gracefully when the battery is low? The low level is set by `saveAndPowerDownLowBatteryLevelPercent` (or `saveAndPowerDownLowBatteryLevelNormalized`). The opposite of `powerOnWhenMainsConnected`. See `powerOnWhenMainsConnected` for an example which sets the camera to turn on and off when external power is supplied.
-|`powerOnWhenMainsConnected`                 |`x`|`x`|`x`| bool   | False | True  | Set to `True` to have the camera turn itself on when it is plugged in. The inverse of this, turning off when the charger is disconnected, is achieved by setting the camera to turn off at any battery percentage. For example, to make the camera turn off when it is unpowered and turn on when it is powered again - effectively only using the battery to finish saving - you could make the following call: `api.set({ 'powerOnWhenMainsConnected':True, 'saveAndPowerDownWhenLowBattery':True, 'saveAndPowerDownLowBatteryLevelPercent':100.0 })`.
+|`batteryCritical`                           |`G`|   |`N`| bool   | Fale  | True  | True when operating on battery power and the battery charge becomes critically low.
+|`batteryChargeNormalized`                   |`G`|   |   | float  | 0.0   | 1.0   | Estimated battery charge, with 0.0 being fully depleted and 1.0 being fully charged.
+|`batteryChargePercent`                      |`G`|   |   | float  | 0.0   | 100.0 | Estimated battery charge, with 0% being fully depleted and 100% being fully charged.
+|`batteryVoltage`                            |`G`|   |   | float  | 0.0   |       | A measure of the power the removable battery is putting out, in volts. A happy battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos.
+|`powerOnWhenMainsConnected`                 |`G`|`S`|`N`| bool   | False | True  | Set to `True` to have the camera turn itself on when it is plugged in.
+|`powerOffWhenMainsLost`                     |`G`|`S`|`N`| bool   | False | True  | Set to `True` to have the camera turn itself off when mains power is disconnected.
 |`backlightEnabled`                          |`x`|`x`|`x`| bool   |       |       | True if the LCD on the back of the camera is lit. Can be set to False to dim the screen and save a small amount of power.
+|`fanOverride`                               |`G`|`S`|`N`| bool   | False | True  | Set to `True` to turn the fan off if it is safe to do so, or set to `False` to let the camera control the fan speed.
 
 ### Camera Network Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
@@ -285,15 +285,11 @@ The source can be one of the following
 |`timingIo`            | Signal from the new timing engine - adjustable, normally integrating
 |`alwaysHigh`          | Always 1
 
-
 The input configuration has a single parameter:
 
 | Parameter            | type  | Min | Max | Description
 |:---------------------|:------|:----|:----|:-----------
 |`threshold`           | float | 0.0 | 5.0 | Input threshhold in volts
-
-
-
 
 ### Recording Group
 | Parameter         | G | S | N | Type   | Min   | Max   | Description

@@ -598,14 +598,12 @@ class controlApi(dbus.service.Object):
                 "error": "Invalid Resolution"
             }
 
-class powerTimer:
+class cameraTimer:
     def __init__(self, camera):
         self.camera = camera
 
     def __call__(self, *args):
-        self.camera.power.checkPowerSocket()
-        if self.camera.power.lastAcAdaptorPresent != self.camera.power.acAdaptorPresent:
-            self.camera.externalPowerChanged()
+        self.camera.tick()
         return True
 
 # Run the control API
@@ -658,7 +656,7 @@ if __name__ == "__main__":
     cam  = camera(sensor)
 
     # Install a timer for battery data monitoring
-    timer = powerTimer(cam)
+    timer = cameraTimer(cam)
     GLib.timeout_add(1000, timer)
    
     name = dbus.service.BusName('ca.krontech.chronos.control', bus=bus)
