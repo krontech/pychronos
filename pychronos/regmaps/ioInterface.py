@@ -3,28 +3,43 @@ import pychronos
 import logging
 
 class ioInterface(pychronos.fpgamap):
-    SOURCES = ['none', 'io1', 'io2', 'io3', 'comb',
-               'software', 'delay', 'toggle', 'shutter',
-               'recording', 'dispFrame',
-               'startRec', 'endRec', 'nextSeg', 'timingIo',
-               'alwaysHigh']
+    """Return a new map of the FPGA IO register space.
     
-    SOURCENUMBERS = {'none':0, 'io1':1, 'io2':2, 'io3':3, 'comb':4,
-                     'software':5, 'delay':6, 'toggle':7, 'shutter':8,
-                     'recording':9, 'dispFrame':10,
-                     'startRec':11, 'endRec':12, 'nextSeg':13, 'timingIo':14,
-                     'alwaysHigh':15}
-    SOURCENUMBERS = {'none':0, 'io1':1, 'io2':2, 'io3':3, 'comb':4,
-                     'software':5, 'delay':6, 'toggle':7, 'shutter':8,
-                     'recording':9, 'dispFrame':10,
-                     'startRec':11, 'endRec':12, 'nextSeg':13, 'timingIo':14,
-                     'alwaysHigh':15,
-                     'NONE':0, 'IO1':1, 'IO2':2, 'IO3':3, 'COMB':4,
-                     'SOFTWARE':5, 'DELAY':6, 'TOGGLE':7, 'SHUTTER':8,
-                     'RECORDING':9, 'DISPFRAME':10,
-                     'STARTREC':11, 'ENDREC':12, 'NEXTSEG':13, 'TIMING_IO':14,
-                     'ALWAYSHIGH':15}
+    Return a new map of the FPGA IO register space. This map provides
+    structured read and write access to the registers which control the
+    internal and external IO signal routing commonly used for trigger
+    and shutter control.
 
+    Parameters
+    ----------
+    offset : `int`, optional
+        Starting offset of the register map (FPGA_IO_BASE, by default)
+    size : `int`, optional
+        Length of the register map (FPGA_MAP_SIZE, by default)
+    """
+    def __init__(self, offset=pychronos.FPGA_IO_BASE, size=0x100):
+        super().__init__(offset, size)
+    
+    # Mapping of source numbers to their signal names.
+    SOURCES = [
+        'none',
+        'io1',
+        'io2',
+        'io3',
+        'comb',
+        'software',
+        'delay',
+        'toggle',
+        'shutter',
+        'recording',
+        'dispFrame',
+        'startRec',
+        'endRec',
+        'nextSeg',
+        'timingIo',
+        'alwaysHigh'
+    ]
+    
     # this is to use the same name as in the verilog
     SOURCE_NONE       =  0
     SOURCE_IO1        =  1
@@ -60,21 +75,17 @@ class ioInterface(pychronos.fpgamap):
         return property(fget=lambda self: self.regRead(offset, size, (2**nBits-1) << bitOffset),
                         doc = docstring)
 
-    def __srcprop(offset, docstring):
-        return property(fget=lambda self: self.SOURCES[self.regRead(offset, 2, 0xF)],
-                        fset=lambda self, value: self.regWrite(offset, 2, value if (type(value) == int) else self.SOURCENUMBERS.get(value, 0), 0xF),
-                        doc = docstring)
+    id =            __regprop(0x00, 2, "IO Module Identifier")
+    version =       __regprop(0x02, 2, "IO Module Version")
+    subver =        __regprop(0x04, 2, "IO Module Sub Version")
 
-    identifier     = __regprop_ro(0x00, 4, 'ID to make sure the module is there')
-    version_reg    = __regprop_ro(0x04, 4, 'whole number portion of version')
-    subversion_reg = __regprop_ro(0x08, 4, 'decimal portion of version')
-    # Control
-    control        = __regprop(0x0C, 4,       'global control register')
+    # Control Register
+    control =       __regprop(0x0C, 4, "IO Module Control Register")
     enable         = __bitprop(0x0C, 4, 0, 1, 'global enable of IO block')
     ioDeviceHold   = __bitprop(0x0C, 4, 3, 1, '... not implemented in FPGA but present')
     
     # Status
-    status           = __regprop(0x10, 4,          'status')
+    status =        __regprop(0x10, 4, "IO Module Status Register")
     io1_SignalOut    = __bitprop_ro(0x10, 4, 0, 1, 'io1 output level - may not be driving if no drive-strength is enabled')
     io2_SignalOut    = __bitprop_ro(0x10, 4, 1, 1, 'io2 output level - may not be driving if no drive-strength is enabled')
     combSignalOut    = __bitprop_ro(0x10, 4, 2, 1, 'combinatorial block output state')
@@ -92,7 +103,7 @@ class ioInterface(pychronos.fpgamap):
     triggerSignalOut = __bitprop_ro(0x10, 4, 17, 1, 'trigger signal output state')
 
     # raw channels
-    channelStatus    = __regprop(0x14, 4,           'raw channel status')
+    channel =       __regprop(0x14, 4, "IO Module Channel Status Register")
     sourceNone       = __bitprop_ro(0x14, 4,  0, 1, 'always off channel (always 0)')
     sourceIo1        = __bitprop_ro(0x14, 4,  1, 1, 'input 1')
     sourceIo2        = __bitprop_ro(0x14, 4,  2, 1, 'input 2')
@@ -110,237 +121,143 @@ class ioInterface(pychronos.fpgamap):
     sourceTimingIo   = __bitprop_ro(0x14, 4, 14, 1, 'ioDriver output from sensor timing block (the new one)')
     sourceAlwaysHigh = __bitprop_ro(0x14, 4, 15, 1, 'always on channel (always 1)')
 
-    # Now for the input mapping
-    io1SourceReg           = __regprop(0x20, 2,        'io1 driver source and flags')
-    io1Source              = __srcprop(0x20,           'io1 source')
-    io1InvertInput         = __bitprop(0x20, 2,  8, 1, 'invert flag')
-    io1Debounce            = __bitprop(0x20, 2,  9, 1, 'debounce flag')
-    io1DriveStrength       = __bitprop(0x20, 2, 12, 2, 'drive strength')
+    # IO Source class
+    class ioSource:
+        def __init__(self, parent, offset):
+            self.offset = offset
+            self.parent = parent
         
-    io2SourceReg           = __regprop(0x22, 2,        'io2 driver source and flags')
-    io2Source              = __srcprop(0x22,           'io2 source')
-    io2InvertInput         = __bitprop(0x22, 2,  8, 1, 'invert flag')
-    io2Debounce            = __bitprop(0x22, 2,  9, 1, 'debounce flag')
-    io2DriveStrength       = __bitprop(0x22, 2, 12, 2, 'drive strength')
+        @property
+        def source(self):
+            """IO source mapping register"""
+            return self.parent.SOURCES[self.parent.regRead(self.offset, 2, mask=0xF)]
+        @source.setter
+        def source(self, value):
+            if (isinstance(value, str)):
+                value = self.parent.SOURCES.index(value.lower())
+            self.parent.regWrite(self.offset, 2, value, mask=0xF)
+        
+        @property
+        def invert(self):
+            """IO invert enable"""
+            return self.parent.regRead(self.offset, 2, mask=0x0100)
+        @invert.setter
+        def invert(self, value):
+            self.parent.regWrite(self.offset, 2, value, mask=0x0100)
+        
+        @property
+        def debounce(self):
+            """IO debounce enable"""
+            return self.parent.regRead(self.offset, 2, mask=0x0200)
+        @debounce.setter
+        def debounce(self, value):
+            self.parent.regWrite(self.offset, 2, value, mask=0x0200)
+        
+    # IO Source class for output pins
+    class pinSource(ioSource):
+        def __init__(self, parent, offset):
+            super().__init__(parent, offset)
+        
+        @property
+        def drive(self):
+            """IO drive strength"""
+            return self.parent.regRead(self.offset, 2, mask=0x3000)
+        @drive.setter
+        def drive(self, value):
+            self.parent.regWrite(self.offset, 2, value, mask=0x3000)
+
+    @property
+    def io1(self):
+        """IO1 output confiruation registers"""
+        return self.pinSource(self, 0x20)
     
-    combOr1SourceReg       = __regprop(0x24, 2,       'combOr1 driver source and flags')
-    combOr1Source          = __srcprop(0x24,          'combOr1 source')
-    combOr1InvertInput     = __bitprop(0x24, 2, 8, 1, 'invert flag')
-    combOr1Debounce        = __bitprop(0x24, 2, 9, 1, 'debounce flag')
+    @property
+    def io2(self):
+        """IO2 output confiruation registers"""
+        return self.pinSource(self, 0x22)
     
-    combOr2SourceReg       = __regprop(0x26, 2,       'combOr2 driver source and flags')
-    combOr2Source          = __srcprop(0x26,          'combOr2 source')
-    combOr2InvertInput     = __bitprop(0x26, 2, 8, 1, 'invert flag')
-    combOr2Debounce        = __bitprop(0x26, 2, 9, 1, 'debounce flag')
+    @property
+    def combOr1(self):
+        """Combinatorial block OR input 1 configuration"""
+        return self.ioSource(self, 0x24)
     
-    combOr3SourceReg       = __regprop(0x28, 2,       'combOr3 driver source and flags')
-    combOr3Source          = __srcprop(0x28,          'combOr3 source')
-    combOr3InvertInput     = __bitprop(0x28, 2, 8, 1, 'invert flag')
-    combOr3Debounce        = __bitprop(0x28, 2, 9, 1, 'debounce flag')
+    @property
+    def combOr2(self):
+        """Combinatorial block OR input 2 configuration"""
+        return self.ioSource(self, 0x26)
+
+    @property
+    def combOr3(self):
+        """Combinatorial block OR input 3 configuration"""
+        return self.ioSource(self, 0x28)
+
+    @property
+    def combAnd(self):
+        """Combinatorial block AND input configuration"""
+        return self.ioSource(self, 0x2A)
     
-    combAndSourceReg       = __regprop(0x2A, 2,       'combAnd driver source and flags')
-    combAndSource          = __srcprop(0x2A,          'combAnd source')
-    combAndInvertInput     = __bitprop(0x2A, 2, 8, 1, 'invert flag')
-    combAndDebounce        = __bitprop(0x2A, 2, 9, 1, 'debounce flag')
+    @property
+    def combXor(self):
+        """Combinatorial block XOR input configuration"""
+        return self.ioSource(self, 0x2C)
+
+    @property
+    def delay(self):
+        """Programmable delay block input configuration"""
+        return self.ioSource(self, 0x2E)
     
-    combXOrSourceReg       = __regprop(0x2C, 2,       'combXOr driver source and flags')
-    combXOrSource          = __srcprop(0x2C,          'combXOr source')
-    combXOrInvertInput     = __bitprop(0x2C, 2, 8, 1, 'invert flag')
-    combXOrDebounce        = __bitprop(0x2C, 2, 9, 1, 'debounce flag')
+    @property
+    def toggleSet(self):
+        """Toggle block SET input configuration"""
+        return self.ioSource(self, 0x30)
     
-    delaySourceReg         = __regprop(0x2E, 2,       'delay driver source and flags')
-    delaySource            = __srcprop(0x2E,          'delay source')
-    delayInvertInput       = __bitprop(0x2E, 2, 8, 1, 'invert flag')
-    delayDebounce          = __bitprop(0x2E, 2, 9, 1, 'debounce flag')
+    @property
+    def toggleClear(self):
+        """Toggle block CLEAR input configuration"""
+        return self.ioSource(self, 0x32)
     
-    toggleSetSourceReg     = __regprop(0x30, 2,       'toggleSet driver source and flags')
-    toggleSetSource        = __srcprop(0x30,          'toggleSet source')
-    toggleSetInvertInput   = __bitprop(0x30, 2, 8, 1, 'invert flag')
-    toggleSetDebounce      = __bitprop(0x30, 2, 9, 1, 'debounce flag')
+    @property
+    def toggleFlip(self):
+        """Toggle block FLIP input configuration"""
+        return self.ioSource(self, 0x34)
     
-    toggleClearSourceReg   = __regprop(0x32, 2,       'toggleClear driver source and flags')
-    toggleClearSource      = __srcprop(0x32,          'toggleClear source')
-    toggleClearInvertInput = __bitprop(0x32, 2, 8, 1, 'invert flag')
-    toggleClearDebounce    = __bitprop(0x32, 2, 9, 1, 'debounce flag')
+    @property
+    def gate(self):
+        """Gate input signal configuration"""
+        return self.ioSource(self, 0x36)
     
-    toggleFlipSourceReg    = __regprop(0x34, 2,       'toggleFlip driver source and flags')
-    toggleFlipSource       = __srcprop(0x34,          'toggleFlip source')
-    toggleFlipInvertInput  = __bitprop(0x34, 2, 8, 1, 'invert flag')
-    toggleFlipDebounce     = __bitprop(0x34, 2, 9, 1, 'debounce flag')
+    @property
+    def start(self):
+        """Start Recording signal configuration"""
+        return self.ioSource(self, 0x38)
     
-    gateSourceReg          = __regprop(0x36, 2,       'gate driver source and flags')
-    gateSource             = __srcprop(0x36,          'gate source')
-    gateInvertInput        = __bitprop(0x36, 2, 8, 1, 'invert flag')
-    gateDebounce           = __bitprop(0x36, 2, 9, 1, 'debounce flag')
+    @property
+    def stop(self):
+        """Stop Recording signal configuration"""
+        return self.ioSource(self, 0x3A)
     
-    startSourceReg         = __regprop(0x38, 2,       'start driver source and flags')
-    startSource            = __srcprop(0x38,          'start source')
-    startInvertInput       = __bitprop(0x38, 2, 8, 1, 'invert flag')
-    startDebounce          = __bitprop(0x38, 2, 9, 1, 'debounce flag')
+    @property
+    def shutter(self):
+        """Shutter control signal configuration"""
+        return self.ioSource(self, 0x3C)
     
-    stopSourceReg          = __regprop(0x3A, 2,       'stop driver source and flags')
-    stopSource             = __srcprop(0x3A,          'stop source')
-    stopInvertInput        = __bitprop(0x3A, 2, 8, 1, 'invert flag')
-    stopDebounce           = __bitprop(0x3A, 2, 9, 1, 'debounce flag')
-    
-    shutterSourceReg       = __regprop(0x3C, 2,       'shutter driver source and flags')
-    shutterSource          = __srcprop(0x3C,          'shutter source')
-    shutterInvertInput     = __bitprop(0x3C, 2, 8, 1, 'invert flag')
-    shutterDebounce        = __bitprop(0x3C, 2, 9, 1, 'debounce flag')
-    _shutterTriggersFrame  = __bitprop(0x3C, 2,12, 1, 'if set, shutter gating can operate')
+    @property
+    def trigger(self):
+        """Recording Trigger signal configuration"""
+        return self.ioSource(self, 0x3E)
+
     @property
     def shutterTriggersFrame(self):
-        return self._shutterTriggersFrame
+        """Enable shutter gating signal to the timing engine"""
+        return self.regRead(0x3c, 2, mask=0x1000)
     @shutterTriggersFrame.setter
     def shutterTriggersFrame(self, value):
-        if value:
-            self._shutterTriggersFrame = 1
-            self._oldRegExtShutterCtl = 2
-        else:
-            self._shutterTriggersFrame = 0
-            self._oldRegExtShutterCtl = 0
-            
-    triggerSourceReg       = __regprop(0x3E, 2,       'trigger driver source and flags')
-    triggerSource          = __srcprop(0x3E,          'trigger source')
-    triggerInvertInput     = __bitprop(0x3E, 2, 8, 1, 'invert flag')
-    triggerDebounce        = __bitprop(0x3E, 2, 9, 1, 'debounce flag')
-
-
-    # because there's a couple old registers still needed
-    def __oldRegProp(offset, size, docstring):
-        return property(fget=lambda self: self.oldControl.regRead(offset, size),
-                        fset=lambda self, value: self.oldControl.regWrite(offset, size, value),
-                        doc = docstring)
-
-    _oldRegTrigEnable    = __oldRegProp(0xA0, 4, "old reg - TRIG_ENABLE")
-    _oldRegTrigInvert    = __oldRegProp(0xA4, 4, "old reg - TRIG_INVERT")
-    _oldRegTrigDebounce  = __oldRegProp(0xA8, 4, "old reg - TRIG_DEBOUNCE")
-    _oldRegIoOutLevel    = __oldRegProp(0xAC, 4, "old reg - IO_OUT_LEVEL")
-    _oldRegIoOutSource   = __oldRegProp(0xB0, 4, "old reg - IO_OUT_SOURCE")
-    _oldRegIoOutInvert   = __oldRegProp(0xB4, 4, "old reg - IO_OUT_INVERT")
-    _oldRegIoInAddress   = __oldRegProp(0xB8, 4, "old reg - IO_IN")
-    _oldRegExtShutterCtl = __oldRegProp(0xBC, 4, "old reg - EXT_SHUTTER_CTL")
-
-    #------------------------------------------------------------------------------------------------------
-    # Source register controls
-    validSourceControlNames = ['io1', 'io2', 'combOr1', 'combOr2', 'combOr3', 'combAnd', 'combXOr', 'delay',
-                               'toggleSet', 'toggleClear', 'toggleFlip', 'gate', 'start', 'stop', 'shutter', 'trigger']
-
-    def setSourceConfiguration(self, name, structure):
-        '''This helper function connects a given source to the signal with the given
-        flags
-        
-        The 'name' field must be one of:
-            io1, io2, combOr1, combOr2, combOr3, combAnd, combXOr, delay, toggleSet,
-            toggleClear, toggleFlip, gate, start, stop, shutter or trigger
-
-        the structure is a dictionary with the following optional fields:
-        'source' - a string or integer stating which source is to be connected
-            The following are valid: 'none', 'io1', 'io2', 'io3', 'comb',
-               'software', 'delay', 'toggle', 'shutter', 'recording', 'dispFrame',
-               'startRec', 'endRec', 'nextSeg', 'timingIo', 'alwaysHigh'
-            Alternatively this can be a value of 0-15
-        'invert' - is the input to be inverted
-        'debounce' - is the debounce signal enabled
-        'driveStrength' - only valid for 'io1' and 'io2' - this sets the drive
-            strength on the IO
-        '''
-        prop = self.__class__.__dict__.get('%sSourceReg'%(name))
-        if not prop:
-            raise ValueError('name is not valid: %s' % (name))
-        source = structure.get('source', 'NONE')
-        raw = source if (type(source) == int) else self.SOURCENUMBERS.get(source, 0) 
-        raw |= int(structure.get('invert',   0)) << 8
-        raw |= int(structure.get('debounce', 0)) << 9
-        if name in ['io1', 'io2']:
-            driveStrength = structure.get('driveStrength')
-            if driveStrength is not None:
-                logging.debug('config includes driveStrength: %s', driveStrength)
-                raw |= int(driveStrength) << 12
-        if name == 'shutter':
-            shutterTriggersFrame = structure.get('shutterTriggersFrame')
-            if shutterTriggersFrame is not None:
-                raw |= int(shutterTriggersFrame) << 12
-                self._oldRegExtShutterCtl = 2
-            else:
-                self._oldRegExtShutterCtl = 0
-        logging.debug('configuring IO source %s: 0x%04x', name, raw)
-        prop.fset(self, raw)
-
-
-    def getSourceConfiguration(self, name):
-        '''This returns a dictionary containing the named signal and all parameters
-        for it.
-
-        'name' must be one of: 
-            io1, io2, combOr1, combOr2, combOr3, combAnd, combXOr, delay, toggleSet,
-            toggleClear, toggleFlip, gate, start, stop, shutter or trigger
-
-        the returned dictionary matches the requirements for setSourceConfiguration.
-        '''
-        propSource        = self.__class__.__dict__.get('%sSource'%(name))
-        propInvertInput   = self.__class__.__dict__.get('%sInvertInput'%(name))
-        propDebounce      = self.__class__.__dict__.get('%sDebounce'%(name))
-        propDriveStrength = self.__class__.__dict__.get('%sDriveStrength'%(name))
-        propTriggersFrame = self.__class__.__dict__.get('%sTriggersFrame'%(name))
-        if not propSource:
-            raise ValueError('name is not valid: %s' % (name))
-
-        structure = {}
-        if (propSource):        structure['source']   = propSource.fget(self)
-        if (propInvertInput):   structure['invert']   = propInvertInput.fget(self)
-        if (propDebounce):      structure['debounce'] = propDebounce.fget(self)
-        
-        # special case, io
-        if name in ['io1', 'io2']:
-            if (propDriveStrength): structure['driveStrength'] = propDriveStrength.fget(self)
-        if name == 'shutter':
-            if (propTriggersFrame): structure['shutterTriggersFrame'] = propTriggersFrame.fget(self)
-
-        # special case, tack on the delay config
-        if name == 'delay':
-            delayConfig = self.getDelayConfiguration()
-            for key,value in delayConfig.items():
-                structure[key] = value
-        return structure
-
-    #------------------------------------------------------------------------------------------------------
-    # Input specific controls
-    validInputControls = ['io1In', 'io2In']
-
-    def setIoThreshold(self, name, threshold):
-        '''Basic implementation
-        '''
-        thresholdPercent = threshold / 6.838 # calculated using 3.72V = 0.544
-        if thresholdPercent < 0.001: thresholdPercent = 0.001
-        if thresholdPercent > 0.999: thresholdPercent = 0.999
-        if   name == 'io1In': self.io1Pwm.duty = thresholdPercent
-        elif name == 'io2In': self.io2Pwm.duty = thresholdPercent
-        
-    def getIoThreshold(self, name):
-        '''Basic implementation
-        '''
-        if name == 'io1In': return self.io1Pwm.duty * 6.838
-        else:               return self.io2Pwm.duty * 6.838
-
-        
-    def getInputConfiguration(self, name):
-        '''Currently doesn't do anything but will be the way of getting the
-        current IO Input thresholds.
-        '''
-        return {'threshold': self.getIoThreshold(name)}
-
-    def setInputConfiguration(self, name, structure):
-        '''Currently doesn't do anything but will be the way of setting the
-        IO Input thresholds.
-        '''
-        threshold = structure.get('threshold', 2.5)
-        self.setIoThreshold(name, threshold)
+        oldtrig = pychronos.regmaps.trigger()
+        self.regWrite(0x3c, 2, bool(value), mask=0x1000)
+        oldtrig.extShutter = 2 if value else 0
 
     #------------------------------------------------------------------------------------------------------
     # delay block controls
-    validDelayControls = ['delay']
-    
     delayControl      = __regprop(0x80, 2,       'delay block control bits')
     delayClockEnable  = __bitprop(0x80, 2, 0, 1, 'clock enable')
     delayOutputEnable = __bitprop(0x80, 2, 1, 1, 'output enable')
@@ -366,31 +283,7 @@ class ioInterface(pychronos.fpgamap):
         self.delayCount        = int(delay)
         #self.delayFlush        = False
         self.delayClockEnable  = True
-
-    def setDelayConfiguration(self, structure):
-        '''Configures the delay block to delay incoming signals.
-
-        The structure must be a dictionary with the following keys:
-        'delay' - float value in seconds of the total delay.
-
-        Note: due to hardware the value may not exactly match the one given,
-        the implementation uses a power of two divider search rather than a
-        fractional search.
-        '''
-        self.delayTime = float(structure.get('delayTime', 0.0))
-
-        
-    def getDelayConfiguration(self):
-        '''This returns the current structure of the delay function bucket brigade and prescaler.
-        
-        The returned dictionary matches the input required for setDelayConfiguration.
-
-        Note: due to being generated by what's in the FPGA, the delay value may not exactly
-        match what was set
-        '''
-        return {'delayTime':self.delayTime}
-        
-                               
+                       
     # some counters to help figure out what's going on
     io1TimeSinceRising        = __regprop_ro(0xC0, 4, 'time since rising edge')
     io1TimeSinceFalling       = __regprop_ro(0xC4, 4, 'time since falling edge')
@@ -407,106 +300,3 @@ class ioInterface(pychronos.fpgamap):
     interruptTimeSinceRising  = __regprop_ro(0xF0, 4, 'time since rising edge')
     interruptTimeSinceFalling = __regprop_ro(0xF4, 4, 'time since falling edge')
     
-    
-    @property
-    def version(self):
-        '''The version and subversion of the module within the FPGA.
-        '''
-        return '%d.%d'%(self.version_reg, self.subversion_reg)
-
-    def getCapabilities(self):
-        '''Once done this will return a structure that defines the capabilities of the IO block.
-        
-        Generally this will list what outputs or signals are available as well as what inputs
-        they can be mapped to. As well, any special features of the signals will be listed (drive
-        strength, for instance).
-
-        This will also define special function blocks such as the delay line, combinatorial block
-        and toggle block.
-        '''
-        return {'error':'Not yet implemented - poke otter'}
-    
-    def setConfiguration(self, structure):
-        '''This takes a dictionary as it's input and configures the io block.
-
-        This generally itterates through all keys in the dict and calls the set____Configuration
-        functions for each of the blocks found.
-        '''
-        self.enable = False
-        for name, value in structure.items():
-            if name in self.validSourceControlNames:
-                self.setSourceConfiguration(name, value)
-            elif name in self.validInputControls:
-                self.setInputConfiguration(name, value)
-
-            if name in self.validDelayControls: # this is both a valid source control and it's own thing (so no elif)
-                self.setDelayConfiguration(value)
-        self.enable = True
-
-    def getConfiguration(self):
-        '''This returns a dictionary of the current configuration of the IO block.
-
-        This is very verbose as it lists all of the modules, signals and options. The structure
-        returned is formatted to be able to be used on setConfiguration.
-        '''
-        structure = {}
-        for name in self.validSourceControlNames:
-            structure[name] = self.getSourceConfiguration(name)
-        for name in self.validInputControls:
-            structure[name] = self.getInputConfiguration(name)
-        return structure
-        
-
-    def getIoStatus(self):
-        structure = {
-            'io1Out':     self.io1_SignalOut == 1,
-            'io2Out':     self.io2_SignalOut == 1,
-            'combOut':    self.combSignalOut == 1,
-            'delayOut':   self.delaySignalOut == 1,
-            'startOut':   self.startSignalOut == 1,
-            'stopOut':    self.stopSignalOut == 1,
-            'toggleOut':  self.toggleSignalOut == 1,
-            'shutterOut': self.shutterSignalOut == 1,
-            'detailedComb': {
-                'Or1': self.combOr1SignalOut == 1,
-                'Or2': self.combOr2SignalOut == 1,
-                'Or3': self.combOr3SignalOut == 1,
-                'XOr': self.combXOrSignalOut == 1,
-                'And': self.combAndSignalOut == 1
-            },
-            'sources': {
-                'none': False,
-                'io1': self.sourceIo1 == 1,
-                'io2': self.sourceIo2 == 1,
-                'io3': self.sourceIo3 == 1,
-                'comb': self.sourceComb == 1,
-                'software': self.sourceSoftware == 1,
-                'delay': self.sourceDelay == 1,
-                'toggle': self.sourceToggle == 1,
-                'shutter': self.sourceShutter == 1,
-                'recording': self.sourceRecording == 1,
-                'dispFrame': self.sourceDispFrame == 1,
-                'startRec': self.sourceStartRec == 1,
-                'endRec': self.sourceEndRec == 1,
-                'nextSeg': self.sourceNextSeg == 1,
-                'timingIo': self.sourceTimingIo == 1,
-                'alwaysHigh': True
-            },
-            'edgeTimers': {
-                'io1':       {'rising': self.io1TimeSinceRising       / 100000000.0, 'falling': self.io1TimeSinceFalling       / 100000000.0},
-                'io2':       {'rising': self.io2TimeSinceRising       / 100000000.0, 'falling': self.io2TimeSinceFalling       / 100000000.0},
-                'start':     {'rising': self.startTimeSinceRising     / 100000000.0, 'falling': self.startTimeSinceFalling     / 100000000.0},
-                'stop':      {'rising': self.stopTimeSinceRising      / 100000000.0, 'falling': self.stopTimeSinceFalling      / 100000000.0},
-                'shutter':   {'rising': self.shutterTimeSinceRising   / 100000000.0, 'falling': self.shutterTimeSinceFalling   / 100000000.0},
-                'toggle':    {'rising': self.toggleTimeSinceRising    / 100000000.0, 'falling': self.toggleTimeSinceFalling    / 100000000.0},
-                'interrupt': {'rising': self.interruptTimeSinceRising / 100000000.0, 'falling': self.interruptTimeSinceFalling / 100000000.0}
-            }
-        }
-        return structure
-
-    def __init__(self, offset=0x6000, size=0x100):
-        super().__init__(offset, size)
-
-        self.io1Pwm = pychronos.pwm(1, 10000, 0.366)
-        self.io2Pwm = pychronos.pwm(2, 10000, 0.366)
-        self.oldControl = pychronos.fpgamap(offset=0x00, size=0x100)

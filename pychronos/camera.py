@@ -8,6 +8,7 @@ import datetime
 import pychronos
 import pychronos.regmaps as regmaps
 import pychronos.spd as spd
+from pychronos.io import io
 from pychronos.power import power
 from pychronos.error import *
 
@@ -24,11 +25,11 @@ def propWrapper(membername, propname, propclass):
     wrapper = property(fget = lambda self: getattr(getattr(self, membername), propname),
                        fset = lambda self, value: setattr(getattr(self, membername), propname, value),
                        doc=getattr(propclass, '__doc__'))
-    # Duplicate the property metadata.
-    wrapper.fget.notifies = propclass.fget.notifies
-    wrapper.fget.saveable = propclass.fget.saveable
-    wrapper.fget.derivedFrom = propclass.fget.derivedFrom
-    wrapper.fget.prio = propclass.fget.prio
+    # Duplicate the camera property metadata.
+    wrapper.fget.notifies = getattr(propclass.fget, 'notifies', False)
+    wrapper.fget.saveable = getattr(propclass.fget, 'saveable', False)
+    wrapper.fget.derivedFrom = getattr(propclass.fget, 'derivedFrom', None)
+    wrapper.fget.prio = getattr(propclass.fget, 'prio', 0)
     return wrapper
 
 # Duplicate all properties from a member.
@@ -45,6 +46,7 @@ class camera:
     FRAME_ALIGN_WORDS = 64
     
     # Inherit properties from nested classes.
+    vars().update(propClassInherit(io, 'io'))
     vars().update(propClassInherit(power, 'power'))
 
     def __init__(self, sensor, onChange=None):
@@ -52,6 +54,7 @@ class camera:
         self.configFile = None
         self.dimmSize = [0, 0]
         self.power = power(onChange=lambda n, v: self.onChange(n, v) if self.onChange else None)
+        self.io = io(onChange=lambda n, v: self.onChange(n, v) if self.onChange else None)
         
         # Setup internal defaults.
         self.__state = 'idle'
@@ -95,8 +98,6 @@ class camera:
         self.onChange = onChange
         self.description = "Chronos SN:%s" % (self.cameraSerial)
         self.idNumber = 0
-
-        self.ioInterface = regmaps.ioInterface()
 
     def __propChange(self, name):
         """Quick and dirty wrapper to throw an on-change event by name"""
@@ -229,6 +230,11 @@ class camera:
         self.sensor.setResolution(self.geometry)
         self.wbColor = self.getWhiteBalance()
         self.colorMatrix = self.sensor.getColorMatrix()
+
+        # Reboot any other modules we included.
+        self.io.doReset()
+
+        # Soft reboot completed
         self.__setState('idle')
 
     def setupMemory(self):
@@ -1422,88 +1428,6 @@ class camera:
         display.colorMatrix[7] = int(value[7] * display.COLOR_MATRIX_DIV)
         display.colorMatrix[8] = int(value[8] * display.COLOR_MATRIX_DIV)
         self.__propChange("colorMatrix")
-
-    #===============================================================================================
-    # API Parameters: IO Configuration Group
-    @camProperty(notify=True, save=True)
-    def ioMapping(self):
-        """Configuration for the IO block - this is a dictionary of IO components and what their inputs are configured to"""
-        return self.ioInterface.getConfiguration()
-    @ioMapping.setter
-    def ioMapping(self, value):
-        self.ioInterface.setConfiguration(value)
-        self.__propChange("ioMapping")
-
-    @camProperty()
-    def ioDelayTime(self):
-        """Property alias of the ioMapping.delay.delayTime value"""
-        return self.ioInterface.delayTime
-    @ioDelayTime.setter
-    def ioDelayTime(self, value):
-        self.ioInterface.delayTime = value
-
-
-    def __camIoProperty(propname, docstring, readOnly=True, notify=False, save=False, prio=0):
-        if readOnly:
-            prop = property(fget=lambda self: type(self.ioInterface).__dict__[propname].__get__(self.ioInterface, type(self.ioInterface)),
-                            doc=docstring)
-        else:
-            prop = property(fget=lambda self: type(self.ioInterface).__dict__[propname].__get__(self.ioInterface, type(self.ioInterface)),
-                            fset=lambda self, value: type(self.ioInterface).__dict__[propname].__set__(self.ioInterface, value),
-                            doc=docstring)
-        setattr(prop.fget, 'notifies', notify)
-        setattr(prop.fget, 'saveable', save)
-        setattr(prop.fget, 'prio', prio)
-        return prop
-
-    def __camIoMapping(ioname, docstring, notify=True, save=True, prio=0):
-        def localSetter(self, config):
-            self.ioInterface.setSourceConfiguration(ioname, config)
-            if notify or save:
-                self.__propChange("")
-        prop = property(fget=lambda self: self.ioInterface.getSourceConfiguration(ioname),
-                        fset=lambda self, config: self.ioInterface.setSourceConfiguration(ioname, config),
-                        doc=docstring)
-        setattr(prop.fget, 'notifies', notify)
-        setattr(prop.fget, 'saveable', save)
-        setattr(prop.fget, 'prio', prio)
-        return prop
-
-    def __camIoInputConfig(ioname, docstring, notify=True, save=True, prio=0):
-        prop = property(fget=lambda self: self.ioInterface.getInputConfiguration(ioname),
-                        fset=lambda self, config: self.ioInterface.setInputConfiguration(ioname, config),
-                        doc=docstring)
-        setattr(prop.fget, 'notifies', notify)
-        setattr(prop.fget, 'saveable', save)
-        setattr(prop.fget, 'prio', prio)
-        return prop
-    
-    ioStatusSourceIo1 = __camIoProperty('sourceIo1', 'input 1 current value', readOnly=True)
-    ioStatusSourceIo2 = __camIoProperty('sourceIo2', 'input 2 current value', readOnly=True)
-    ioStatusSourceIo3 = __camIoProperty('sourceIo3', 'input 3 current value', readOnly=True)
-
-    ioMappingIo1         = __camIoMapping('io1',         'output driver 1 configuration')
-    ioMappingIo2         = __camIoMapping('io2',         'output driver 2 configuration')
-    ioMappingCombOr1     = __camIoMapping('combOr1',     'combinatorial block OR input 1 (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
-    ioMappingCombOr2     = __camIoMapping('combOr2',     'combinatorial block OR input 2 (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
-    ioMappingCombOr3     = __camIoMapping('combOr3',     'combinatorial block OR input 3 (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
-    ioMappingCombXor     = __camIoMapping('combXOr',     'combinatorial block XOR input (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
-    ioMappingCombAnd     = __camIoMapping('combAnd',     'combinatorial block AND input (out = ((Or1 | Or2 | Or3) ^ XOr) & And)')
-    ioMappingDelay       = __camIoMapping('delay',       'delay block configuration')
-    ioMappingToggleSet   = __camIoMapping('toggleSet',   'Toggle block Set configuration (out = True on rising edge of input)')
-    ioMappingToggleClear = __camIoMapping('toggleClear', 'Toggle block configuration (out = False on rising edge of input)')
-    ioMappingToggleFlip  = __camIoMapping('toggleFlip',  'Toggle block configuration (out = not out on rising edge of input)')
-    ioMappingShutter     = __camIoMapping('shutter',     'Shutter (signal to timing block) configuration')
-    ioMappingStartRec    = __camIoMapping('start',       'Start recording (signal to record sequencer) configuration')
-    ioMappingStopRec     = __camIoMapping('stop',        'Stop or end recording (signal to record sequencer) configuration')
-    ioMappingTrigger     = __camIoMapping('trigger',     'Trigger signal configuration')
-
-    ioInputConfigIo1     = __camIoInputConfig('io1In', 'Input 1 config such as threshhold')
-    ioInputConfigIo2     = __camIoInputConfig('io2In', 'Input 2 config such as threshhold')
-
-    @camProperty(notify=False, save=False)
-    def ioDetailedStatus(self):
-        return self.ioInterface.getIoStatus()
 
     #===============================================================================================
     # API Parameters: Misc
