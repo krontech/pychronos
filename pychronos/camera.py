@@ -19,6 +19,7 @@ from .props import camProperty as camProperty
 # Recording LEDs
 REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
+BACKLIGHT_PIN = "/sys/class/gpio/gpio18/value"
 
 # Wrap a property that is inherited form a nested class.
 def propWrapper(membername, propname, propclass):
@@ -1122,16 +1123,15 @@ class camera:
         """str: The current date and time in ISO-8601 format."""
         return datetime.datetime.now().isoformat()
 
-    _backlightEnabled = True
-    @camProperty(notify=True, save=False) #Don't save, default to True so the camera is reasonably recoverable if the light was off. UI will reconfigure this for us.
+    @camProperty(notify=True, save=False)
     def backlightEnabled(self):
         """bool: True if the LCD on the back of the camera is lit. Can be set to False to dim the screen and save a small amount of power."""
-        logging.warn('Value not implemented, using dummy.')
-        return self._backlightEnabled
+        with open(BACKLIGHT_PIN, 'r') as fp:
+            return fp.read(1) != '0'        
     @backlightEnabled.setter
-    def backlightEnabled(self, isEnabled: bool):
-        logging.warn('Value not implemented, using dummy.')
-        self._backlightEnabled = isEnabled
+    def backlightEnabled(self, value):
+        with open(BACKLIGHT_PIN, 'w') as fp:
+            fp.write('1' if bool(value) else '0')
         self.__propChange("backlightEnabled")
 
     @camProperty()
