@@ -134,8 +134,13 @@ class ioInterface(pychronos.fpgamap):
         @source.setter
         def source(self, value):
             if (isinstance(value, str)):
-                value = self.parent.SOURCES.index(value.lower())
-            self.parent.regWrite(self.offset, 2, value, mask=0xF)
+                value = value.lower()
+                for index, name in enumerate(self.parent.SOURCES):
+                    if (name.lower() == value):
+                        self.parent.regWrite(self.offset, 2, index, mask=0xF)
+                        return
+            # Fall back to an int if all else fails.
+            self.parent.regWrite(self.offset, 2, int(index), mask=0xF)
         
         @property
         def invert(self):
