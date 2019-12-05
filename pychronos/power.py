@@ -137,7 +137,7 @@ class power:
     def setPowerMode(self, mode):
         """This sets the automatic power-on and automatic save and power-off, when the power supply is connected or disconnected"""
         self.cache.powerMode = mode
-        self.gclient.send("SET_POWERUP_MODE_" + str(mode))
+        self.sendMessage("SET_POWERUP_MODE_" + str(mode))
     
     #===============================================================================================
     # API Parameters: Power Management Group

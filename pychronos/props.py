@@ -1,9 +1,10 @@
 # Property helpers
 
 # Parameter priority groups
-PRIO_RESOLUTION = 3
-PRIO_FRAME_TIME = 2
-PRIO_EXPOSURE   = 1
+PRIO_RESOLUTION = 4
+PRIO_FRAME_TIME = 3
+PRIO_EXPOSURE   = 2
+PRIO_IO         = 1
 
 def camProperty(notify=False, save=False, derivedFrom=None, prio=0):
     """@camProperty: Like @property, but include metadata.
