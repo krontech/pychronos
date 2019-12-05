@@ -789,8 +789,14 @@ class camera:
     @camProperty()
     def cameraModel(self):
         """str: Camera model number"""
-        ## HACK: This needs to be updated from somewhere.
-        return "CR14-1.0"
+        boardrev = utils.getBoardRevision()
+        if (boardrev == '0000'):
+            return "CR14-1.0"
+        # Stitch the model and hardware revision together.
+        model = "CR" + boardrev[0] + boardrev[1]
+        hwmajor = chr(ord(boardrev[2])+1)
+        hwminor = boardrev[3]
+        return model + '-' + hwmajor + '.' + hwminor
     
     @camProperty()
     def cameraSerial(self):

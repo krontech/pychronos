@@ -20,6 +20,8 @@ from pychronos.error import *
 from pychronos.sensors import frameGeometry
 import pychronos.regmaps as regmaps
 
+from pychronos.utils import getBoardRevision
+
 interface = 'ca.krontech.chronos.control'
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 bus = dbus.SystemBus()
@@ -610,12 +612,19 @@ class cameraTimer:
 if __name__ == "__main__":
     # Enable logging.
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s [%(funcName)s] %(message)s')
+    
+    # Default sensors to use by top byte of board revision.
+    sensorRevLookup = {
+        '00': 'lux1310',    # Chronos 1.4 original hardware.
+        '14': 'lux1310',    # Chronos 1.4 new production.
+        '21': 'lux2100'     # Chronso 2.1
+    }
 
     # Do argument parsing
     parser = argparse.ArgumentParser(description="Chronos control daemon")
     parser.add_argument('--sensor', metavar='NAME', action='store',
-                        default='lux1310',
-                        help="Image sensor driver to use")
+                        default=sensorRevLookup.get(getBoardRevision()[0:2], 'lux1310'),
+                        help="Override the image sensor driver to use")
     parser.add_argument('--config', metavar='FILE', action='store',
                         default='/var/camera/apiConfig.json',
                         help="Configuration file path")

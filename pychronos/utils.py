@@ -60,7 +60,6 @@ def setHostname(name):
         newHostname = setHostnameMask.sub('', name)
         fp.write('Chronos-%s\n' % newHostname)
 
-
 def smbusRead(addr, length, setup=None):
     fd = os.open("/dev/i2c-1", os.O_RDWR)
     try:
@@ -77,6 +76,16 @@ def smbusRead(addr, length, setup=None):
     except Exception as e:
         os.close(fd)
         raise e
+
+def getBoardRevision():
+    with open("/proc/cpuinfo", "r") as fp:
+        for line in fp.readlines():
+            tokens = line.split(':')
+            if (tokens[0].strip() == "Revision"):
+                return tokens[1].strip()
+    
+    # If all else fails, return an original Chronos 1.4.
+    return '0000'
 
 if __name__ == '__main__':
     print("externalStorage = " + json.dumps(getStorageDevices(), sort_keys=True, indent=4))
