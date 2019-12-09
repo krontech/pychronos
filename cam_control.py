@@ -275,13 +275,13 @@ class controlApi(dbus.service.Object):
         """Retrieve named values from the control API and the video API."""
         
         # Get any parameters we can handle locally.
-        results = {}
-        notfound = []
+        results = dbus.types.Dictionary(signature='sv')
+        notfound = dbus.types.Array(signature='s')
         for name in attrs:
             try:
                 results[name] = self.dbusifyTypes(getattr(self.camera, name))
             except AttributeError as e:
-                notfound.append(name)
+                notfound.append(str(name))
         
         if notfound:
             # If there were not-found parameters, check the video API.
