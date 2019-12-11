@@ -323,3 +323,107 @@ class io:
                 }
             }
         }
+
+    #===============================================================================================
+    # API Parameters: Legacy ioMapping wrapper
+    @camProperty()
+    def ioMapping(self):
+        mapping = {
+            # IO Sources
+            'io1': self.ioMappingIo1,
+            'io2': self.ioMappingIo2,
+            'combOr1': self.ioMappingCombOr1,
+            'combOr2': self.ioMappingCombOr2,
+            'combOr3': self.ioMappingCombOr3,
+            'combAnd': self.ioMappingCombAnd,
+            'combXOr': self.ioMappingCombXor,
+            'delay': self.ioMappingDelay,
+            'toggleSet': self.ioMappingToggleSet,
+            'toggleClear': self.ioMappingToggleClear,
+            'toggleFlip': self.ioMappingToggleFlip,
+            'gate': self.ioMappingGate,
+            'start': self.ioMappingStartRec,
+            'stop': self.ioMappingStopRec,
+            'shutter': self.ioMappingShutter,
+            'trigger': self.ioMappingTrigger,
+
+            # Input Controls
+            'io1In': {'threshold': self.ioThresholdIo1},
+            'io2In': {'threshold': self.ioThresholdIo2},
+        }
+
+        # Fixup stuff that's been removed or changed.
+        mapping['delay']['delayTime'] = self.ioDelayTime
+        mapping['io1']['driveStrength'] = mapping['io1'].pop('drive')
+        mapping['io2']['driveStrength'] = mapping['io2'].pop('drive')
+        mapping['shutter']['shutterTriggersFrame'] = False
+
+        return mapping
+
+    def __ioMux(self, a, b):
+        a.update(b)
+        return a
+
+    @ioMapping.setter
+    def ioMapping(self, mapping):
+        for name, value in mapping.items():
+            # Handle stuff thats been removed or changed.
+            if 'driveStrength' in value:
+                 value['drive'] = value.pop('driveStrength')
+            if 'delayTime' in value and name == 'delay':
+                 self.oDelayTime = value['delayTime']
+
+            # Convert nested ioMappings into the real ones.
+            if (name == 'io1'):
+                 self.ioMappingIo1 = self.__ioMux(self.ioMappingIo1, value)
+            elif (name == 'io2'):
+                 self.ioMappingIo2 = self.__ioMux(self.ioMappingIo2, value)
+            elif (name == 'combOr1'):
+                 self.ioMappingCombOr1 = self.__ioMux(self.ioMappingCombOr1, value)
+            elif (name == 'combOr2'):
+                 self.ioMappingCombOr2 = self.__ioMux(self.ioMappingCombOr2, value)
+            elif (name == 'combOr3'):
+                 self.ioMappingCombOr3 = self.__ioMux(self.ioMappingCombOr3, value)   
+            elif (name == 'combAnd'):
+                 self.ioMappingCombAnd = self.__ioMux(self.ioMappingCombAnd, value)
+            elif (name == 'combXOr'):
+                 self.iomappingCombXor = self.__ioMux(self.ioMappingCombXor, value)
+            elif (name == 'delay'):
+                 self.ioMappingDelay = self.__ioMux(self.ioMappingDelay, value)
+            elif (name == 'toggleSet'):
+                 self.ioMappingToggleSet = self.__ioMux(self.ioMappingToggleSet, value)
+            elif (name == 'toggleClear'):
+                 self.ioMappingToggleClear = self.__ioMux(self.ioMappingToggleClear, value)
+            elif (name == 'toggleFlip'):
+                 self.ioMappingToggleFlip = self.__ioMux(self.ioMappingToggleFlip, value)
+            elif (name == 'gate'):
+                 self.ioMappingGate = self.__ioMux(self.ioMappingGate, value)
+            elif (name == 'shutter'):
+                 self.ioMappingShutter = self.__ioMux(self.ioMappingShutter, value)
+            elif (name == 'start'):
+                 self.ioMappingStartRec = self.__ioMux(self.ioMappingStartRec, value)
+            elif (name == 'stop'):
+                 self.ioMappingStopRec = self.__ioMux(self.ioMappingStopRec, value)
+            elif (name == 'trigger'):
+                 self.ioMappingTrigger = self.__ioMux(self.ioMappingTrigger, value)
+
+            # Convert the input configuration into the real ones.
+            if (name == 'io1In'):
+                 self.ioThresholdIo1 = value['threshold']
+            if (name == 'io2In'):
+                 self.ioThresholdIo2 = value['threshold']
+
+            # And finally, just like the old ioMapping, ignore everything else...
+
+    @camProperty()
+    def ioStatusSourceIo1(self):
+        return self.regs.sourceIo1 == 1
+
+    @camProperty()
+    def ioStatusSourceIo2(self):
+        return self.regs.sourceIo2 == 1
+
+    @camProperty()
+    def ioStatusSourceIo3(self):
+        return self.regs.sourceIo3 == 1
+
