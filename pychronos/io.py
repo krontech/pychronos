@@ -169,7 +169,16 @@ class io:
     def ioMappingToggleFlip(self, value):
         self.setIoSource(self.regs.toggleFlip, value)
         self.__propChange("ioMappingToggleFlip")
-    
+   
+    @camProperty(notify=True, save=True, prio=props.PRIO_IO)
+    def ioMappingGate(self):
+        """dict: Gate input signal configuration"""
+        return self.getIoSource(self.regs.gate)
+    @ioMappingGate.setter
+    def ioMappingGate(self, value):
+        self.setIoSource(self.regs.shutter, value)
+        self.__propChange("ioMappingGate")
+ 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingShutter(self):
         """dict: Timing block shutter control signal configuration"""
@@ -267,7 +276,8 @@ class io:
             'start': self.regs.startSignalOut == 1,
             'stop': self.regs.stopSignalOut == 1,
             'toggle': self.regs.toggleSignalOut == 1,
-            'shutter': self.regs.shutterSignalOut == 1
+            'shutter': self.regs.shutterSignalOut == 1,
+            'gate': self.regs.gateSignalOut == 1,
         }
 
     @camProperty()

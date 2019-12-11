@@ -254,6 +254,7 @@ a rising edge is detected on one if its input signals.
 |`ioMappingToggleSet`   |`G`|`S`|`N`| dict   |       |       | Toggle/flip-flop block SET input configuration.
 |`ioMappingToggleClear` |`G`|`S`|`N`| dict   |       |       | Toggle/flip-flop block CLEAR input configuration.
 |`ioMappingToggleFlip`  |`G`|`S`|`N`| dict   |       |       | Toggle/flip-flop block FLIP input configuration.
+|`ioMappingGate`        |`G`|`S`|`N`| dict   |       |       | Gate input signal configuration.
 |`ioMappingShutter`     |`G`|`S`|`N`| dict   |       |       | Timing block shutter control signal configuration.
 |`ioMappingStartRec`    |`G`|`S`|`N`| dict   |       |       | Recording start signal configuration.
 |`ioMappingStopRec`     |`G`|`S`|`N`| dict   |       |       | Recording stop signal configuration.
