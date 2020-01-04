@@ -54,7 +54,7 @@ class io:
     def setIoSource(self, src, values):
         src.source = values.get("source", "none")
         src.invert = values.get("invert", False)
-        src.deboucne = values.get("debounce", False)
+        src.debounce = values.get("debounce", False)
         # Drive strength only exists for IO1 and IO2.
         try:
             src.drive = values.get("drive", 0)

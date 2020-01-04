@@ -288,7 +288,7 @@ class ioInterface(pychronos.fpgamap):
         self.delayCount        = int(delay)
         #self.delayFlush        = False
         self.delayClockEnable  = True
-                       
+    
     # some counters to help figure out what's going on
     io1TimeSinceRising        = __regprop_ro(0xC0, 4, 'time since rising edge')
     io1TimeSinceFalling       = __regprop_ro(0xC4, 4, 'time since falling edge')
