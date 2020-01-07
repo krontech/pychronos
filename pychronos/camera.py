@@ -513,7 +513,7 @@ class camera:
         # Load it into the display block for immediate use.
         displayRegs = regmaps.display()
         self.__wbCustomColor = whiteBalance
-        self.wbColor = whiteBalance
+        self.wbTemperature = 0 # Select custom white balance.
         self.__setState('idle')
     
     def __applyBlackCal(self, fSize, fAverage):
@@ -1391,18 +1391,19 @@ class camera:
         return self.__wbTemperature
     @wbTemperature.setter
     def wbTemperature(self, value):
-        if not isinstance(value, int):
+        if not isinstance(value, (int, float)):
             raise TypeError("wbTemperature must be an integer")
-        if value < 0:
+        tempk = int(value)
+        if tempk < 0:
             raise ValueError("wbTemperature must be greater than absolute zero")
         
-        # A color temperature of zero means: use wbCustom.
-        if (value == 0):
+        # A color temperature of zero means: use wbCustomColor.
+        if (tempk == 0):
             self.wbColor = self.__wbCustomColor
         else:
-            self.wbColor = self.getWhiteBalance(value)
+            self.wbColor = self.getWhiteBalance(tempk)
         
-        self.__wbTemperature = value
+        self.__wbTemperature = tempk
         self.__propChange("wbTemperature")
 
     @camProperty(notify=True, save=True)
