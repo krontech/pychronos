@@ -21,13 +21,16 @@ class timing(pychronos.fpgamap):
     def __init__(self, offset=pychronos.FPGA_TIMING_BASE, size=0x500):
         super().__init__(offset, size)
 
+        # Check the version number, since the program registers have changed.
+        self.__progstart = 0x100 if self.version else 0x10
+
     @property
     def program(self):
         """Timing Program"""
-        return pychronos.arrayview(self, offset=0x10, size=4, count=256)
+        return pychronos.arrayview(self, offset=self.__progstart, size=4, count=256)
     @program.setter
     def program(self, value):
-        aview = pychronos.arrayview(self, offset=0x10, size=4, count=256)
+        aview = pychronos.arrayview(self, offset=self.__progstart, size=4, count=256)
         for i in range(0, len(value)):
             aview[i] = value[i]
     
