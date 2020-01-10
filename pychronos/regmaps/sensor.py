@@ -99,6 +99,8 @@ class sensor(pychronos.fpgamap):
         mask : `int`, optional
             Mask of bits to write into the register value.
         """
+        # Convert to an integer
+        value = int(value)
         # Do a read/modify/write for masked registers.
         if mask:
             lsb = (~mask + 1) & mask

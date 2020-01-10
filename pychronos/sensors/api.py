@@ -12,14 +12,14 @@ class frameGeometry:
         bitDepth (int): Number of bits recorded per pixel from the image sensor.
         minFrameTime (float): Minimum time recording time per frame at this resolution settings.
     """
-    def __init__(self, hRes, vRes, hOffset=0, vOffset=0, vDarkRows=0, bitDepth=12, minFrameTime=None):
-        self.hRes = hRes
-        self.vRes = vRes
-        self.hOffset = hOffset
-        self.vOffset = vOffset
-        self.vDarkRows = vDarkRows
-        self.bitDepth = bitDepth
-        self.minFrameTime = minFrameTime
+    def __init__(self, hRes, vRes, hOffset=0, vOffset=0, vDarkRows=0, bitDepth=12, minFrameTime=0.0):
+        self.hRes = int(hRes)
+        self.vRes = int(vRes)
+        self.hOffset = int(hOffset)
+        self.vOffset = int(vOffset)
+        self.vDarkRows = int(vDarkRows)
+        self.bitDepth = int(bitDepth)
+        self.minFrameTime = float(minFrameTime)
     
     def __repr__(self):
         rstr = "frameGeometry(hRes=%s, vRes=%s" % (self.hRes, self.vRes)
