@@ -588,7 +588,7 @@ class controlApi(dbus.service.Object):
         fSize = frameGeometry(**args)
         if (self.camera.sensor.isValidResolution(fSize)):
             fpMin, fpMax = self.camera.sensor.getPeriodRange(fSize)
-            expMin, expMax = self.camera.sensor.getExposureRange(fSize, fpMin)
+            expMin, expMax = self.camera.sensor.getExposureRange(fSize)
             return {
                 "cameraMaxFrames": self.camera.getRecordingMaxFrames(fSize),
                 "minFramePeriod": int(fpMin * 1000000000),

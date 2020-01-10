@@ -631,7 +631,7 @@ class camera:
         # Grab the current frame size and exposure.
         fSize = self.sensor.getCurrentGeometry()
         expPrev = self.sensor.getCurrentExposure()
-        expMin, expMax = self.sensor.getExposureRange(fSize, self.sensor.getCurrentPeriod())
+        expMin, expMax = self.sensor.getExposureRange(fSize)
         logging.info('fSize: %s', fSize)
         logging.info('expPrev: %f, zeroTime: %f, period: %f', expPrev, expMin, self.sensor.getCurrentPeriod())
 
@@ -999,15 +999,15 @@ class camera:
     def exposurePercent(self):
         """float: The current exposure time rescaled between `exposureMin` and `exposureMax`.  This value is 0% when exposure is at minimum, and increases linearly until exposure is at maximum, when it is 100%."""
         fSize = self.sensor.getCurrentGeometry()
-        fPeriod = self.sensor.getCurrentPeriod()
-        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        fSize.minFrameTime = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize)
         return (self.sensor.getCurrentExposure() - expMin) * 100 / (expMax - expMin)
     @exposurePercent.setter
     def exposurePercent(self, value):
         self.__checkState('idle', 'recording')
         fSize = self.sensor.getCurrentGeometry()
-        fPeriod = self.sensor.getCurrentPeriod()
-        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        fSize.minFrameTime = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize)
 
         self.__setupExposure((value * (expMax - expMin) / 100) + expMin, self.__exposureMode)
         self.__propChange("exposurePeriod")
@@ -1016,15 +1016,15 @@ class camera:
     def exposureNormalized(self):
         """float: The current exposure time rescaled between `exposureMin` and `exposureMax`.  This value is 0 when exposure is at minimum, and increases linearly until exposure is at maximum, when it is 1.0."""
         fSize = self.sensor.getCurrentGeometry()
-        fPeriod = self.sensor.getCurrentPeriod()
-        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        fSize.minFrameTime = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize)
         return (self.sensor.getCurrentExposure() - expMin) * 1 / (expMax - expMin)
     @exposureNormalized.setter
     def exposureNormalized(self, value):
         self.__checkState('idle', 'recording')
         fSize = self.sensor.getCurrentGeometry()
-        fPeriod = self.sensor.getCurrentPeriod()
-        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        fSize.minFrameTime = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize)
 
         self.__setupExposure((value * (expMax - expMin) / 1) + expMin, self.__exposureMode)
         self.__propChange("exposurePeriod")
@@ -1047,8 +1047,8 @@ class camera:
         """int: The minimum possible time, in nanoseconds, that the image sensor is capable of exposing
         a frame for at the current `resolution` and `framePeriod`.""" 
         fSize = self.sensor.getCurrentGeometry()
-        fPeriod = self.sensor.getCurrentPeriod()
-        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        fSize.minFrameTime = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize)
         return int(expMin * 1000000000)
     
     @camProperty(notify=True)
@@ -1056,8 +1056,8 @@ class camera:
         """int: The maximum possible time, in nanoseconds, that the image sensor is capable of exposing
         a frame for at the current `resolution` and `framePeriod`.""" 
         fSize = self.sensor.getCurrentGeometry()
-        fPeriod = self.sensor.getCurrentPeriod()
-        expMin, expMax = self.sensor.getExposureRange(fSize, fPeriod)
+        fSize.minFrameTime = self.sensor.getCurrentPeriod()
+        expMin, expMax = self.sensor.getExposureRange(fSize)
         return int(expMax * 1000000000)
     
     @camProperty(notify=True, save=True)

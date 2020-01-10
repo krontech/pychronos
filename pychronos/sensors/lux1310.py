@@ -432,10 +432,14 @@ class lux1310(api):
         self.frameClocks = math.ceil(fPeriod * self.LUX1310_SENSOR_HZ)
         self.timing.programStandard(self.frameClocks, self.exposureClocks)
     
-    def getExposureRange(self, fSize, fPeriod):
+    def getExposureRange(self, fSize):
         # Defaulting to 1us minimum exposure and infinite maximum exposure.
-        # TODO: Need a better handle on the exposure overhead.
-        return (1.0 / 1000000, fPeriod - (500 / self.LUX1310_SENSOR_HZ))
+        if (fSize.minFrameTime):
+            return (1.0 / 1000000, fSize.minFrameTime - (500 / self.LUX1310_SENSOR_HZ))
+        else:
+            fClocks = self.getMinFrameClocks(fSize)
+            return (1.0 / 1000000, (fClocks - 500) / self.LUX1310_SENSOR_HZ)
+
 
     def getCurrentExposure(self):
         return self.exposureClocks / self.LUX1310_SENSOR_HZ

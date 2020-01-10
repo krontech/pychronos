@@ -217,12 +217,11 @@ class api(ABC):
         pass
 
     @abstractmethod
-    def getExposureRange(self, fSize, fPeriod):
+    def getExposureRange(self, fSize):
         """Return a tuple with the minimum and maximum exposure at a given frame size
         
         Args:
             fSize (:obj:`frameGeometry`): The frame size at which the exposure range is being requested.
-            fPeriod (float): The frame period for which the exposure range is being requested.
 
         Returns:
             (float, float) : A tuple of (min, max) exposure periods in seconds, or zero to
