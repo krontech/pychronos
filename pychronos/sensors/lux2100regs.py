@@ -111,6 +111,7 @@ class lux2100regs(sensor):
     regIcolCapEn =      __sensorprop(0x76, 0x00f0, "Selects which CLR/CLS caps to include during readout")
     regSresetB =        __sensorprop(0x7e, 0x0001, "Soft reset: resets all registers")
     regSerSync =        __sensorprop(0x73, 0x0010, "Synchronizes the serializers")
+    regSerialGainV2 =   __sensorprop(0x76, 0x00ff, "Serial gain for V2 sensors")
 
     # Data path registers.
     regDpId =           __dataprop(0x00, 0x0001, "Datapath Identifier")

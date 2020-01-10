@@ -230,6 +230,10 @@ class lux2100(api):
         else:
             logging.info("Initializing LUX2100 silicon revision %s", self.regs.revChip)
 
+        # Set an extra serial gain register if rev is 2
+        if (self.regs.revChip == 2):
+            self.regs.regSerialGainV2 = 0x0079
+
         # Setup ADC training.
         self.regs.regPclkVblank = 0xFC0 # Set blanking pattern for ADC training.
         self.regs.regCustDigPat = 0xFC0 # Set custom data pattern for ADC training.
