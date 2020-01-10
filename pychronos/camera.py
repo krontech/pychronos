@@ -961,7 +961,11 @@ class camera:
             tempaddr = self.__sensorTemperatureAddr
             tempdata = utils.smbusRead(tempaddr, 2, setup=bytearray([0]))
             sign = -1.0 if (tempdata[0] & 0x80) else 1.0
-            return sign * ((tempdata[0] & 0x7f) + (tempdata[1] / 256))
+            value = (tempdata[0] & 0x7f) + (tempdata[1] / 256)
+            if (self.__sensorTemperatureAddr == 0x4c):
+                return value * sign * 2 # Some boards have an LM73 sensor instead.
+            else:
+                return value * sign     # Most boards have an LM75-compatible sensor.
         except:
             return 0.0
 
