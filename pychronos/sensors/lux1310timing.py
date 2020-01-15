@@ -23,6 +23,7 @@ class lux1310timing(timing):
         self.__frameTime        = self.TIMING_HZ // 1000 # 1ms
         self.__integrationTime  = int(self.__frameTime * 0.9)
         self.__t2Time           = 17
+        self.__txnWidth         = 50
         self.__disableFrameTrig = False
         self.__disableIoDrive   = False
         self.__nFrames          = 5
@@ -79,6 +80,7 @@ class lux1310timing(timing):
         This has all IO disabled including the one driving the io block...
         """
         logging.debug('programInterm - flip')
+        self.__program = self.PROGRAM_NONE
         self.runProgram(prog=[self.NONE + readoutTime, self.NONE | self.TIMING_RESTART], timeout=timeout)
 
     def programShutterGating(self, t2Time=17, readoutTime=90000, timeout=0.01):
@@ -152,6 +154,17 @@ class lux1310timing(timing):
 
         logging.debug('ProgramStandard: %d, %d', frameTime, integrationTime)
 
+        # Special case: if just changing the frame and integration time, then we can shortcut...
+        if (self.__program == self.PROGRAM_STANDARD) and (self.__t2Time == t2Time):
+            logging.debug('ProgramStandard: bypassing flip')
+            self.__frameTime = frameTime
+            self.__integrationTime = integrationTime
+            self.inhibitTiming = True
+            self.operands[0] = integrationTime - self.__txnWidth
+            self.operands[1] = frameTime - integrationTime - self.__t2Time
+            self.inhibitTiming = False
+            return
+
         origShutterTriggersFrame = self.io.shutterTriggersFrame
         if self.__program != self.PROGRAM_STANDARD:
             # make sure the readout completes
@@ -167,18 +180,22 @@ class lux1310timing(timing):
 
         if disableIoDrive: ioDrive = 0
         else:              ioDrive = self.IODRIVE
-        
+
+        # Standard program uses the following arguments.
+        # R0 = Exposure time - TXN width.
+        # R1 = Frame period - Exposure Time - Setup Time.
+        self.operands[0] = integrationTime - self.__txnWidth
+        self.operands[1] = frameTime - integrationTime - self.__t2Time
+        logging.debug('ProgramStandard: ABN width = %d', frameTime - integrationTime - self.__txnWidth - self.__t2Time)
+
         # Program preamble: delay before ABN falling (t2 time)
-        prog = [ self.NONE + t2Time ]
-        #if (disableFrameTrig):                                      # ABN Falls here
-        #    prog.append(self.ABN | self.TIMING_WAIT_FOR_INACTIVE)   # Timing for the pulsed mode is reset on the falling edge
-        #    prog.append(self.ABN | self.TIMING_WAIT_FOR_ACTIVE)     # (hence why the hold happens after the first command)
-        prog.append(self.ABN + (frameTime - integrationTime))
-        prog.append(ioDrive + self.NONE + (integrationTime))    # ABN raises
-        #prog.append(ioDrive + self.PRSTN + 0x000001)           # PRSTN falls
-        #prog.append(ioDrive + self.NONE + 0x000016)            # and raises
-        prog.append(ioDrive + self.TXN + 0x31)                  # TXN falls
-        prog.append(self.TIMING_RESTART)                        # TXN raises and cycle restarts
+        prog = [
+            self.NONE +    t2Time,                              # Setup time until linevalid.
+            self.ABN +     self.OPCODE_DELAY_REGISTER + 1,      # Assert ABN for argument in R1
+            self.IODRIVE + self.OPCODE_DELAY_REGISTER + 0,      # Release ABN for argument in R0
+            self.IODRIVE + self.TXN + self.__txnWidth,          # TXN falls
+            self.TIMING_RESTART                                 # TXN raises and cycle restarts
+        ]
 
         logging.debug('programStandard - flip')
         self.runProgram(prog, timeout)

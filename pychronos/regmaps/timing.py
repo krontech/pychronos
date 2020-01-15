@@ -33,7 +33,12 @@ class timing(pychronos.fpgamap):
         aview = pychronos.arrayview(self, offset=self.__progstart, size=4, count=256)
         for i in range(0, len(value)):
             aview[i] = value[i]
-    
+
+    @property
+    def operands(self):
+        """Timing Program Arguments"""
+        return pychronos.arrayview(self, offset=0x40, size=4, count=8)
+
     def __regprop(offset, size, docstring):
         return property(fget=lambda self: self.regRead(offset, size),
                         fset=lambda self, value: self.regWrite(offset, size, value),
@@ -66,9 +71,6 @@ class timing(pychronos.fpgamap):
     inhibitTiming       = __bitprop(0x08, 2, 0x0001, 'this enables the new timing engine core')
     requestFlip         = __bitprop(0x08, 2, 0x0002, 'indicates to the engine to flip on next reset or end of frame; self-clears')
     resetSignal         = __bitprop(0x08, 2, 0x0004, 'rising edge resets the internals')
-    exposureEnabled     = __bitprop(0x08, 2, 0x0010, 'if enabled, timing engine will wait until exposure signal (level sensitive) or requestFrame (edge sensitive) goes high')
-    exposure            = __bitprop(0x08, 2, 0x0020, 'if exposureEnabled is set, this enables the timing engine. If exposureEnabled is clear, this bit is ignored')
-    requestFrame        = __bitprop(0x08, 2, 0x0080, 'if exposureEnabled is set, this will request a single frame from the timing engine')
     useAbnPulsedMode    = __bitprop(0x08, 2, 0x0100, 'use ABN pulsed mode')
     invertAbnPulsedMode = __bitprop(0x08, 2, 0x0200, 'invert the ABN signal when in pulsed mode')
     wavetableLatch      = __bitprop(0x08, 2, 0x0400, 'causes change to happen only on hsync period between wavetables')
@@ -81,7 +83,13 @@ class timing(pychronos.fpgamap):
     IODRIVE     = 0x10000000
     DROPFRAME   = 0x20000000
     NONE        = 0x00000000
-    
+
+    # Timing opcodes
+    OPCODE_DELAY_IMMEDIATE   = 0x00000000
+    OPCODE_DELAY_REGISTER    = 0x00100000
+    OPCODE_DELAY_LINES       = 0x00E00000
+    OPCODE_WAIT_EVENT        = 0x00F00000
+
     # Special timing durations
     TIMING_RESTART           = 0x00000000
     TIMING_WAIT_FOR_ACTIVE   = 0x00FFFFFF
@@ -198,21 +206,31 @@ class timing(pychronos.fpgamap):
             iostr += 'P' if (cmd & self.PRSTN) else '-'
             iostr += 'I' if (cmd & self.IODRIVE) else '-'
 
-            delay = cmd & 0xffffff
-            if (delay == self.TIMING_RESTART):
-                break
-            elif (delay == self.TIMING_WAIT_FOR_ACTIVE):
-                logging.debug("%s wait(trig)", iostr)
-            elif (delay == self.TIMING_WAIT_FOR_INACTIVE):
-                logging.debug("%s wait(~trig)", iostr)
-            elif (delay == self.TIMING_WAIT_FOR_NLINES):
-                logging.debug("%s sync(%d)", iostr, self.minLines)
+            opcode = cmd & 0x00f00000
+            immediate = cmd & 0x000fffff
+            if (opcode == self.OPCODE_DELAY_IMMEDIATE):
+                if (immediate == 0):
+                    break # Reset condition
+                logging.debug("%s wait(imm=%d)" % (iostr, immediate))
+                intClocks = 0 if (cmd & self.ABN) else (intClocks + immediate)
+                frameClocks += immediate
+            elif (opcode == self.OPCODE_DELAY_REGISTER):
+                regval = self.operands[immediate & 0x7]
+                logging.debug("%s wait(r%d=%d)" % (iostr, immediate, regval))
+                intClocks = 0 if (cmd & self.ABN) else (intClocks + regval)
+                frameClocks += regval
+            elif (opcode == self.OPCODE_WAIT_EVENT):
+                delay = cmd & 0x00ffffff
+                if (delay == self.TIMING_WAIT_FOR_ACTIVE):
+                    logging.debug("%s wait(trig)", iostr)
+                elif (delay == self.TIMING_WAIT_FOR_INACTIVE):
+                    logging.debug("%s wait(~trig)", iostr)
+                elif (delay == self.TIMING_WAIT_FOR_NLINES):
+                    logging.debug("%s sync(%d)", iostr, self.minLines)
+                else:
+                    logging.debug("%s wait(unknown)", iostr)
             else:
-                if (cmd & self.ABN):
-                    intClocks = 0
-                elif not (cmd & self.TXN):
-                    intClocks += delay
-                frameClocks += delay
-                logging.debug("%s wait(%d)" % (iostr, delay))
+                logging.debug("%s unknown(%s, %s)" % (iostr, hex(opcode), hex(immediate)))
         
         logging.debug("frameClocks=%d intClocks=%d", frameClocks, intClocks)
+
