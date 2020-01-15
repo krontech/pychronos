@@ -154,8 +154,6 @@ class lux2100(api):
         self.frameClocks = int(0.001 * self.LUX2100_SENSOR_HZ)
         self.exposureClocks = int(self.frameClocks * 0.95)
 
-        self.colorBinning = True
-        
         super().__init__()
 
     def writeDAC(self, dac, voltage):
@@ -248,7 +246,7 @@ class lux2100(api):
 
         # Setup for 66-clock wavetable and 1080p with binning.
         self.regs.regRdoutDly = 66
-        self.regs.regMono = not self.colorBinning
+        self.regs.regMono = False
         self.regs.regRow2En = True
         self.regs.regColbin2 = True
         self.regs.regPoutsel = 2
