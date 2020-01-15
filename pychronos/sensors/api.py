@@ -462,3 +462,36 @@ class api(ABC):
     def getCurrentGain(self, gain):
         """Return the current analog gain of the image sensor"""
         pass 
+
+    @abstractmethod
+    def exportCalData(self, saveLocation=None):
+        """Export flat-fields while in ADC test mode for PC based calibration
+
+        Args:
+            saveLocation (string): Filesystem path to a directory that can
+                be transferred to an external PC for processing.
+
+        Returns:
+            bool: `True` if the flat-fields were successfully captured and
+                saved. `False` if the capture or saving failed.
+        """
+        pass
+
+    @abstractmethod
+    def importColGains(self, sourceLocation='/media/sda1', calLocation='/var/camera/cal'):
+        """Import column gain calibration data (.bin files) that were generated off-camera
+        
+        Args:
+            sourceLocation (string, optional): Filesystem path to the location of the .bin
+                calibration files that were generated off-camera. Defaults to a usb thumb
+                drive on /media/sda1.
+
+            calLocation (string, optional): Filesystem path to the directory where
+                user calibration data is stored. Defaults to /var/camera/cal.
+
+        Returns:
+            bool: `True` if all calibration data files were copied for each level of
+                analog gain and wavetable. `False` if one or more files were not
+                copied.
+        """
+        pass
