@@ -7,6 +7,7 @@ import copy
 import numpy
 import logging
 import json
+import shutil
 
 from pychronos.error import *
 from pychronos.regmaps import sequencer, ioInterface
@@ -281,7 +282,7 @@ class lux2100(api):
         # Configure for nominal gain.
         self.regs.regGainSelSamp = 0x007f
         self.regs.regGainSelFb = 0x007f
-        self.regs.regGainBit = 0x03
+        self.regs.regSerialGain = 0x03
 
         # Enable ADC offset correction.
         for x in range(0, self.ADC_CHANNELS):
@@ -549,7 +550,7 @@ class lux2100(api):
         samp, feedback, sgain = gainConfig[int(gain)]
         self.regs.regGainSelSamp = samp
         self.regs.regGainSelFb = feedback
-        self.regs.regGainBit = sgain
+        self.regs.regSerialGain = sgain
 
     def getCurrentGain(self):
         gsMap = {
@@ -572,7 +573,7 @@ class lux2100(api):
             fbacknbits += (x & 1)
             x >>= 1
 
-        x = self.regs.regGainBit
+        x = self.regs.regSerialGain
         while (x != 0):
             gsernbits += (x & 1)
             x >>= 1
@@ -703,14 +704,28 @@ class lux2100(api):
             colGainData.tofile(self.calFilename(saveLocation + '/colGain', ".bin"))
         
     def loadAnalogCal(self, calLocation):
-        # Generate the calibration filename.
-        suffix = self.calFilename("/colGain", ".bin")
-        filename = calLocation + suffix
-        
         # Load calibration!
         display = pychronos.regmaps.display()
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
         colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
+      
+        # Load the factory column gain calibration, using one column gain coefficient per horizontal pixel.
+        # Generate the calibration filename.
+        filename = calLocation + self.calFilename("/factory_colGain", ".bin")
+        try:
+            logging.info("Loading column gain calibration from %s", filename)
+            colGainData = numpy.fromfile(filename, dtype=numpy.int32, count=self.MAX_HRES)
+            for col in range(0, self.MAX_HRES):
+                colGainRegs.mem16[col] = int(colGainData[col])
+                colCurveRegs.mem16[col] = 0
+            display.gainControl &= ~display.GAINCTL_3POINT
+            return True   
+        except Exception as err:
+            logging.info("Couldn't load factory col gain, falling back to auto 2-point col gain.")         
+
+        # If the factory calibration file is missing, fall back to 2-point cal data, using one column gain coefficient per ADC channel.
+        # Generate the calibration filename.
+        filename = calLocation + self.calFilename("/colGain", ".bin")
         try:
             logging.info("Loading column gain calibration from %s", filename)
             colGainData = numpy.fromfile(filename, dtype=numpy.float, count=self.ADC_CHANNELS)
@@ -826,3 +841,84 @@ class lux2100(api):
         wtClocks = self.regs.regRdoutDly
         gain = int(self.getCurrentGain())
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
+
+    def exportCalData(self, saveLocation=None):
+        display = pychronos.regmaps.display()
+        sensor = pychronos.regmaps.sensor()
+        hRes = pychronos.sensors.lux2100().getMaxGeometry().hRes
+        vRes = pychronos.sensors.lux2100().getMaxGeometry().vRes
+
+        gainSampCap =   [0x007F, 0x01FF, 0x0FFF, 0x0FFF, 0x0FFF]
+        gainSerFbCap =  [0x037F, 0x030F, 0x011F, 0x001F, 0x000F]
+
+        adcTestModeVoltages = [
+            [0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34],   #x1, 0 dB
+            [0x2D, 0x2E, 0x2F, 0x30, 0x31],                     #x2, 6 dB
+            [0x2D, 0x2E, 0x2F, 0x30],                           #x4, 12 dB
+            [0x2D, 0x2E, 0x2F],                                 #x8, 18 dB
+            [0x2D, 0x2E, 0x2F]                                  #x16,24 dB
+        ]
+
+        # Disable certain FPGA overlays to get raw sensor values.
+        display.pipeline |= display.BYPASS_GAIN | display.BYPASS_GAMMA_TABLE | display.BYPASS_DEMOSAIC
+
+        # Enter test mode.
+        self.regs.regPoutsel = 1
+
+        for gain in range(0, len(adcTestModeVoltages)):  
+            # Create a folder for each level of analog gain.
+            #TOOD: replace Chronos21 with serial number string
+            gainPath = saveLocation + "%s/x%d/" % ('Chronos21', 1 << gain)
+            try:
+                os.makedirs(gainPath, exist_ok=True)
+                logging.info('Saving flat fields to ' + gainPath)
+            except OSError as err:
+                logging.error("Could not create per-gain folders while exporting cal data.")
+                return False
+
+            # Set analog gain value
+            self.regs.regGainSelSamp = gainSampCap[gain]
+            self.regs.regGainSelFb = gainSerFbCap[gain]
+
+            # Iterate and collect flat-fields at each level of ADC test voltage step.
+            for intensity in range(0, len(adcTestModeVoltages[gain])):
+
+                # Inject a test voltage into the ADCs, see lux2100 datasheet p.30.
+                testVoltage = (adcTestModeVoltages[gain][intensity] << 8) + 0x00FF
+                sensor.sciWrite(0x67, testVoltage)
+
+                # Get the average of 3 frames.
+                numFrameSamples = 3
+                fAverage = numpy.zeros((vRes, hRes), dtype=numpy.uint16)
+
+                for i in range(0, numFrameSamples):
+                    fAverage += numpy.asarray(pychronos.readframe(0x4b000, hRes, vRes))
+
+                # Save a .raw frame as a numpy array, which guarantees platform independence for the data order.
+                fName = gainPath + "%d.npy" % intensity
+                outFrame = numpy.array(fAverage / numFrameSamples, dtype=numpy.uint16)
+                numpy.save(fName, outFrame)
+
+        return True
+
+    def importColGains(self, sourceLocation='/media/sda1', calLocation='/var/camera/cal'):
+        # Copy column gain calibration data into camera.
+        gainLvls = [1, 2, 4, 8, 16]
+        wtClocks = [66, 45, 35, 25]
+        copyCount = 0
+
+        for wt in range(0, len(wtClocks)):
+            for gain in range(0, len(gainLvls)):
+                #Build filename string
+                fName = 'factory_colGain_G%d_WT%d.bin' % (gainLvls[gain], wtClocks[wt])
+                try:
+                    shutil.copy(os.path.join(sourceLocation, fName), os.path.join(calLocation, fName))
+                    logging.info("Copied %s from %s to %s", fName, sourceLocation, calLocation)
+                    copyCount += 1
+                except OSError as err:
+                    logging.error("Could not copy %s from %s to %s", fName, sourceLocation, calLocation)
+
+        if (copyCount == len(gainLvls) * len(wtClocks)):
+            return True
+        else:
+            return False
