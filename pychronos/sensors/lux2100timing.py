@@ -22,6 +22,7 @@ class lux2100timing(timing):
         self.__disableFrameTrig = False
         self.__disableIoDrive   = False
         self.__program          = self.PROGRAM_NONE
+        self.__txnWidth         = 50
         
         self.io = ioInterface()
 
@@ -103,10 +104,11 @@ class lux2100timing(timing):
         ])
         self.io.shutterTriggersFrame = True
         
-    def programStandard(self, frameTime, integrationTime, t2Time=17, disableFrameTrig=True, disableIoDrive=False, readoutTime=90000, timeout=0.01):
+    def programStandard(self, frameTime, integrationTime, t2Time=17, disableFrameTrig=True, readoutTime=90000, timeout=0.01):
         frameTime       = int(frameTime)
         integrationTime = int(integrationTime)
         t2Time          = int(t2Time)
+        abnTime         = frameTime - integrationTime - t2Time
         if (frameTime <= integrationTime):
             logging.error("frameTime (%d) must be longer than integrationTime (%d)", frameTime, integrationTime)
             integrationTime = int(frameTime * 0.95)
@@ -122,21 +124,13 @@ class lux2100timing(timing):
         self.__program          = self.PROGRAM_STANDARD
         self.__disableFrameTrig = disableFrameTrig
         self.__disableIoDrive   = disableIoDrive
-
-        if disableIoDrive: ioDrive = 0
-        else:              ioDrive = self.IODRIVE
         
         # Program preamble: delay before ABN falling (t2 time)
-        prog = [ self.NONE + t2Time ]
-        #if (disableFrameTrig):                                      # ABN Falls here
-        #    prog.append(self.ABN | self.TIMING_WAIT_FOR_INACTIVE)   # Timing for the pulsed mode is reset on the falling edge
-        #    prog.append(self.ABN | self.TIMING_WAIT_FOR_ACTIVE)     # (hence why the hold happens after the first command)
-        prog.append(self.ABN + (frameTime - integrationTime))
-        prog.append(ioDrive + self.NONE + (integrationTime))    # ABN raises
-        #prog.append(ioDrive + self.PRSTN + 0x000001)           # PRSTN falls
-        #prog.append(ioDrive + self.NONE + 0x000016)            # and raises
-        prog.append(ioDrive + self.TXN + 0x31)                  # TXN falls
-        prog.append(self.TIMING_RESTART)                        # TXN raises and cycle restarts
+        prog = [ self.PRSTN + t2Time ]
+        prog.append(self.ABN + self.PRSTN + (frameTime - integrationTime - t2Time))     # ABN falls
+        prog.append(self.IODRIVE + self.PRSTN + (integrationTime - self.__txnWidth))    # ABN raises
+        prog.append(self.IODRIVE + self.PRSTN + self.TXN + self.__txnWidth)             # TXN falls
+        prog.append(self.TIMING_RESTART)                              # TXN raises and cycle restarts
 
         logging.debug('programStandard - flip')
         self.runProgram(prog, timeout)
