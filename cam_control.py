@@ -226,8 +226,7 @@ class controlApi(dbus.service.Object):
         devName = args.pop('device')
 
         filename = args.pop('filename', time.strftime('vid_%F_%H-%M-%S'))
-        if (saveFormat != 'dng'):
-            filename = filename + suffixes.get(saveFormat)
+        filename += suffixes.get(saveFormat, '')
 
         # Assemble the full pathname for recorded file.
         extStorage = self.camera.externalStorage
