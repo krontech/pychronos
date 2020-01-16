@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import os, sys, pdb
+import signal
 import json
 import argparse
 from functools import lru_cache
@@ -65,6 +66,9 @@ class controlApi(dbus.service.Object):
         self.camera.setOnChange(self.onChangeHandler)
         self.changeset = None
         self.changecfg = False
+
+        # Args to pass on down to the reboot logic.
+        self.rebootMode = {}
 
         # Install a callback to catch video signals.
         self.video.connect_to_signal('sof', self.videoSofSignal)
@@ -412,7 +416,23 @@ class controlApi(dbus.service.Object):
         return {'state':self.camera.state}
 
     #===============================================================================================
-    #Method('softReset', arguments='', returns='a{sv}'),
+    #Method('reboot', arguments='a{sv}', returns='a{sv}')
+    #Method('softReset', arguments='', returns='a{sv}')
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def reboot(self, args):
+        try:
+            self.runGenerator(self.camera.abort())
+            self.rebootMode = args if args else {'reload': True}
+            self.mainloop.quit()
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
+            }
+
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def softReset(self):
         """Perform a soft reset and initialization of the FPGA and image sensor."""
@@ -673,3 +693,15 @@ if __name__ == "__main__":
     # Run the mainloop.
     logging.info("Running control service...")
     mainloop.run()
+
+    # Handle reboot
+    logging.info("Stopping control service... %s", obj.rebootMode)
+    if obj.rebootMode.get('defaults', False):
+        os.remove(args.config)
+    if obj.rebootMode.get('power', False):
+        os.system("shutdown -hr now")
+
+    # Tell the caller that we exited with SIGHUP
+    if obj.rebootMode.get('reload', False):
+        os.kill(os.getpid(), signal.SIGHUP)
+

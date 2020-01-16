@@ -357,6 +357,7 @@ of the supported methods are as follows:
 | `softTrigger`               |`S`| none             |              | Generate a software trigger event.
 | `revertToDefaults`          |   | none             |              | Revert all settings to their default values (with optional parameter overrides).
 | `softReset`                 |`S`| none             | `reset`      | Perform a soft reset and initialization of the FPGA and image sensor.
+| `reboot`                    |`S`| dict(parameters) | `reset`      | Perform a reboot of the camera, API or return to factory default settings.
 | `getResolutionTimingLimits` |`S`| dict(resolution) |              | Test if a resolution is valid and return the timing limits (framerate) at that resolution. Example: `call --system --dest ca.krontech.chronos.control --object-path /ca/krontech/chronos/control --method ca.krontech.chronos.control.getResolutionTimingLimits "{'hRes': <1280>, 'vRes': <1020>}"` → `({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMaxFrames': <17542>, 'exposureMax': <925722>},)`. Maximum framerate is `1e9 / minFramePeriod`.
 
 All methods return a dictionary of parameters, normally this will just include

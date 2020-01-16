@@ -156,6 +156,25 @@ class camera:
     #===============================================================================================
     # API Methods: Reset Group
     #===============================================================================================
+    def abort(self):
+        """Terminate anything that the camera might be doing and return to the
+        idle state. This would typically be used as part of a reset procedure.
+        """
+        # If the current state is `recording` then simply stop the recording and
+        # wait for the state to become idle.
+        if (self.__state == 'recording'):
+            self.stopRecording()
+
+        # Otherwise, if the state is not `idle`, then switch to the `reset` state
+        # to force any generates to complete. Give the generates up to half a second
+        # fo finish.
+        if (self.__state != 'idle'):
+            self.__setState('reset')
+            for x in range(0,5):
+                if (self.__state == 'idle'):
+                    break
+                yield 0.1
+
     def softReset(self, bitstream=None):
         """Reset the camera and initialize the FPGA and image sensor.
 
@@ -174,16 +193,7 @@ class camera:
             >>> for delay in state:
             >>>    time.sleep(delay)
         """
-        # If the current state is neither `idle` nor `recording`, then switch
-        # to the `reset` state to force any outstanding generators to complete.
-        # Give the generators up to half a second to finish and then continue
-        # with the reset procedure.
-        if self.__state != 'idle' and self.__state != 'recording':
-            self.__setState('reset')
-            for x in range(0,5):
-                if (self.__state == 'idle'):
-                    break
-                yield 0.1
+        self.abort()
 
         # Setup the FPGA if a bitstream was provided.
         if (bitstream):

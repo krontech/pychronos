@@ -7,6 +7,7 @@ Requires=chronos-fpga.service chronos-pwrutil.service
 Type=dbus
 ExecStart=/usr/bin/cam_control
 BusName=ca.krontech.chronos.control
+RestartForceExitStatus=SIGHUP
 StandardOutput=journal+console
 StandardError=inherit
 
