@@ -420,9 +420,26 @@ class controlApi(dbus.service.Object):
     #Method('softReset', arguments='', returns='a{sv}')
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def reboot(self, args):
+        """ Restart the control API and/or the camera.
+            
+            Takes a dict of reboot options, for example:
+            
+                {
+                    'settings': True,
+                    'power': False,
+                    'reload': True,
+                }
+            
+            When 'settings' is true, the user settings are removed during the reboot,
+            which should return the camera to its factory default state.
+
+            When 'power' is true, the camera will perform a full power cycle.
+
+            When 'reload' is true (the default), the control API will restart itself.
+        """
         try:
             self.runGenerator(self.camera.abort())
-            self.rebootMode = args if args else {'reload': True}
+            self.rebootMode = args
             self.mainloop.quit()
             return {
                 "state": self.camera.state
@@ -696,12 +713,11 @@ if __name__ == "__main__":
 
     # Handle reboot
     logging.info("Stopping control service... %s", obj.rebootMode)
-    if obj.rebootMode.get('defaults', False):
+    if obj.rebootMode.get('settings', False):
         os.remove(args.config)
+    
     if obj.rebootMode.get('power', False):
         os.system("shutdown -hr now")
-
-    # Tell the caller that we exited with SIGHUP
-    if obj.rebootMode.get('reload', False):
+    elif obj.rebootMode.get('reload', True):
         os.kill(os.getpid(), signal.SIGHUP)
 
