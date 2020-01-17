@@ -752,6 +752,17 @@ class camera:
                 os.rmdir(os.path.join(root, name))
                 logging.debug("DIR: %s", os.path.join(root, name))
 
+    def exportCalData(self):
+        try:
+            yield from self.sensor.startFlatFieldExport()
+        except Exception as e:
+            self.__setState('idle')
+            raise e
+        self.__setState('idle')
+
+    def importCalData(self):
+        self.sensor.importColGains()
+
     #===============================================================================================
     # API Parameters: Configuration Dictionary
     @camProperty()
