@@ -185,20 +185,23 @@ class power:
     
     @camProperty(notify=True, save=True)
     def fanOverride(self):
-        """bool: Set to `True` to manually disable the fan."""
-        return (self.cache.fanOverride != "auto")
+        """float: Fan speed in the range of 0=off to 1.0=full, or -1 for automatic fan control."""
+        return -1.0 if (self.cache.fanOverride < 0) else (self.cache.fanOverride / 255.0)
     
     @fanOverride.setter
     def fanOverride(self, value):
-        if (value):
-            self.cache.fanOverride = 0
-            self.sendMessage('SET_FAN_OFF')
-        else:
-            self.cache.fanOverride = "auto"
+        if (value < 0):
+            self.cache.fanOverride = -1
             self.sendMessage('SET_FAN_AUTO')
+        elif (value >= 1.0):
+            self.cache.fanOverride = 255
+            self.sendMessage('SET_FAN_255')
+        else:
+            self.cache.fanOverride = int(value * 255)
+            self.sendMessage('SET_FAN_%d' % (self.cache.fanOverride))
         self.__propChange("fanOverride")
 
-    @camProperty(notify=True, save=True)
+    @camProperty(notify=True)
     def powerOnWhenMainsConnected(self):
         """bool: Set to `True` to have the camera turn itself on when it is plugged into mains power."""
         return bool(self.cache.powerMode & 1)
@@ -211,7 +214,7 @@ class power:
             self.setPowerMode(self.cache.powerMode & ~1)
         self.__propChange("powerOnWhenMainsConnected")
     
-    @camProperty(notify=True, save=True)
+    @camProperty(notify=True)
     def powerOffWhenMainsLost(self):
         """bool: Set to `True` to have the camera turn itself off when it is unplugged from mains power."""
         return bool(self.cache.powerMode & 2)

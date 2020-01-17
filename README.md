@@ -205,7 +205,7 @@ API to the `chronos-cli` program.
 |`powerOnWhenMainsConnected`                 |`G`|`S`|`N`| bool   | False | True  | Set to `True` to have the camera turn itself on when it is plugged in.
 |`powerOffWhenMainsLost`                     |`G`|`S`|`N`| bool   | False | True  | Set to `True` to have the camera turn itself off when mains power is disconnected.
 |`backlightEnabled`                          |`x`|`x`|`x`| bool   |       |       | True if the LCD on the back of the camera is lit. Can be set to False to dim the screen and save a small amount of power.
-|`fanOverride`                               |`G`|`S`|`N`| bool   | False | True  | Set to `True` to turn the fan off if it is safe to do so, or set to `False` to let the camera control the fan speed.
+|`fanOverride`                               |`G`|`S`|`N`| float  | -1.0  | 1.0   | Override the fan speed with a value in the range of 0.0=off and 1.0=full. Negative values (default) enable automatic fan control based on temperature.
 
 ### Camera Network Parameters
 | Parameter         | G | S | N | Type   | Min   | Max   | Description
