@@ -464,16 +464,24 @@ class api(ABC):
         pass 
 
     @abstractmethod
-    def exportCalData(self, saveLocation=None):
+    def startFlatFieldExport(self, saveLocation='/media/sda1'):
         """Export flat-fields while in ADC test mode for PC based calibration
 
         Args:
-            saveLocation (string): Filesystem path to a directory that can
+            saveLocation (string, optional): Filesystem path to a directory that can
                 be transferred to an external PC for processing.
 
-        Returns:
-            bool: `True` if the flat-fields were successfully captured and
-                saved. `False` if the capture or saving failed.
+        Yields:
+            float: The sleep time, in seconds, between steps of the export procedure.
+
+        Examples:
+            This function returns a generator iterator with the sleep time between the
+            steps of the flat-field export procedure. The caller may use this for
+            cooperative multithreading, or can complete the export sychronously
+            as follows:
+
+            >>> for delay in sensor.startFlatFieldExport():
+            >>>    time.sleep(delay)
         """
         pass
 

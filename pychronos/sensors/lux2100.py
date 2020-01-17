@@ -842,9 +842,12 @@ class lux2100(api):
         gain = int(self.getCurrentGain())
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
 
-    def exportCalData(self, saveLocation=None):
+    def startFlatFieldExport(self, saveLocation='/media/sda1'):
+        logging.debug('Starting flat-field export')
+
         display = pychronos.regmaps.display()
         sensor = pychronos.regmaps.sensor()
+        seq = sequencer()
         hRes = pychronos.sensors.lux2100().getMaxGeometry().hRes
         vRes = pychronos.sensors.lux2100().getMaxGeometry().vRes
 
@@ -868,7 +871,7 @@ class lux2100(api):
         for gain in range(0, len(adcTestModeVoltages)):  
             # Create a folder for each level of analog gain.
             #TOOD: replace Chronos21 with serial number string
-            gainPath = saveLocation + "%s/x%d/" % ('Chronos21', 1 << gain)
+            gainPath = saveLocation + "/%s/x%d/" % ('Chronos21', 1 << gain)
             try:
                 os.makedirs(gainPath, exist_ok=True)
                 logging.info('Saving flat fields to ' + gainPath)
@@ -892,7 +895,11 @@ class lux2100(api):
                 fAverage = numpy.zeros((vRes, hRes), dtype=numpy.uint16)
 
                 for i in range(0, numFrameSamples):
-                    fAverage += numpy.asarray(pychronos.readframe(0x4b000, hRes, vRes))
+                    yield from seq.startLiveReadout(hRes, vRes)
+                    if not seq.liveResult:
+                        logging.error("Flat field export failed to read frame.")
+                        return False
+                    fAverage += numpy.asarray(seq.liveResult)
 
                 # Save a .raw frame as a numpy array, which guarantees platform independence for the data order.
                 fName = gainPath + "%d.npy" % intensity
