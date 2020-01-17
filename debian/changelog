@@ -1,5 +1,36 @@
-pychronos (0.4.0~alpha113) unstable; urgency=medium
+pychronos (0.4.0~alpha144) unstable; urgency=medium
 
+  * Convert cam_control to a python module.
+  * Change fanOverride to a float, to set speed directly.
+  * Fix reboot logic when reverting settings.
+  * Add reboot() call to the API.
+  * lux2100: Workaround for PRSTN in standard timing program.
+  * lux2100: Always set mono binning mode.
+  * Fix suffix logic in startFilesave() API call.
+  * Support temperature readings from LM73 sensors.
+  * Fix int/float conversion errors in resolution parsing.
+  * timing: Adjust register map based on version.
+  * sensor: getExposureRange should be relative to minFrameTime
+  * lux2100: Added additonal gain reg write for v2 sensors.
+  * Set wbTemperature to 0K aftter auto white balance.
+  * Fix typo in IO debounce config.
+  * Fix watch-computer using old, unset variable $CHRONOS_PASSWORD.
+  * Add wrappers for the legacy IO prarameters.
+  * Add missing ioMappingGate to the IO block.
+  * Fix variant/type errors on get to the video system.
+  * Add board detection (1.4 vs. 2.1) and model name generation.
+  * Fix typos and add IO parameter sorting priority.
+  * ioInterface: Fix string case matching bug.
+  * Implement backlightEnabled to be able to turn off the screen.
+  * More reorganization and documentation of the IO block.
+  * Fix bug causing fan override to always read as true.
+  * Move API parameters for IO into a separate class.
+  * Refactor power properties, add battery critical tracking.
+  * Add sensorTemperature parameter
+  * lux2100: Fixup ADC calibration errors.
+  * Add clearCalibration method to erase calibration data.
+  * Fix typo left in for error debugging.
+  * Improvements to video API parameter proxy.
   * Add package and service dependency on chronos-pwrutil
   * Update debian scripts for automated package builds.
   * Remove conflict dependency with chronos-gui package.
@@ -117,4 +148,4 @@ pychronos (0.4.0~alpha113) unstable; urgency=medium
   * Add version.py to maintain a single API version number.
   * Upstream release v0.4.0-alpha
 
- -- Owen Kirby <oskirby@gmail.com>  Fri, 15 Nov 2019 17:32:10 -0800
+ -- Owen Kirby <oskirby@gmail.com>  Fri, 17 Jan 2020 13:50:32 -0800

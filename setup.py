@@ -1,5 +1,6 @@
 #!/usr/bin/python3
-from distutils.core import setup, Extension
+from setuptools import setup
+from distutils.core import Extension
 import sysconfig
 import platform
 
@@ -36,6 +37,13 @@ setup (name='PyChronos',
        url = 'https://github.com/krontech/pychronos',
        author = about['__author__'],
        author_email = 'oskirby@gmail.com',
-       provides=['pychronos'],
-       packages=['pychronos', 'pychronos/regmaps', 'pychronos/sensors'],
+       entry_points={
+           'console_scripts': [ 'camControl=camControl.__main__:main' ]
+       },
+       packages=[
+           'camControl',
+           'pychronos',
+           'pychronos/regmaps',
+           'pychronos/sensors'
+       ],
        ext_modules = [libpychronos])

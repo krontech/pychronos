@@ -1,2 +1,0 @@
-#!/usr/bin/dh-exec
-cam_control.py => usr/bin/cam_control
