@@ -70,6 +70,7 @@ class camera:
         self.__wbTemperature = 5500
         self.__wbCustomColor = self.getWhiteBalance(self.__wbTemperature)
         self.__miscScratchPad = {}
+        self.__disableRingBuffer = False
 
         # Setup the reserved video memory.
         self.MAX_FRAME_WORDS = self.getFrameSizeWords(sensor.getMaxGeometry())
@@ -406,7 +407,7 @@ class camera:
             # Record into segments 
             cmd = regmaps.seqcommand(blockSize=self.recMaxFrames // self.recSegments,
                             blkTermFull=False, blkTermRising=True,
-                            recTermMemory=False, recTermBlockEnd=False)
+                            recTermMemory=self.__disableRingBuffer, recTermBlockEnd=False)
             yield from self.startCustomRecording([cmd])
         elif mode == 'burst':
             # When trigger is inactive, save the pre-record into a ring buffer.
@@ -1255,6 +1256,16 @@ class camera:
         self.__recPreBurst = value
         self.__propChange("recPreBurst")
     
+    @camProperty()
+    def disableRingBuffer(self):
+    	"""bool: When true, the camera will stop recording once the RAM buffer is full instead of looping over.
+    	
+    	By default, the camera will enable the ring buffer, so once the maximum record length has been reached, the camera will overwrite the oldest footage in the recording in normal recording mode, or overwrite the oldest segment in sedgmented recording mode."""
+    	return self.__disableRingBuffer
+    @disableRingBuffer.setter
+    def disableRingBuffer(self, value):
+    	self.__disableRingBuffer = value
+      
     @camProperty(notify=True, save=True)
     def recTrigDelay(self):
         """int: The number of frames to delay the trigger rising edge by in 'normal' and 'segmented' recording modes."""
