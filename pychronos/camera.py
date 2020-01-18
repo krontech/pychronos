@@ -267,17 +267,21 @@ class camera:
     def setupRecordRegion(self, fSize, startAddr, frameCount=0):
         ## Figure out the frame size, in words.
         fSizeWords = self.getFrameSizeWords(fSize)
+        ramSizeWords = (self.dimmSize[0] + self.dimmSize[1]) // self.BYTES_PER_WORD
+        maxFrames = ramSizeWords // fSizeWords
 
         seq = regmaps.sequencer()
         seq.frameSize = fSizeWords
         seq.regionStart = startAddr
-        if (frameCount != 0):
-            # Setup the desired number of frames if specified.
-            seq.regionStop = startAddr + (frameCount * fSizeWords)
-        else:
-            # Otherwise, setup the maximum available memory.
-            ramSizeWords = (self.dimmSize[0] + self.dimmSize[1]) // self.BYTES_PER_WORD
+        if (frameCount > maxFrames) or (frameCount == 0):
+            # Setup the maximum available memory.
             seq.regionStop = (ramSizeWords // fSizeWords) * fSizeWords
+            self.__recMaxFrames = 0
+        else:
+            # Setup the desired number of frames if specified.
+            self.__recMaxFrames = frameCount
+            seq.regionStop = startAddr + (frameCount * fSizeWords)
+        
     
     # Return the size of a frame in memory words.
     def getFrameSizeWords(self, fSize):
@@ -1221,11 +1225,7 @@ class camera:
     @recMaxFrames.setter
     def recMaxFrames(self, value):
         self.__checkState('idle')
-        currentMaxFrames = self.cameraMaxFrames
-        if value < currentMaxFrames:
-            self.__recMaxFrames = value
-        else:
-            self.__recMaxFrames = 0 # We use an internal value of zero to mean infinity.
+        self.setupRecordRegion(self.sensor.getCurrentGeometry(), self.REC_REGION_START, value)
         self.__propChange("recMaxFrames")
 
     @camProperty(notify=True, save=True)

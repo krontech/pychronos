@@ -291,7 +291,7 @@ class lux1310(api):
         return fSize
 
     def isValidResolution(self, size):
-            # Enforce resolution limits.
+        # Enforce resolution limits.
         if ((size.hRes < self.MIN_HRES) or (size.hRes + size.hOffset) > self.MAX_HRES):
             return False
         if ((size.vRes < self.MIN_VRES) or (size.vRes + size.vOffset) > self.MAX_VRES):
