@@ -31,7 +31,7 @@ class pDataCache:
 
         # Modes used for power and fan status.
         self.powerMode = 0
-        self.fanOverride = "auto"
+        self.fanOverride = -1
 
 class power:
     # Power flag bitmasks.
