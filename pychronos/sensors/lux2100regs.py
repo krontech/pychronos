@@ -136,7 +136,7 @@ class lux2100regs(sensor):
     regOsTarget =       __dataprop(0x0D, 0x0fff, "Dark value target for ADC offset calibration")
     regAdcOsEn =        __dataprop(0x0E, 0x0001, "Enables applying ADC offset registers during vertical blanking")
     regAdcOsSignLow =   __dataprop(0x0F, 0xffff, "Sign for ADC offsets (low channels)")
-    regAdcOsSignHigh =  __dataprop(0x0F, 0xffff, "Sign for ADC offsets (high channels)")
+    regAdcOsSignHigh =  __dataprop(0x4F, 0xffff, "Sign for ADC offsets (high channels)")
     
     # Datapath selection register.
     @property
@@ -219,7 +219,7 @@ class lux2100regs(sensor):
                 baseoff = 0x40
                 channel -= 16
 
-            signbits = self.parent.sciRead(0x0f)
+            signbits = self.parent.sciRead(0x0f + baseoff)
             if (value < 0):
                 self.parent.sciWrite(0x0f + baseoff, signbits | (1 << channel))
                 self.parent.sciWrite(0x10 + baseoff + channel, -int(value))

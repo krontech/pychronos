@@ -50,7 +50,7 @@ class lux2100(api):
     LUX2100_MIN_HBLANK = 2
     LUX2100_SENSOR_HZ = 75000000
     ADC_CHANNELS = 32
-    ADC_FOOTROOM = 32
+    ADC_FOOTROOM = 64
     ADC_OFFSET_MIN = -1023
     ADC_OFFSET_MAX = 1023
 
@@ -247,7 +247,7 @@ class lux2100(api):
 
         # Setup for 66-clock wavetable and 1080p with binning.
         self.regs.regRdoutDly = 66
-        self.regs.regMono = False
+        self.regs.regMono = True
         self.regs.regRow2En = True
         self.regs.regColbin2 = True
         self.regs.regPoutsel = 2
