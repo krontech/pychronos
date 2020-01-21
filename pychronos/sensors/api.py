@@ -462,3 +462,44 @@ class api(ABC):
     def getCurrentGain(self, gain):
         """Return the current analog gain of the image sensor"""
         pass 
+
+    @abstractmethod
+    def startFlatFieldExport(self, saveLocation='/media/sda1'):
+        """Export flat-fields while in ADC test mode for PC based calibration
+
+        Args:
+            saveLocation (string, optional): Filesystem path to a directory that can
+                be transferred to an external PC for processing.
+
+        Yields:
+            float: The sleep time, in seconds, between steps of the export procedure.
+
+        Examples:
+            This function returns a generator iterator with the sleep time between the
+            steps of the flat-field export procedure. The caller may use this for
+            cooperative multithreading, or can complete the export sychronously
+            as follows:
+
+            >>> for delay in sensor.startFlatFieldExport():
+            >>>    time.sleep(delay)
+        """
+        pass
+
+    @abstractmethod
+    def importColGains(self, sourceLocation='/media/sda1', calLocation='/var/camera/cal'):
+        """Import column gain calibration data (.bin files) that were generated off-camera
+        
+        Args:
+            sourceLocation (string, optional): Filesystem path to the location of the .bin
+                calibration files that were generated off-camera. Defaults to a usb thumb
+                drive on /media/sda1.
+
+            calLocation (string, optional): Filesystem path to the directory where
+                user calibration data is stored. Defaults to /var/camera/cal.
+
+        Returns:
+            bool: `True` if all calibration data files were copied for each level of
+                analog gain and wavetable. `False` if one or more files were not
+                copied.
+        """
+        pass

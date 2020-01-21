@@ -123,7 +123,6 @@ class lux2100timing(timing):
 
         self.__program          = self.PROGRAM_STANDARD
         self.__disableFrameTrig = disableFrameTrig
-        self.__disableIoDrive   = disableIoDrive
         
         # Program preamble: delay before ABN falling (t2 time)
         prog = [ self.PRSTN + t2Time ]

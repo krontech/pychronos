@@ -535,6 +535,35 @@ class controlApi(dbus.service.Object):
             }
     
     #===============================================================================================
+    #Method('exportCalData', arguments='a{sv}', returns='a{sv}'),
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def exportCalData(self, args):
+        """Export flat-field frames in numpy format to USB thumb drive."""
+        try:
+            self.runGenerator(self.camera.exportCalData(**args))
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
+            }
+
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def importCalData(self, args):
+        """ Import calibration data that was generated off-camera. """
+        try:
+            self.camera.importCalData(**args)
+            return {
+                "state": self.camera.state
+            }
+        except CameraError as e:
+            return {
+                "state": self.camera.state,
+                "error": str(e)
+            }
+    #===============================================================================================
     #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
     #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
     #Method('startRecording', arguments='', regutns='a{sv}'),
