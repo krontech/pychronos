@@ -16,7 +16,7 @@ X-Python3-Version: >= 3.4
 Package: python3-pychronos
 Architecture: armel
 Depends: ${python3:Depends}, ${misc:Depends},
-         python3-numpy
+         python3-numpy, python3-pkg-resources
 Suggests: python-pychronos-doc
 Description: Python bindings for the Chronos High Speed Camera  (Python 3)
  Python bindings for the Chronos High Speed Camera
