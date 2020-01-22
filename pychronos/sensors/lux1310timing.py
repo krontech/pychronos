@@ -36,6 +36,9 @@ class lux1310timing(timing):
         else:
             self.useMinLinesWait = False
 
+        if self.version >= 0:
+            self.timingEnable = True
+
     def setPulsedPattern(self, wavetableLength, hSync=2):
         self.pulsedAbnLowPeriod = wavetableLength
         self.pulsedAbnHighPeriod = hSync
@@ -159,10 +162,10 @@ class lux1310timing(timing):
             logging.debug('ProgramStandard: bypassing flip')
             self.__frameTime = frameTime
             self.__integrationTime = integrationTime
-            self.inhibitTiming = True
+            self.programRun = False
             self.operands[0] = integrationTime - self.__txnWidth
             self.operands[1] = frameTime - integrationTime - self.__t2Time
-            self.inhibitTiming = False
+            self.programRun = False
             return
 
         origShutterTriggersFrame = self.io.shutterTriggersFrame
@@ -327,7 +330,7 @@ class lux1310timing(timing):
 if __name__ == '__main__':
     timing = lux1310timing()
     lux    = lux1310regs()
-    timing.inhibitTiming = False
+    timing.timingEnable = True
     waveTableLength = lux.regRdoutDly
     print ("wavetable: %d" % waveTableLength)
     t2Time = lux.regSofDelay + 3

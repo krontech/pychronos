@@ -58,7 +58,13 @@ class timing(pychronos.fpgamap):
     pulsedAbnLowPeriod  = __regprop(0x0A, 2, "Pulsed-ABN low period")
     pulsedAbnHighPeriod = __regprop(0x0C, 2, "Pulsed-ABN high period")
     minLines            = __regprop(0x0E, 2, "Number of wavetable periods to delay when TIMING_WAIT_FOR_NLINES is used")
-    
+
+    ## Extended status and control registers (v1 and greater).
+    signalConfig =  __regprop(0x1c, 2, "Signal Polarity and Idle State Register")
+    frameTime =     __regprop(0x20, 4, "Program Interval Measurement")
+    expAbnTime =    __regprop(0x24, 4, "Exposure Interval Measurement (ABN to program end)")
+    expAbn2Time =   __regprop(0x28, 4, "Secondary Exposure Interval Measurement (ABN2 to program end)")
+
     # Status Register Bits
     inUseControlPage            = __bitprop(0x06, 2, 0x0008, 'which "page" in the control memory is currently active - the other one is being edited')
     exposureIsEnabled           = __bitprop(0x06, 2, 0x0040, 'if "1" either exposureEnabled is 1 or external shutter signal is enabled')
@@ -68,9 +74,10 @@ class timing(pychronos.fpgamap):
     pageSwapState               = __bitprop(0x06, 2, 0xF000, 'state of the state machine that runs the copy on page flip')
 
     # Control Register Bits
-    inhibitTiming       = __bitprop(0x08, 2, 0x0001, 'this enables the new timing engine core')
+    timingEnable        = __bitprop(0x08, 2, 0x0001, 'this enables the new timing engine core')
     requestFlip         = __bitprop(0x08, 2, 0x0002, 'indicates to the engine to flip on next reset or end of frame; self-clears')
     resetSignal         = __bitprop(0x08, 2, 0x0004, 'rising edge resets the internals')
+    timingRun           = __bitprop(0x08, 2, 0x0008, 'start timing program execution')
     useAbnPulsedMode    = __bitprop(0x08, 2, 0x0100, 'use ABN pulsed mode')
     invertAbnPulsedMode = __bitprop(0x08, 2, 0x0200, 'invert the ABN signal when in pulsed mode')
     wavetableLatch      = __bitprop(0x08, 2, 0x0400, 'causes change to happen only on hsync period between wavetables')
@@ -129,7 +136,8 @@ class timing(pychronos.fpgamap):
         timeout : `float`, optional
             How long to wait for the page flip to complete, in seconds. (default 0.01)
         """
-        self.inhibitTiming = 0
+        self.timingEnable = True
+        self.timingRun = True
 
         # Force a flip if the timeout is negative. This is guaranteed to flip, but may
         # result in a deadlocked sensor if the timing signals change at the wrong time.
