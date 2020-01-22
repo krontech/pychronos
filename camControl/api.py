@@ -82,15 +82,17 @@ class controlApi(dbus.service.Object):
         except StopIteration:
             if (name):
                 self.complete({"state": self.camera.state, "method": name})
-        except CameraError as error:
-            logging.error(error)
-            if (name):
-                self.complete({"state": self.camera.state, "method": name, "error": str(error)})
         except Exception as error:
             logging.error(error)
-            logging.debug(traceback.format_exc())
             if (name):
-                self.complete({"state": self.camera.state, "method": name, "error": str(error)})
+                self.complete({
+                    "state": self.camera.state,
+                    "method": name,
+                    "error": type(error).__name__,
+                    "message": str(error)
+                })
+            if not isinstance(error, CameraError):
+                logging.debug(traceback.format_exc())
 
         # Always return false to remove the Glib source for the last step.
         return False
@@ -449,7 +451,8 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
 
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
@@ -463,7 +466,8 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
     
     def loadConfig(self):
@@ -523,7 +527,8 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
@@ -537,7 +542,8 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
     
     #===============================================================================================
@@ -553,7 +559,8 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
 
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
@@ -567,8 +574,10 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
+
     #===============================================================================================
     #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
     #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
@@ -587,7 +596,8 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
 
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
@@ -609,7 +619,8 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
@@ -623,7 +634,8 @@ class controlApi(dbus.service.Object):
         except CameraError as e:
             return {
                 "state": self.camera.state,
-                "error": str(e)
+                "error": type(e).__name__,
+                "message": str(e)
             }
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
@@ -664,6 +676,7 @@ class controlApi(dbus.service.Object):
             }
         else:
             return {
-                "error": "Invalid Resolution"
+                "state": self.camera.state,
+                "error": "ValueError",
+                "message": "Invalid Resolution"
             }
-

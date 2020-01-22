@@ -4,3 +4,9 @@ class CameraError(RuntimeError):
 
 class CalibrationError(CameraError):
     pass
+
+class SignalClippingError(CameraError):
+    pass
+
+class LowSignalError(CameraError):
+    pass

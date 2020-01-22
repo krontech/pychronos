@@ -500,7 +500,7 @@ class camera:
                 pix = corrected[row][col]
                 if ((pix + headroom) > (1 << fSize.bitDepth)):
                     self.__setState('idle')
-                    raise CalibrationError("Signal clipping, reference image is too bright for white balance")
+                    raise SignalClippingError("Signal clipping, reference image is too bright for white balance")
 
                 if (row & 1):
                     # Odd Rows - Blue/Green pixels
@@ -518,7 +518,7 @@ class camera:
         # Check for too-low of a signal.
         if ((rSum < minSum) or (gSum < minSum) or (bSum < minSum)):
             self.__setState('idle')
-            raise CalibrationError("Low signal, reference image is too dim for white balance")
+            raise LowSignalError("Low signal, reference image is too dim for white balance")
 
         # Find the highest channel (probably green)
         maxSum = max(rSum, gSum, bSum)
