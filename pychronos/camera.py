@@ -480,14 +480,11 @@ class camera:
         frame = numpy.asarray(seq.liveResult)
 
         # Apply calibration to the averaged frames.
+        display = regmaps.display()
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, fSize.hRes * 2)
-        colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, fSize.hRes * 2)
-        colOffsetRegs = pychronos.fpgamap(pychronos.FPGA_COL_OFFSET_BASE, fSize.hRes * 2)
         gain = numpy.asarray(colGainRegs.mem16, dtype=numpy.uint16) / (1 << 12)
-        curve = numpy.asarray(colCurveRegs.mem16, dtype=numpy.int16) / (1 << 21)
-        offsets = numpy.asarray(colOffsetRegs.mem16, dtype=numpy.int16)
-        corrected = (frame * frame * curve) + (frame * gain) + offsets
-        # TODO: Subtract the per-pixel FPN, which a pain in the butt because it's a 12-bit signed.
+        fpn = numpy.asarray(pychronos.readframe(display.fpnAddr, fSize.hRes, fSize.vRes))
+        corrected = (frame - fpn) * gain
         
         # Sum up each of the R, G and B channels
         headroom = (1 << fSize.bitDepth) // 32
