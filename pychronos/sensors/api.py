@@ -463,7 +463,6 @@ class api(ABC):
         """Return the current analog gain of the image sensor"""
         pass 
 
-    @abstractmethod
     def startFlatFieldExport(self, saveLocation='/media/sda1'):
         """Export flat-fields while in ADC test mode for PC based calibration
 
@@ -483,9 +482,8 @@ class api(ABC):
             >>> for delay in sensor.startFlatFieldExport():
             >>>    time.sleep(delay)
         """
-        pass
+        yield from ()
 
-    @abstractmethod
     def importColGains(self, sourceLocation='/media/sda1', calLocation='/var/camera/cal'):
         """Import column gain calibration data (.bin files) that were generated off-camera
         
