@@ -380,5 +380,15 @@ Control Signals
 ---------------
 When parameter values are changed, either explicity via the `set` method, or
 autonomously during the camera's operation, a D-Bus `notify` signal is generated.
-The modified parameters are included in a dictionary as the argumenets of the
+The modified parameters are included in a dictionary as the arguments of the
 signal.
+
+When an asynchronos process, such as `startWhiteBalance` or `startCalibration` completes,
+a D-Bus `complete` signal is generated. The arguments passed with this signal include the
+following contents:
+
+| Parameter | Type   | Description
+|:----------|:-------|:-----------
+| `state`   | enum   | The current value of the `state` parameter.
+| `method`  | string | The name of the asynchronos method that was called.
+| `error`   | string | Omitted if the call was successful, otherwise a descriptive string explaining the reasons for failure.

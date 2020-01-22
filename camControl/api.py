@@ -75,33 +75,35 @@ class controlApi(dbus.service.Object):
         self.callLater(0.5, self.softReset)
 
     ## Internal helper to iterate over a generator from the GLib mainloop.
-    def stepGenerator(self, generator):
+    def stepGenerator(self, generator, name):
         try:
             delay = next(generator)
-            GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
+            GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator, name)
         except StopIteration:
-            pass
+            if (name):
+                self.complete({"state": self.camera.state, "method": name})
         except CameraError as error:
             logging.error(error)
-            self.notify({"state": self.camera.state, "error": str(error)})
+            if (name):
+                self.complete({"state": self.camera.state, "method": name, "error": str(error)})
         except Exception as error:
             logging.error(error)
             logging.debug(traceback.format_exc())
+            if (name):
+                self.complete({"state": self.camera.state, "method": name, "error": str(error)})
 
         # Always return false to remove the Glib source for the last step.
         return False
     
     ## Internal helper to run a generator. This will make the first call to the
     ## generator, and throw an exception if an error occurs.
-    def runGenerator(self, generator):
+    def runGenerator(self, generator, name=None):
         try:
             delay = next(generator)
-            GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator)
-        except CameraError as error:
-            logging.error(error)
-            self.notify({"state": self.camera.state, "error": str(error)})
+            GLib.timeout_add(int(delay * 1000), self.stepGenerator, generator, name)
         except StopIteration:
-            pass
+            if (name):
+                self.complete({"state": self.camera.state, "method": name})
 
     ## Internal helper to call something in the future. Should function identically
     ## to Twisted's reactor.callLater function, except that the yield asleep thing
@@ -191,7 +193,11 @@ class controlApi(dbus.service.Object):
     @dbus.service.signal(interface, signature='a{sv}')
     def notify(self, args):
         return self.changeset
-    
+   
+    @dbus.service.signal(interface, signature='a{sv}')
+    def complete(self, args):
+        return args
+ 
     #===============================================================================================
     # Video Proxy Signal Handling
 
@@ -510,7 +516,7 @@ class controlApi(dbus.service.Object):
             is not named, it is treated as if it were False.
         """
         try:
-            self.runGenerator(self.camera.startCalibration(**args))
+            self.runGenerator(self.camera.startCalibration(**args), "startCalibration")
             return {
                 "state": self.camera.state
             }
@@ -574,7 +580,7 @@ class controlApi(dbus.service.Object):
         """Take a reference image from the live display and compute the white balance."""
         logging.info('starting white balance')
         try:
-            self.runGenerator(self.camera.startWhiteBalance(**args))
+            self.runGenerator(self.camera.startWhiteBalance(**args), "startWhiteBalance")
             return {
                 "state": self.camera.state
             }
