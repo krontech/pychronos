@@ -290,6 +290,7 @@ class lux2100(api):
         # Load the default (longest) wavetable and enable the timing engine.
         self.regs.wavetable(self.wavetables[0].wavetab)
         self.regs.regTimingEn = True
+        self.__currentWavetable = self.wavetables[0]
         time.sleep(0.01)
 
         # Start the FPGA timing engine using the standard timing program.
@@ -308,7 +309,7 @@ class lux2100(api):
             hOffset=0, vOffset=0,
             vDarkRows=self.MAX_VDARK,
             bitDepth=self.BITS_PER_PIXEL)
-        size.minFrameTime = self.getMinFrameClocks(size) / self.LUX2100_SENSOR_HZ
+        size.minFrameTime = self.getMinFrameClocks(size, self.wavetables[0].clocks) / self.LUX2100_SENSOR_HZ
         return size
     
     def getCurrentGeometry(self):
@@ -322,7 +323,7 @@ class lux2100(api):
         fSize.vOffset = (self.regs.regYstart // 2) - self.VLOW_BOUNDARY
         fSize.vRes = (self.regs.regYend // 2) - self.VLOW_BOUNDARY - fSize.vOffset + 1
         fSize.vDarkRows = self.regs.regNbDrkRowsTop // 2
-        fSize.minFrameTime = self.getMinFrameClocks(fSize) / self.LUX2100_SENSOR_HZ
+        fSize.minFrameTime = self.getMinFrameClocks(fSize, self.__currentWavetable.clocks) / self.LUX2100_SENSOR_HZ
         return fSize
 
     def isValidResolution(self, size):
@@ -347,32 +348,36 @@ class lux2100(api):
         # Otherwise, the resultion and offset are valid.
         return True
     
-    def updateWavetable(self, size, frameClocks):
-        # Select the longest wavetable that gives a frame period longer than
-        # the target frame period. Note that the wavetables are sorted by length
-        # in descending order.
-        wavetab = None
+    def selectWavetable(self, size):
+        # Select the shortest wavetable that does not result in
+        # idle clocks during the row readout time.
+        ideal = (size.hRes // self.HRES_INCREMENT) + self.LUX2100_MIN_HBLANK - 3
+        choice = None
+        wtSize = 0
         for x in self.wavetables:
-            wavetab = x
-            if (frameClocks >= self.getMinFrameClocks(size, x.clocks)):
+            if (x.clocks < ideal):
                 break
+            choice = x
+        if choice:
+            return choice
+        else:
+            return self.wavetables[0]
+
+    def updateWavetable(self, size, frameClocks):
+        self.__currentWavetable = self.selectWavetable(size)
         
-        logging.debug("Selecting WT%d for %dx%d", wavetab.clocks, size.hRes, size.vRes)
+        logging.debug("Selecting WT%d for %dx%d", self.__currentWavetable.clocks, size.hRes, size.vRes)
 
         # If a suitable wavetable exists, then load it.
-        if (wavetab):
-            self.regs.regTimingEn = False
-            self.regs.regRdoutDly = wavetab.clocks
-            self.regs.wavetable(wavetab.wavetab)
-            self.regs.regTimingEn = True
-            self.regs.startDelay = wavetab.abnDelay
-            self.regs.linePeriod = max((size.hRes // self.HRES_INCREMENT) + 2, wavetab.clocks + 3) - 1
+        self.regs.regTimingEn = False
+        self.regs.regRdoutDly = self.__currentWavetable.clocks
+        self.regs.wavetable(self.__currentWavetable.wavetab)
+        self.regs.regTimingEn = True
+        self.regs.startDelay = self.__currentWavetable.abnDelay
+        self.regs.linePeriod = max((size.hRes // self.HRES_INCREMENT) + 2, self.__currentWavetable.clocks + 3) - 1
 
-            # set the pulsed pattern timing
-            self.timing.setPulsedPattern(wavetab.clocks)
-        # Otherwise, the frame period was probably too short for this resolution.
-        else:
-            raise ValueError("Frame period too short, no suitable wavetable found")
+        # set the pulsed pattern timing
+        self.timing.setPulsedPattern(self.__currentWavetable.clocks)
 
     def updateReadoutWindow(self, size):
         # Configure the image sensor resolution
@@ -393,13 +398,12 @@ class lux2100(api):
             raise ValueError("Invalid frame resolution")
         
         # Select the minimum frame period if not specified.
-        minPeriod, maxPeriod = self.getPeriodRange(size)
-        if not size.minFrameTime:
-            fClocks = self.getMinFrameClocks(size)
-        elif ((size.minFrameTime * self.LUX2100_SENSOR_HZ) >= minPeriod):
+        wavetab = self.selectWavetable(size)
+        minClocks = self.getMinFrameClocks(size, wavetab.clocks)
+        if (size.minFrameTime > (size.minFrameTime * self.LUX2100_SENSOR_HZ)):
             fClocks = size.minFrameTime * self.LUX2100_SENSOR_HZ
         else:
-            fClocks = self.getMinFrameClocks(size)
+            fClocks = minClocks
 
         # Disable the FPGA timing engine and wait for the current readout to end.
         self.timing.programInterm()
@@ -422,19 +426,7 @@ class lux2100(api):
     #--------------------------------------------
     # Frame Timing Configuration Functions
     #--------------------------------------------
-    def getMinFrameClocks(self, size, wtSize=0):
-        # Select the shortest wavetable that does not result in
-        # idle clocks during the row readout time.
-        if (wtSize == 0):
-            ideal = (size.hRes // self.HRES_INCREMENT) + self.LUX2100_MIN_HBLANK - 3
-            for x in self.wavetables:
-                if (x.clocks < ideal):
-                    break
-                wtSize = x.clocks
-            # If all else fails, select the longest wavetable.
-            if (wtSize == 0):
-                wtSize = self.wavetables[0].clocks
-
+    def getMinFrameClocks(self, size, wtSize):
         # TODO: Doublecheck this against the LUX2100 datasheet.
         # Compute the minimum number of 75MHz LUX2100 sensor clocks per frame.
         # Refer to section 7.1 of the LUX1310 datasheet version v3.0
@@ -454,17 +446,9 @@ class lux2100(api):
     
     def getPeriodRange(self, fSize):
         # If a frame time was provided, find the longest matching wavetable.
-        if (fSize.minFrameTime):
-            fClocks = fSize.minFrameTime * self.LUX2100_SENSOR_HZ
-            for x in self.wavetables:
-                wtFrameClocks = self.getMinFrameClocks(fSize, x.clocks)
-                if (wtFrameClocks <= fClocks):
-                    return (wtFrameClocks / self.LUX2100_SENSOR_HZ, 0)
-            # This frame time could not be met.
-            raise ValueError("Invalid frame time for resolution given")
-        else:
-            fClocks = self.getMinFrameClocks(fSize)
-            return (fClocks / self.LUX2100_SENSOR_HZ, 0)
+        wavetab = self.selectWavetable(fSize)
+        fClocks = self.getMinFrameClocks(fSize, wavetab.clocks)
+        return (fClocks / self.LUX2100_SENSOR_HZ, 0)
     
     def getCurrentPeriod(self):
         return self.frameClocks / self.LUX2100_SENSOR_HZ
@@ -480,7 +464,8 @@ class lux2100(api):
         if (fSize.minFrameTime):
             return (1.0 / 1000000, fSize.minFrameTime - (500 / self.LUX2100_SENSOR_HZ))
         else:
-            fClocks = self.getMinFrameClocks(fSize)
+            wavetab = self.selectWavetable(fSize)
+            fClocks = self.getMinFrameClocks(fSize, wavetab.clocks)
             return (1.0 / 1000000, (fClocks - 500) / self.LUX2100_SENSOR_HZ)
 
     def getCurrentExposure(self):
