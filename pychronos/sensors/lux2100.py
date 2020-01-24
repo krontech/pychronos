@@ -532,7 +532,7 @@ class lux2100(api):
 
     @property
     def maxGain(self):
-        return 1
+        return 16
     
     def setGain(self, gain):
         gainConfig = {  # Sampling Cap, Feedback Cap, Serial Gain
