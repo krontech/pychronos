@@ -539,15 +539,10 @@ class lux2100(api):
         self.regs.regSerialGain = sgain
 
     def getCurrentGain(self):
-        gsMap = {
-            0: 2.0,
-            1: 1.456,
-            2: 1.0,
-            3: 0.763
-        }
         sampnbits = 4
         fbacknbits = 1
-        gsernbits = 0
+        gsernbits = 1
+        icolnbits = 0
 
         x = self.regs.regGainSelSamp
         while (x != 0):
@@ -563,8 +558,13 @@ class lux2100(api):
         while (x != 0):
             gsernbits += (x & 1)
             x >>= 1
-        
-        return (sampnbits / fbacknbits) * gsMap[gsernbits]
+       
+        x = self.regs.regIcolCapEn
+        while (x != 0):
+            icolnbits += (x & 1)
+            x >>= 1
+ 
+        return (sampnbits * icolnbits) / (gsernbits * fbacknbits)
 
     def __backupSettings(self):
         # Save the sensor settings, before they get messed up by calibration.
@@ -698,14 +698,9 @@ class lux2100(api):
         # Load the factory column gain calibration, using one column gain coefficient per horizontal pixel.
         # Generate the calibration filename.
         wtClocks = self.regs.regRdoutDly
-        #FIXME: [Hack] getCurrentgain() returns the actual gain as set by the lux2100, which currently doesn't correspond near/to a base 2 number
         gain = int(self.getCurrentGain())
-        if gain == 3:
-            gain = 4
-        elif gain == 5:
-            gain = 8
-        elif gain == 6:
-            gain = 16
+        if gain > 8:
+            gain = 16 # HACK: G16 is a bit wonky, and actually comes out closer to 10
         filename = calLocation + "/factory_colGain_G%d_WT%d.bin" % (gain, wtClocks)
         try:
             logging.info("Loading column gain calibration from %s", filename)
@@ -835,6 +830,8 @@ class lux2100(api):
     def calFilename(self, prefix, extension=""):
         wtClocks = self.regs.regRdoutDly
         gain = int(self.getCurrentGain())
+        if gain > 8:
+            gain = 16 # HACK: G16 is a bit wonky and comes out closer to 10
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
 
     def startFlatFieldExport(self, saveLocation='/media/sda1'):
