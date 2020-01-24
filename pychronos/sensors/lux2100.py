@@ -709,7 +709,16 @@ class lux2100(api):
       
         # Load the factory column gain calibration, using one column gain coefficient per horizontal pixel.
         # Generate the calibration filename.
-        filename = calLocation + self.calFilename("/factory_colGain", ".bin")
+        wtClocks = self.regs.regRdoutDly
+        #FIXME: [Hack] getCurrentgain() returns the actual gain as set by the lux2100, which currently doesn't correspond near/to a base 2 number
+        gain = int(self.getCurrentGain())
+        if gain == 3:
+            gain = 4
+        elif gain == 5:
+            gain = 8
+        elif gain == 6:
+            gain = 16
+        filename = calLocation + "/factory_colGain_G%d_WT%d.bin" % (gain, wtClocks)
         try:
             logging.info("Loading column gain calibration from %s", filename)
             colGainData = numpy.fromfile(filename, dtype=numpy.int32, count=self.MAX_HRES)
