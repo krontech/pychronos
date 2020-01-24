@@ -1,9 +1,29 @@
-pychronos (0.4.0~alpha144) unstable; urgency=medium
+pychronos (0.4.0~alpha164) unstable; urgency=medium
 
+  * Add calibration directories to the chronos-control package.
+  * Fix whitebalance math for 2-point gain correction.
+  * Expand error responses to include error type and message.
+  * Provide defaults for startFlatFieldExport and importColGains
+  * Add completion signal to report when an async call finishes.
+  * Merge pull request #57 from krontech/factory-cal
+  * Fix type error in fanOverride initial value.
+  * Add runtime dependency on python3-pkg-resources
+  * lux2100: Color and ADC offset fixes to lux2100 driver.
+  * Update recording region with recMaxFrames
+  * Merge branch 'factory-cal' of https://github.com/krontech/pychronos into factory-cal
+  * Removed assignment to disableIoDrive
+  * Added api support for export and import of calibration data.
+  * Added export and import cal data methods to camera class.
+  * Replaced readframe() with startLiveReadout() for flat-fields.
+  * Added import and export functions for lux2100 column gain cal.
+  * Added export and import cal data methods to camera class.
   * Convert cam_control to a python module.
   * Change fanOverride to a float, to set speed directly.
+  * Add DisableRingBuffer into the API.
+  * Replaced readframe() with startLiveReadout() for flat-fields.
   * Fix reboot logic when reverting settings.
   * Add reboot() call to the API.
+  * Added import and export functions for lux2100 column gain cal.
   * lux2100: Workaround for PRSTN in standard timing program.
   * lux2100: Always set mono binning mode.
   * Fix suffix logic in startFilesave() API call.
@@ -148,4 +168,4 @@ pychronos (0.4.0~alpha144) unstable; urgency=medium
   * Add version.py to maintain a single API version number.
   * Upstream release v0.4.0-alpha
 
- -- Owen Kirby <oskirby@gmail.com>  Fri, 17 Jan 2020 13:50:32 -0800
+ -- Owen Kirby <oskirby@gmail.com>  Thu, 23 Jan 2020 16:22:33 -0800
