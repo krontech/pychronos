@@ -71,6 +71,7 @@ class camera:
         self.__wbCustomColor = self.getWhiteBalance(self.__wbTemperature)
         self.__miscScratchPad = {}
         self.__disableRingBuffer = False
+        self.__calSuggested = False
 
         # Setup the reserved video memory.
         self.MAX_FRAME_WORDS = self.getFrameSizeWords(sensor.getMaxGeometry())
@@ -701,6 +702,10 @@ class camera:
             >>> for delay in state:
             >>>    time.sleep(delay)
         """
+        # Clear the calibration suggestion on call.
+        self.__calSuggested = False
+        self.__propChange("calSuggested")
+
         # Select paths, if any, depending on saveCal or factory mode.
         if factory:
             calLocation = "/var/camera/cal"
@@ -736,8 +741,13 @@ class camera:
             self.__setState('idle')
 
     def loadCalibration(self):
-        self.sensor.loadAnalogCal("/var/camera/cal")
-        return self.__loadBlackCal("/var/camera/userFPN", "/var/camera/cal/factoryFPN")
+        try:
+            self.sensor.loadAnalogCal("/var/camera/cal")
+            self.__calSuggested = not self.__loadBlackCal("/var/camera/userFPN", "/var/camera/cal/factoryFPN")
+        except Exception as e:
+            self.__calSuggested = True
+        self.__propChange("calSuggested")
+        return not self.__calSuggested
 
     def clearCalibration(self, factory=False):
         """Remove calibration data to return the camera to its factory calibration.
@@ -1347,6 +1357,10 @@ class camera:
         # Changing resolution affects recording length.
         self.__propChange("cameraMaxFrames")
         self.__propChange("recMaxFrames")
+
+    @camProperty(notify=True)
+    def calSuggested(self):
+        return self.__calSuggested
 
     @camProperty(notify=True)
     def minFramePeriod(self):

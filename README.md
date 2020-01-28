@@ -189,7 +189,8 @@ API to the `chronos-cli` program.
 | Parameter                                  | G | S | N | Type   | Min   | Max   | Description
 |:-------------------------------------------|:--|:--|:--|:-------|:------|:------|:-----------
 |`state`                                     |`G`|   |`N`| enum   |       |       | One of `idle`, `recording`, `reset` and others???? TBD.
-|`error`                                     |   |   |`x`| string |       |       | Included in a notification dictionary if, and only if, an operation fails due to an error.
+|`error`                                     |   |   |`N`| string |       |       | Included in a notification dictionary if, and only if, an operation fails due to an error.
+|`calSuggested`                              |`G`|   |`N`| bool   |       |       | True if calibration is suggested (eg: no calibration exists, or the temperature has drifted too far).
 |`externalStorage`                           |`G`|   |   | dict   |       |       | Dictionary of dictionaries describing the external storage devices.
 |`dateTime`                                  |`G`|`x`|`x`| string |       |       | ISO-8601 formatted date and time string.
 

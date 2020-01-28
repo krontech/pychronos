@@ -341,15 +341,8 @@ class controlApi(dbus.service.Object):
         
         # If the calibration file name has changed, a new calibration will
         # be required. Check if stored calibration data exists, and load it.
-        # Otherwise, we should load some sensible defaults and perform a zero
-        # time black cal.
         if resChange or (startCal != self.camera.sensor.calFilename("test", ".bin")):
-            if not self.camera.loadCalibration():
-                logging.warning('Sensor configuration chage requires new calibration')
-                try:
-                    self.runGenerator(self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True, saveCal=False))
-                finally:
-                    pass
+            self.camera.loadCalibration()
         
         # Get the results of the local attributes.
         results = {}
