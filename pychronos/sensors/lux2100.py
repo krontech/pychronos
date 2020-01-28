@@ -352,7 +352,7 @@ class lux2100(api):
         # Select the shortest wavetable that does not result in
         # idle clocks during the row readout time.
         ideal = (size.hRes // self.HRES_INCREMENT) + self.LUX2100_MIN_HBLANK - 3
-        minClocks = size.minFrameTime * self.LUX2100_SENSOR_HZ
+        minClocks = math.ceil(size.minFrameTime * self.LUX2100_SENSOR_HZ)
         choice = self.wavetables[0]
         wtSize = 0
         for x in self.wavetables:
@@ -404,7 +404,7 @@ class lux2100(api):
         wavetab = self.selectWavetable(size)
         minClocks = self.getMinFrameClocks(size, wavetab.clocks)
         if (size.minFrameTime > (size.minFrameTime * self.LUX2100_SENSOR_HZ)):
-            fClocks = size.minFrameTime * self.LUX2100_SENSOR_HZ
+            fClocks = math.ceil(size.minFrameTime * self.LUX2100_SENSOR_HZ)
         else:
             fClocks = minClocks
 
