@@ -360,12 +360,10 @@ class lux1310(api):
         
         # Select the minimum frame period if not specified.
         minPeriod, maxPeriod = self.getPeriodRange(size)
-        if not size.minFrameTime:
-            fClocks = self.getMinFrameClocks(size)
-        elif ((size.minFrameTime * self.LUX1310_SENSOR_HZ) >= minPeriod):
-            fClocks = size.minFrameTime * self.LUX1310_SENSOR_HZ
-        else:
-            fClocks = self.getMinFrameClocks(size)
+        fClocks = self.getMinFrameClocks(size)
+        userClocks = math.ceil(size.minFrameTime * self.LUX1310_SENSOR_HZ)
+        if (userClocks > fClocks):
+            fClocks = userClocks
 
         # Disable the FPGA timing engine and wait for the current readout to end.
         self.timing.programInterm()
@@ -412,7 +410,7 @@ class lux1310(api):
     def getPeriodRange(self, fSize):
         # If a frame time was provided, find the longest matching wavetable.
         if (fSize.minFrameTime):
-            fClocks = fSize.minFrameTime * self.LUX1310_SENSOR_HZ
+            fClocks = math.ceil(fSize.minFrameTime * self.LUX1310_SENSOR_HZ)
             for x in self.wavetables:
                 wtFrameClocks = self.getMinFrameClocks(fSize, x.clocks)
                 if (wtFrameClocks <= fClocks):
