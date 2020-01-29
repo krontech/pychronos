@@ -30,6 +30,10 @@ class lux2100timing(timing):
         else:
             self.useMinLinesWait = False
 
+        if self.version >= 1:
+            self.timingEnable = True
+            self.wavetableLatch = True
+
     def setPulsedPattern(self, wavetableLength, hSync=2):
         self.pulsedAbnLowPeriod = wavetableLength
         self.pulsedAbnHighPeriod = hSync

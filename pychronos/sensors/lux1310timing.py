@@ -38,6 +38,7 @@ class lux1310timing(timing):
 
         if self.version >= 0:
             self.timingEnable = True
+            self.wavetableLatch = True
 
     def setPulsedPattern(self, wavetableLength, hSync=2):
         self.pulsedAbnLowPeriod = wavetableLength

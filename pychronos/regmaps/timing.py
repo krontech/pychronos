@@ -60,6 +60,9 @@ class timing(pychronos.fpgamap):
     minLines            = __regprop(0x0E, 2, "Number of wavetable periods to delay when TIMING_WAIT_FOR_NLINES is used")
 
     ## Extended status and control registers (v1 and greater).
+    linePeriod =    __regprop(0x10, 2, "Duration of Lines for ABN Latch Timing")
+    lineDelay =     __regprop(0x12, 2, "Delay to first Line for ABN Latch Timing")
+    abnPulseWidth = __regprop(0x14, 2, "Duration of the ABN Pulse when useAbnPulsedMode is set")
     signalConfig =  __regprop(0x1c, 2, "Signal Polarity and Idle State Register")
     frameTime =     __regprop(0x20, 4, "Program Interval Measurement")
     expAbnTime =    __regprop(0x24, 4, "Exposure Interval Measurement (ABN to program end)")

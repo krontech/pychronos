@@ -376,8 +376,11 @@ class lux2100(api):
         self.regs.regRdoutDly = self.__currentWavetable.clocks
         self.regs.wavetable(self.__currentWavetable.wavetab)
         self.regs.regTimingEn = True
+        linePeriod = max((size.hRes // self.HRES_INCREMENT) + 2, self.__currentWavetable.clocks + 3)
         self.regs.startDelay = self.__currentWavetable.abnDelay
-        self.regs.linePeriod = max((size.hRes // self.HRES_INCREMENT) + 2, self.__currentWavetable.clocks + 3) - 1
+        self.regs.linePeriod = linePeriod - 1
+        self.timing.lineDelay = self.__currentWavetable.abnDelay
+        self.timing.linePeriod = linePeriod
 
         # set the pulsed pattern timing
         self.timing.setPulsedPattern(self.__currentWavetable.clocks)
