@@ -192,8 +192,8 @@ class lux2100(api):
     
     def reset(self, fSize=None):
         # Enable the timing engine, but disable integration during setup.
-        self.timing.enabled = True
         self.timing.programInterm()
+        self.timing.reset()
         
         # Configure the DAC to autoupdate when written.
         pychronos.writespi(device=self.spidev, csel=self.spics, mode=1, bitsPerWord=16,
@@ -381,9 +381,6 @@ class lux2100(api):
         self.regs.linePeriod = linePeriod - 1
         self.timing.lineDelay = self.__currentWavetable.abnDelay
         self.timing.linePeriod = linePeriod
-
-        # set the pulsed pattern timing
-        self.timing.setPulsedPattern(self.__currentWavetable.clocks)
 
     def updateReadoutWindow(self, size):
         # Configure the image sensor resolution
