@@ -490,8 +490,26 @@ class lux2100(api):
     # Advanced Exposure and Timing Functions 
     #--------------------------------------------
     def getSupportedExposurePrograms(self):
-        return ("normal")
+        return ("normal", "frameTrigger", "shutterGating")
 
+    def setShutterGatingProgram(self):
+        # Disable HDR modes.
+        self.regs.regHidyEn = False
+
+        self.currentProgram = self.timing.PROGRAM_SHUTTER_GATING
+        self.timing.programShutterGating()
+    
+    def setFrameTriggerProgram(self, expPeriod):
+        if (expPeriod < 1.0 / 1000000):
+            expPeriod = 1.0 / 1000000
+        
+        # Disable HDR modes.
+        self.regs.regHidyEn = False
+
+        self.currentProgram = self.timing.PROGRAM_FRAME_TRIG
+        self.exposureClocks = math.ceil(expPeriod * self.LUX2100_SENSOR_HZ)
+        self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
+    
     #--------------------------------------------
     # Sensor Analog Calibration Functions
     #--------------------------------------------
