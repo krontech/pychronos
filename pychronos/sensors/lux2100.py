@@ -843,6 +843,14 @@ class lux2100(api):
         hRes = pychronos.sensors.lux2100().getMaxGeometry().hRes
         vRes = pychronos.sensors.lux2100().getMaxGeometry().vRes
 
+        # Attempt to use the serial number as the save folder if valid
+        serialNum = pychronos.camera(self).cameraSerial
+        try:
+            int(serialNum)
+        except ValueError:
+            logging.error("Serial Number invalid, defaulting to Chronos21")
+            serialNum = 'Chronos21'
+
         gainSampCap =   [0x007F, 0x01FF, 0x0FFF, 0x0FFF, 0x0FFF]
         gainSerFbCap =  [0x037F, 0x030F, 0x011F, 0x001F, 0x000F]
 
@@ -862,8 +870,8 @@ class lux2100(api):
 
         for gain in range(0, len(adcTestModeVoltages)):  
             # Create a folder for each level of analog gain.
-            #TOOD: replace Chronos21 with serial number string
-            gainPath = saveLocation + "/%s/x%d/" % ('Chronos21', 1 << gain)
+
+            gainPath = saveLocation + "/%s/x%d/" % (serialNum, 1 << gain)
             try:
                 os.makedirs(gainPath, exist_ok=True)
                 logging.info('Saving flat fields to ' + gainPath)
@@ -905,6 +913,14 @@ class lux2100(api):
         gainLvls = [1, 2, 4, 8, 16]
         wtClocks = [66, 45, 35, 25]
         copyCount = 0
+
+        # Expect the source folder to be named as the serial number of the current camera
+        serialNum = pychronos.camera(self).cameraSerial
+        try:
+            int(serialNum)
+            sourceLocation = sourceLocation + '/' + serialNum
+        except ValueError:
+            logging.error("Invalid serial number. Will attempt to import from %s", sourceLocation)
 
         for wt in range(0, len(wtClocks)):
             for gain in range(0, len(gainLvls)):
