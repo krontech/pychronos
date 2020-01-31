@@ -183,7 +183,7 @@ class power:
         """float: The voltage that is currently being output from the removable battery. A healthy and fully charged battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
         return self.cache.battVoltageCam / 1000
     
-    @camProperty(notify=True, save=True)
+    @camProperty(notify=True)
     def fanOverride(self):
         """float: Fan speed in the range of 0=off to 1.0=full, or -1 for automatic fan control."""
         return -1.0 if (self.cache.fanOverride < 0) else (self.cache.fanOverride / 255.0)
