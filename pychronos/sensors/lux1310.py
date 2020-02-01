@@ -339,6 +339,9 @@ class lux1310(api):
             self.timing.lineDelay = wavetab.abnDelay
             self.timing.linePeriod = linePeriod
 
+            # The LUX1310 needs a bit of time for the wavetable to apply before starting
+            time.sleep(0.01)
+
         # Otherwise, the frame period was probably too short for this resolution.
         else:
             raise ValueError("Frame period too short, no suitable wavetable found")
@@ -372,7 +375,6 @@ class lux1310(api):
         # Switch to the desired resolution pick the best matching wavetable.
         self.updateReadoutWindow(size)
         self.updateWavetable(size, frameClocks=fClocks)
-        time.sleep(0.01)
 
         # set the minimum frame period in the timing engine (set using wavetable periods or lines)
         self.timing.minLines = size.vRes
