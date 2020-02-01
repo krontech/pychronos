@@ -31,12 +31,12 @@ class lux2100timing(timing):
             self.wavetableLatch = True
             self.signalConfig = 0xB00
 
-    def programInterm(self, readoutTime=90000, timeout=0.01):
+    def programInterm(self):
         self.programRun = False
         self.programBreak = True
         self.__program = self.PROGRAM_NONE
 
-    def programShutterGating(self, readoutTime=90000, timeout=0.01):
+    def programShutterGating(self, timeout=0.01):
         logging.debug('programShutterGating')
 
         # Stop the the timing program.
@@ -55,7 +55,7 @@ class lux2100timing(timing):
         ])
         self.io.shutterTriggersFrame = True
         
-    def programTriggerFrames(self, frameTime, integrationTime, readoutTime=90000, timeout=0.01):
+    def programTriggerFrames(self, frameTime, integrationTime, timeout=0.01):
         frameTime       = int(frameTime)
         integrationTime = int(integrationTime)
         if (frameTime <= integrationTime):
@@ -92,7 +92,7 @@ class lux2100timing(timing):
         ])
         self.io.shutterTriggersFrame = True
         
-    def programStandard(self, frameTime, integrationTime, readoutTime=90000, timeout=0.01):
+    def programStandard(self, frameTime, integrationTime, timeout=0.01):
         frameTime       = int(frameTime)
         integrationTime = int(integrationTime)
         if (frameTime <= integrationTime):

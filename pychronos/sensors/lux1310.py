@@ -131,7 +131,6 @@ class lux1310(api):
         
         ## ADC Calibration state
         self.adcOffsets = [0] * self.ADC_CHANNELS
-        self.__nTrigFrames = 5
 
         ## Save the real resolution for when cal is in progress.
         self.fSizeReal = None
@@ -160,8 +159,8 @@ class lux1310(api):
     #--------------------------------------------
     def reset(self, fSize=None):
         # Enable the timing engine, but disable integration during setup.
-        self.timing.enabled = True
         self.timing.programInterm()
+        self.timing.reset()
         
         # Configure the DAC to autoupdate when written.
         pychronos.writespi(device=self.spidev, csel=self.spics, mode=1, bitsPerWord=16,
@@ -334,11 +333,12 @@ class lux1310(api):
             else:
                 self.regs.wavetable(wavetab.wavetab)
             self.regs.regTimingEn = True
+            linePeriod = max((size.hRes // self.HRES_INCREMENT) + 2, wavetab.clocks + 3)
             self.regs.startDelay = wavetab.abnDelay
-            self.regs.linePeriod = max((size.hRes // self.HRES_INCREMENT) + 2, wavetab.clocks + 3) - 1
+            self.regs.linePeriod = linePeriod - 1
+            self.timing.lineDelay = wavetab.abnDelay
+            self.timing.linePeriod = linePeriod
 
-            # set the pulsed pattern timing
-            self.timing.setPulsedPattern(wavetab.clocks)
         # Otherwise, the frame period was probably too short for this resolution.
         else:
             raise ValueError("Frame period too short, no suitable wavetable found")
