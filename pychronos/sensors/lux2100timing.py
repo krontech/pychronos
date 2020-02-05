@@ -32,16 +32,16 @@ class lux2100timing(timing):
             self.signalConfig = 0xB00
 
     def programInterm(self):
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_NONE
 
     def programShutterGating(self, timeout=0.01):
         logging.debug('programShutterGating')
 
         # Stop the the timing program.
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_SHUTTER_GATING
         
         # Load and execute the shutter gating program.
@@ -66,15 +66,15 @@ class lux2100timing(timing):
 
         # If we are already running this program, just update the arguments.
         if (self.__program == self.PROGRAM_FRAME_TRIG):
-            self.programRun = False
+            self.timingRun = False
             self.operands[0] = integrationTime - self.__txnWidth
             self.operands[1] = frameTime - integrationTime - self.__t2time
-            self.programRun = False
+            self.timingRun = True
             return
 
         # Stop the the timing program.
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_FRAME_TRIG
 
         # Standard program uses the following arguments.
@@ -103,15 +103,15 @@ class lux2100timing(timing):
 
         # If we are already running this program, just update the arguments.
         if (self.__program == self.PROGRAM_STANDARD):
-            self.programRun = False
+            self.timingRun = False
             self.operands[0] = integrationTime - self.__txnWidth
             self.operands[1] = frameTime - integrationTime - self.__t2time
-            self.programRun = False
+            self.timingRun = True
             return
 
         # Stop the the timing program.
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_STANDARD
         
         # Standard program uses the following arguments.

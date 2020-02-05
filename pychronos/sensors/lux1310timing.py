@@ -31,16 +31,16 @@ class lux1310timing(timing):
             self.wavetableLatch = True
 
     def programInterm(self):
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_NONE
 
     def programShutterGating(self, timeout=0.01):
         logging.debug('programShutterGating')
 
         # Stop the the timing program.
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_SHUTTER_GATING
         
         # Load and execute the shutter gating program.
@@ -65,15 +65,15 @@ class lux1310timing(timing):
 
         # If we are already running this program, just update the arguments.
         if (self.__program == self.PROGRAM_FRAME_TRIG):
-            self.programRun = False
+            self.timingRun = False
             self.operands[0] = integrationTime - self.__txnWidth
             self.operands[1] = frameTime - integrationTime - self.__t2time
-            self.programRun = False
+            self.timingRun = True
             return
 
         # Stop the the timing program.
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_FRAME_TRIG
 
         # Standard program uses the following arguments.
@@ -102,15 +102,15 @@ class lux1310timing(timing):
 
         # If we are already running this program, just update the arguments.
         if (self.__program == self.PROGRAM_STANDARD):
-            self.programRun = False
+            self.timingRun = False
             self.operands[0] = integrationTime - self.__txnWidth
             self.operands[1] = frameTime - integrationTime - self.__t2time
-            self.programRun = False
+            self.timingRun = True
             return
 
         # Stop the the timing program.
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_STANDARD
         
         # Standard program uses the following arguments.
@@ -135,8 +135,8 @@ class lux1310timing(timing):
         logging.debug('ProgramHDR_2slope: %d, %d, %d', frameTime, integration1, integration2)
 
         # Stop the the timing program.
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_STANDARD
         
         #... hmm... need to set up some other stuff too
@@ -159,8 +159,8 @@ class lux1310timing(timing):
         logging.debug('ProgramHDR_3slope: %d, %d, %d, %d', frameTime, integration1, integration2, integration3)
 
         # Stop the the timing program.
-        self.programRun = False
-        self.programBreak = True
+        self.timingRun = False
+        self.timingBreak = True
         self.__program = self.PROGRAM_STANDARD
 
         #... hmm... need to set up some other stuff too

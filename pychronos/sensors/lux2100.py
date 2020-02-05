@@ -372,10 +372,9 @@ class lux2100(api):
         logging.debug("Selecting WT%d for %dx%d", self.__currentWavetable.clocks, size.hRes, size.vRes)
 
         # If a suitable wavetable exists, then load it.
-        self.regs.regTimingEn = False
         self.regs.regRdoutDly = self.__currentWavetable.clocks
         self.regs.wavetable(self.__currentWavetable.wavetab)
-        self.regs.regTimingEn = True
+        
         linePeriod = max((size.hRes // self.HRES_INCREMENT) + 2, self.__currentWavetable.clocks + 3)
         self.regs.startDelay = self.__currentWavetable.abnDelay
         self.regs.linePeriod = linePeriod - 1
@@ -413,8 +412,10 @@ class lux2100(api):
         time.sleep(0.01) # Extra delay to allow frame readout to finish. 
 
         # Switch to the desired resolution pick the best matching wavetable.
+        self.regs.regTimingEn = False
         self.updateReadoutWindow(size)
         self.updateWavetable(size, frameClocks=fClocks)
+        self.regs.regTimingEn = True
         time.sleep(0.01)
 
         # set the minimum frame period in the timing engine (set using wavetable periods or lines)
@@ -479,9 +480,6 @@ class lux2100(api):
         if (expPeriod < 1.0 / 1000000):
             expPeriod = 1.0 / 1000000
         
-        # Disable HDR modes.
-        self.regs.regHidyEn = False
-
         self.currentProgram = self.timing.PROGRAM_STANDARD
         self.exposureClocks = math.ceil(expPeriod * self.LUX2100_SENSOR_HZ)
         self.timing.programStandard(self.frameClocks, self.exposureClocks)
@@ -493,9 +491,6 @@ class lux2100(api):
         return ("normal", "frameTrigger", "shutterGating")
 
     def setShutterGatingProgram(self):
-        # Disable HDR modes.
-        self.regs.regHidyEn = False
-
         self.currentProgram = self.timing.PROGRAM_SHUTTER_GATING
         self.timing.programShutterGating()
     
@@ -503,9 +498,6 @@ class lux2100(api):
         if (expPeriod < 1.0 / 1000000):
             expPeriod = 1.0 / 1000000
         
-        # Disable HDR modes.
-        self.regs.regHidyEn = False
-
         self.currentProgram = self.timing.PROGRAM_FRAME_TRIG
         self.exposureClocks = math.ceil(expPeriod * self.LUX2100_SENSOR_HZ)
         self.timing.programTriggerFrames(self.frameClocks, self.exposureClocks)
@@ -593,7 +585,10 @@ class lux2100(api):
         logging.debug("Restoring sensor configuration")
         self.timing.programInterm()
         time.sleep(0.01) # Extra delay to allow frame readout to finish. 
+        self.regs.regTimingEn = False
         self.updateReadoutWindow(self.fSizeReal)
+        self.regs.regTimingEn = True
+        time.sleep(0.01)
         self.fSizeReal = None
 
         # Restore the timing program
@@ -794,8 +789,10 @@ class lux2100(api):
             # Disable the FPGA timing engine and apply the changes.
             self.timing.programInterm()
             time.sleep(0.01) # Extra delay to allow frame readout to finish. 
-            self.regs.regHidyEn = False
+            self.regs.regTimingEn = False
             self.updateReadoutWindow(fSize)
+            self.regs.regTimingEn = True
+            time.sleep(0.01)
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
         # Perform ADC offset calibration using the optical black regions.
