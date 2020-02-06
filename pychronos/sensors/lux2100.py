@@ -32,7 +32,7 @@ class lux2100(api):
     MAX_HRES = 1920
     MAX_VRES = 1080
     MIN_HRES = 640
-    MIN_VRES = 480
+    MIN_VRES = 96
     HRES_INCREMENT = 32
     VRES_INCREMENT = 2
     MAX_VDARK = 8
