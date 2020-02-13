@@ -374,6 +374,7 @@ class controlApi(dbus.service.Object):
                 'set': getattr(type(self.camera), elem).fset is not None,
                 'notifies': getattr(getattr(type(self.camera), elem).fget, 'notifies', False), #set with camProperty
                 'derivedFrom': getattr(getattr(type(self.camera), elem).fget, 'derivedFrom', False), #set with camProperty
+                'doc': getattr(type(self.camera), elem).__doc__,
             }
             for elem in dir(self.camera)
             if elem[0] != '_'
