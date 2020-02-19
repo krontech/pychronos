@@ -368,18 +368,26 @@ class controlApi(dbus.service.Object):
     #Method('availableCalls', arguments='', returns='as')
     @lru_cache(maxsize=1)
     def ownKeys(self):
-        return {
-            elem: {
-                'get': getattr(type(self.camera), elem).fget is not None,
-                'set': getattr(type(self.camera), elem).fset is not None,
-                'notifies': getattr(getattr(type(self.camera), elem).fget, 'notifies', False), #set with camProperty
-                'derivedFrom': getattr(getattr(type(self.camera), elem).fget, 'derivedFrom', False), #set with camProperty
-                'doc': getattr(type(self.camera), elem).__doc__,
-            }
-            for elem in dir(self.camera)
-            if elem[0] != '_'
-            and isinstance(getattr(type(self.camera), elem, None), property) #is a getter, maybe a setter
-        }
+        results = {}
+        for name in dir(self.camera):
+            prop = getattr(type(self.camera), name, None)
+            if (isinstance(prop, property)):
+                # By API convention, all dicts are of type a{sv}
+                value = getattr(self.camera, name)
+                if isinstance(value, dict):
+                    signature = 'a{sv}'
+                else:
+                    signature = dbus.lowlevel.Message.guess_signature(value)
+
+                results[name] = {
+                   'get': prop.fget is not None,
+                   'set': prop.fset is not None,
+                   'notifies': getattr(prop.fget, 'notifies', False),
+                   'doc': prop.__doc__,
+                   'type': signature,
+                }
+
+        return results
     
     #===============================================================================================
     #Method('availableKeys', arguments='', returns='as')
