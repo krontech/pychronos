@@ -20,6 +20,8 @@ import pychronos.regmaps as regmaps
 
 from pychronos.utils import getBoardRevision
 
+import camControl.gdocstring as gdocstring
+
 # The D-Bus interface we are exporting.
 interface = 'ca.krontech.chronos.control'
 
@@ -34,10 +36,6 @@ REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 #-----------------------------------------------------------------
 
 class controlApi(dbus.service.Object):
-    ## This feels like a duplication of the Python exceptions.
-    ERROR_NOT_IMPLEMENTED_YET = 9999
-    VALUE_ERROR               = 1
-    
     def __init__(self, bus, path, mainloop, camera, configFile=None):
         # FIXME: This seems hacky, just calling the class method directly.
         # Shouldn't we be using a super() call somehow?
@@ -389,9 +387,6 @@ class controlApi(dbus.service.Object):
 
         return results
     
-    #===============================================================================================
-    #Method('availableKeys', arguments='', returns='as')
-    #Method('availableCalls', arguments='', returns='as')
     @lru_cache(maxsize=1)
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def availableKeys(self):
@@ -407,6 +402,30 @@ class controlApi(dbus.service.Object):
         
         return self.dbusifyMerge(self.ownKeys(), videoKeys)
     
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
+    def availableCalls(self):
+        """Get a list of the methds that can be accessed via D-Bus"""
+        results = {}
+        for name in dir(type(self)):
+            call = getattr(type(self), name, None)
+            if not getattr(call, '_dbus_is_method', False):
+                continue
+            if getattr(call, '_dbus_interface') != interface:
+                continue
+            
+            # Check the API class for direct documentation, and failing
+            # that, see if there exists a method in the camera class with
+            # the same name that might provide something.
+            logging.debug("Parsing docstrings for %s", name)
+            if call.__doc__:
+                results[name] = gdocstring.parse(call.__doc__)
+            else:
+                realcall = getattr(type(self.camera), name, None)
+                if realcall:
+                    results[name] = gdocstring.parse(realcall.__doc__)
+            
+        return self.dbusifyTypes(results)
+
     #===============================================================================================
     #Method('status', arguments='', returns='a{sv}')
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
@@ -428,20 +447,12 @@ class controlApi(dbus.service.Object):
     def reboot(self, args):
         """ Restart the control API and/or the camera.
             
-            Takes a dict of reboot options, for example:
-            
-                {
-                    'settings': True,
-                    'power': False,
-                    'reload': True,
-                }
-            
-            When 'settings' is true, the user settings are removed during the reboot,
-            which should return the camera to its factory default state.
-
-            When 'power' is true, the camera will perform a full power cycle.
-
-            When 'reload' is true (the default), the control API will restart itself.
+            Args:
+                settings (boolean, optional): When true, the user and API settings are removed
+                    during the reboot, returning the camera to its factory default state.
+                power (boolean, optional): When true, the camera will perform a full power cycle.
+                reload (boolean, optional): When true, the control API and user interfaces will
+                    restart themeselves (default: true).
         """
         try:
             self.runGenerator(self.camera.abort())
@@ -507,20 +518,6 @@ class controlApi(dbus.service.Object):
     #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def startCalibration(self, args):
-        """ Perform full calibration operations.
-            
-            Takes a dict of calibration names set to True to run. For example::
-            
-                {
-                    'blackCal': True,
-                    'analogCal': True,
-                    'zeroTimeBlackCal': False,
-                }
-            
-            This performs a full black calibration and analog calibration, but
-            does not run the zero time black calibration routine. If a calibration
-            is not named, it is treated as if it were False.
-        """
         try:
             self.runGenerator(self.camera.startCalibration(**args), "startCalibration")
             return {
