@@ -2,6 +2,7 @@
 import os, sys, pdb
 import json
 from functools import lru_cache
+from enum import Enum
 
 import inspect
 import logging
@@ -126,6 +127,8 @@ class controlApi(dbus.service.Object):
                 value = src[key]
                 if isinstance(value, bool) or isinstance(value, dbus.types.Boolean):
                     result[key] = dbus.types.Boolean(value, variant_level=1)
+                elif isinstance(value, Enum):
+                    result[key] = dbus.types.String(value.name, variant_level=1)
                 elif isinstance(value, int):
                     result[key] = dbus.types.Int32(value, variant_level=1)
                 elif isinstance(value, float):
@@ -144,6 +147,9 @@ class controlApi(dbus.service.Object):
         if isinstance(src, dict):
             # For dicts, convert all values into variants.
             return self.dbusifyMerge(src, variant_level=variant_level)
+        elif isinstance(src, Enum):
+            # For enumerated types, convert values into strings.
+            return src.name
         else:
             # For everything other than dicts - do nothing.
             return src
@@ -381,6 +387,8 @@ class controlApi(dbus.service.Object):
                 value = getattr(self.camera, name)
                 if isinstance(value, dict):
                     signature = 'a{sv}'
+                elif isinstance(value, Enum):
+                    signature = 's'
                 else:
                     signature = dbus.lowlevel.Message.guess_signature(value)
 
@@ -391,6 +399,11 @@ class controlApi(dbus.service.Object):
                    'doc': prop.__doc__,
                    'type': signature,
                 }
+
+                # For Enumerated types, try to document the values too.
+                if isinstance(value, Enum):
+                    enumvals = gdocstring.parse(type(value)).get('attributes', {})
+                    results[name]['enum'] = { k: v.get('doc', "") for (k, v) in enumvals.items() }
 
         return results
     
@@ -587,7 +600,7 @@ class controlApi(dbus.service.Object):
     #===============================================================================================
     #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
     #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
-    #Method('startRecording', arguments='', regutns='a{sv}'),
+    #Method('startRecording', arguments='a{sv}', regutns='a{sv}'),
     #Method('stopRecording', arguments='', regutns='a{sv}'),
     #Method('flushRecording', arguments='', regutns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
@@ -614,11 +627,10 @@ class controlApi(dbus.service.Object):
             "state": self.camera.state
         }
     
-    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
-    def startRecording(self):
-        """Begin recording video data to memory."""
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
+    def startRecording(self, args):
         try:
-            self.runGenerator(self.camera.startRecording())
+            self.runGenerator(self.camera.startRecording(**args))
             return {
                 "state": self.camera.state
             }
@@ -631,7 +643,6 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def stopRecording(self):
-        """Terimnate recording of video data to memory."""
         try:
             self.camera.stopRecording()
             return {

@@ -85,7 +85,11 @@ def parse(doc):
         returns (dictionary, optional) : Type and docstring for each value returned by this method.
         yields (string, optional) : Description of values which may be yielded by this API method.
     """
-    doclines = doc.splitlines()
+    if isinstance(doc, type):
+        doclines = doc.__doc__.splitlines()
+    else:
+        doclines = doc.splitlines()
+
     verbose = ""
     result = {
         "brief": doclines[0].strip()
@@ -119,6 +123,8 @@ def parse(doc):
                 result['args'] = __parse_args(block)
             elif (m.group(1) == "Returns"):
                 result['returns'] = __parse_args(block)
+            elif (m.group(1) == "Attributes"):
+                result['attributes'] = __parse_args(block)
             elif (m.group(1) == "Yields"):
                 result['yields'] = __parse_block(block)
             continue

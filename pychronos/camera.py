@@ -4,6 +4,7 @@ import os
 import numpy
 import logging
 import datetime
+from enum import Enum
 
 import pychronos
 import pychronos.regmaps as regmaps
@@ -20,6 +21,23 @@ from .props import camProperty as camProperty
 REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 BACKLIGHT_PIN = "/sys/class/gpio/gpio18/value"
+
+# Enumeration type for recording modes.
+class RecModes(Enum):
+    """Mode in which the recording sequencer stores frames into video memory.
+
+    Attributes:
+        normal: Frames are saved continuously into a ring buffer of up to `recMaxFrames` in length
+            until the recording is terminated by the recording end trigger.
+        segmented: Up to `recMaxFrames` of video memory is divided into `recSegments` number of of
+            ring buffers. The camera saves video into one ring buffer at a time, switching to the
+            next ring buffer at each recording trigger.
+        burst: Each rising edge of the recording trigger starts a new segment in video memory,
+            with frames being saved for as long as the recording trigger is active.
+    """
+    normal = 0
+    segmented = 1
+    burst = 2
 
 # Wrap a property that is inherited form a nested class.
 def propWrapper(membername, propname, propclass):
@@ -59,7 +77,7 @@ class camera:
         
         # Setup internal defaults.
         self.__state = 'idle'
-        self.__recMode = 'normal'
+        self.__recMode = RecModes.normal
         self.__recMaxFrames = 0
         self.__recSegments = 1
         self.__recPreBurst = 1
@@ -339,7 +357,7 @@ class camera:
     # API Methods: Recording Group
     #===============================================================================================
     def startCustomRecording(self, program):
-        """Program the recording sequencer and start recording.
+        """Programs the recording sequencer and starts recording.
 
         This variant of startRecording takes a recording program as a list of
         `seqprogram` classes describing the steps for the recording sequencer
@@ -384,8 +402,8 @@ class camera:
         """Program the recording sequencer and start recording.
 
         Args:
-            mode (str, optional): One of 'normal', 'segmented' or 'burst' to override
-                the current `recMode` property when starting the recording.
+            mode (RecModes, optional): Override the current `recMode` property when
+                starting the recording.
 
         Yields:
             float: The sleep time, in seconds, between steps of the recording.
@@ -402,19 +420,19 @@ class camera:
         if not mode:
             mode = self.__recMode
 
-        if mode == 'normal':
+        if mode == RecModes.normal:
             # Record into a single segment until the trigger event.
             cmd = regmaps.seqcommand(blockSize=self.recMaxFrames,
                             blkTermFull=False, blkTermRising=True,
                             recTermMemory=False, recTermBlockEnd=True)
             yield from self.startCustomRecording([cmd])
-        elif mode == 'segmented':
+        elif mode == RecModes.segmented:
             # Record into segments 
             cmd = regmaps.seqcommand(blockSize=self.recMaxFrames // self.recSegments,
                             blkTermFull=False, blkTermRising=True,
                             recTermMemory=self.__disableRingBuffer, recTermBlockEnd=False)
             yield from self.startCustomRecording([cmd])
-        elif mode == 'burst':
+        elif mode == RecModes.burst:
             # When trigger is inactive, save the pre-record into a ring buffer.
             precmd = regmaps.seqcommand(blockSize=self.recPreBurst, blkTermRising=True)
             # While trigger is active, save frames into the remaining memory.
@@ -422,7 +440,7 @@ class camera:
                             blkTermFalling=True, recTermMemory=False)
             yield from self.startCustomRecording([precmd, burstcmd])
         else:
-            raise ValueError("recording mode of '%s' is not supported" % (mode))
+            raise ValueError("recording mode of '%s' is not supported" % str(mode))
 
     def softTrigger(self):
         """Signal a soft trigger event to the recording sequencer."""
@@ -775,6 +793,15 @@ class camera:
                 logging.debug("DIR: %s", os.path.join(root, name))
 
     def exportCalData(self):
+        """Generates factory calibration samples and saves them to external storage
+
+        This method iterates through the image sensor's internal calibration modes and generates
+        factory calibration sample data to be processed externally. The calibration data will be
+        saved to a USB thumb drive, typically mounted at /media/sda1.
+
+        After external processing of the calibration samples is complete, the resulting calibration
+        data can be imported to the camera using the `importCalData` method.
+        """
         try:
             yield from self.sensor.startFlatFieldExport()
         except Exception as e:
@@ -1211,23 +1238,12 @@ class camera:
     # API Parameters: Recording Group
     @camProperty(notify=True, save=True)
     def recMode(self):
-        """str: Mode in which the recording sequencer stores frames into video memory.
-        
-        Args:
-            'normal': Frames are saved continuously into a ring buffer of up to `recMaxFrames` in
-                length until the recording is terminated by the recording end trigger.
-            'segmented': Up to `recMaxFrames` of video memory is divided into `recSegments` number
-                of ring buffers. The camera saves video into one ring buffer at a time, switching
-                to the next ring buffer at each recording trigger.
-            'burst': Frames are saved continuously as long as the recording trigger is active.
-        """
+        """RecModes: Mode in which the recording sequencer stores frames into video memory."""
         return self.__recMode
     @recMode.setter
     def recMode(self, value):
         self.__checkState('idle')
-        if value not in ('normal', 'segmented', 'burst'):
-            raise ValueError("recMode value of '%s' is not supported" % (value))
-        self.__recMode = value
+        self.__recMode = RecModes[value]
         self.__propChange("recMode")
 
     @camProperty(notify=True, save=True)
