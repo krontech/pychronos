@@ -32,7 +32,7 @@ def __parse_args(doclines):
 
     # Arguments are declared in the form:
     #   name [optional type and flags] : descriptive text
-    argregex = re.compile("\s{%s}([a-z][a-z0-9]*)\s+([^:]*):(.*)" % (baseindent), re.I)
+    argregex = re.compile("\s{%s}(\*{0,2}[a-z][a-z0-9]*)\s*([^:]*):(.*)" % (baseindent), re.I)
     for line in doclines:
         m = argregex.match(line)
         if (m):
@@ -75,20 +75,15 @@ def parse(doc):
           super duper
             really evil
              crazy mean
+        *args : yaknow, variadic stuff
+        **zoom: and keywords too!
     
     Returns:
-        A dict containing the google docstring broken down into its
-        component sections, for example:
-        {'brief': 'Parse a google docstring into a dictionary fo its components.',
-         'description': 'Foo bar bazoo, ...'
-         'args': {
-            'something': {
-                'type': 'int, optional',
-                'doc': 'This is a tet of my sanity.'
-                }
-            }
-        }
-
+        brief (string) : One-line description of the API method.
+        description (string, optional) : Multi-line extended description.
+        args (dictionary, optional) : Type and docstring for each argument accepted by this method.
+        returns (dictionary, optional) : Type and docstring for each value returned by this method.
+        yields (string, optional) : Description of values which may be yielded by this API method.
     """
     doclines = doc.splitlines()
     verbose = ""
@@ -123,7 +118,7 @@ def parse(doc):
             if (m.group(1) == "Args"):
                 result['args'] = __parse_args(block)
             elif (m.group(1) == "Returns"):
-                result['returns'] = __parse_block(block)
+                result['returns'] = __parse_args(block)
             elif (m.group(1) == "Yields"):
                 result['yields'] = __parse_block(block)
             continue

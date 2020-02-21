@@ -277,8 +277,15 @@ class controlApi(dbus.service.Object):
 
     @dbus.service.method(interface, in_signature='as', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
     def get(self, attrs, onReply=None, onError=None): #Use "attrs", not "args", because too close to "*args".
-        """Retrieve named values from the control API and the video API."""
+        """Retrieves parameter values from the API.
         
+        The resulting dictionary will contain an element for each paramter that was successfully
+        read from the API. If any parameters could not be read, they will be included in an 'error'
+        dictionary giving the reasons that they could not be retrieved.
+
+        Args:
+           *names (string): list of parameter names to rerieve from the API.
+        """
         # Get any parameters we can handle locally.
         results = dbus.types.Dictionary(signature='sv')
         notfound = dbus.types.Array(signature='s')
@@ -646,22 +653,36 @@ class controlApi(dbus.service.Object):
     #Method('getResolutionTimingLimits', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def getResolutionTimingLimits(self, args):
-        """Return the timing limits (framerate) at a resolution.
-            
-            Returns an error if the resolution is invalid.
-            
-            Example shell invocation::
-            
-                $ call --system \\
-                    --dest ca.krontech.chronos.control \\
-                    --object-path /ca/krontech/chronos/control \\
-                    --method ca.krontech.chronos.control.getResolutionTimingLimits \\
-                    "{'hRes': <1280>, 'vRes': <1020>}"
-                ({'minFramePeriod': <931277>, 'exposureMin': <1000>, 'cameraMax
-                Frames': <17542>, 'exposureMax': <925722>},)
-            
-            .. note::
-                Maximum framerate, in fps, is ``1e9 / minFramePeriod``.
+        """Tests the camera ability to support a desired resolution and framerate.
+
+        This method checks the sensor's ability to operate at the desired resolution parameters
+        and, if successful, reports on some of the parameters that would apply if that resolution
+        was configured.
+
+        Args:
+            hRes (int): Horizontal image resolution, in pixels.
+            vRes (int): Vertical image resolution, in pixels.
+            hOffset (int, optional): Horizontal offset of the image from the right edge of the
+                image sensor. (default: center the image horizontally)
+            vOffset (int, optional): Vertical offset of the image from the top edge of the image
+                sensor. (default: center the image vertically)
+            bitDepth (int, optional): Desired pixel bit depth to use for image readout.
+                (default: image sensor maximum)
+            minFrameTime (float, optional): Minimum time period, in seconds between frames, that
+                the imager sensor will operate at. (default: image sensor minimum)
+        
+        Raises:
+            ValueError: Resolution settings are not valid for this image sensor.
+        
+        Returns:
+            cameraMaxFrames (int): The maximum number of frames that the camera can save at this
+                resolution and framerate setting.
+            minFramePeriod (int): The minimum frame period, in nanoseconds between frames, that
+                the image sensor can operate at.
+            exposureMin (int): The minimum exposure period in nanoseconds that the image sensor
+                can exposure a frame for.
+            exposureMax (int): The maximmum exposure period in nanoseconds, that the image sensor
+                can expose a frame for if framePeriod was set equal to minFramePeriod.
         """
         fSize = frameGeometry(**args)
         if (self.camera.sensor.isValidResolution(fSize)):
