@@ -226,3 +226,8 @@ class power:
         else:
             self.setPowerMode(self.cache.powerMode & ~2)
         self.__propChange("powerOffWhenMainsLost")
+    
+    @camProperty()
+    def systemTemperature(self):
+        """Temperature of the CPU and mainboard as reported by the power manager."""
+        return self.cache.mbTemperature / 10

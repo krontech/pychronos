@@ -223,7 +223,23 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
     def startFilesave(self, args, onReply=None, onError=None):
-        """TBD: A proxy for the `filesave` method in the Video API."""
+        """Saves a region of recorded video to external storage.
+
+        Args:
+            format (string) : Enumerate the output video format.
+            device (string) : Name of the external storage device where video should be saved.
+            filename (string, optional): Name to give to the video file (or directory for TIFF
+                and DNG formats). When omitted, a filename is generated using the current date
+                and time.
+            start (int, optional) : The frame number in recorded video where the saved video
+                begin (default: 0).
+            length (int, optional) : The number of frames of video that should be saved (default:
+                all frames).
+            framerate (int, optional) : For formats with a media container (such as MPEG-4), this
+                determines the framerate of the encoded media file (default: 60 frames per second).
+            bitrate (int, optional) : For compressed formats, this sets the desired bitrate of the
+                encoded file in bits per second (0.25 bits per pixel per second).
+        """
         # Filename suffixes for the formats that need one.
         suffixes = {
             'h264': '.mp4',
@@ -245,18 +261,12 @@ class controlApi(dbus.service.Object):
         if devName not in extStorage:
             raise ValueError('Invalid storage device given for recording')
         storage = extStorage[devName]
-    #    print("### filename =", filename)
-    #    print("### storage =", storage)
-    #    print("### mount =",storage['mount'])
-    #    print("### join =", os.path.join(storage['mount'], filename))
         filepath = os.path.abspath(os.path.join(storage['mount'], filename))
         if not filepath.startswith(storage['mount']):
-            raise ValueError('Invalid filename given for recording')        
-    #    print ("### filepath =", filepath)
+            raise ValueError('Invalid filename given for recording')
         # TODO: Check for available space or any other sanity checking.
         # TODO: Start a saveDoneTimer to monitor available storage space?
         # TODO: Maybe launch the saveDoneTimer from the SOF/EOF signal.
-        # TODO: Look for sneaky path tricks, like /../..
 
         # Make the real call to save the file and pass through the remaining arguments.
         args['filename'] = filepath
