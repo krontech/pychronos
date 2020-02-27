@@ -182,16 +182,9 @@ class controlApi(dbus.service.Object):
         
         # Save configuration changes to disk.
         if (self.changecfg and self.configFile):
-            camType = type(self.camera)
-            savableConfig = {
-                key: value
-                for key, value in self.camera.config.items()
-                if isinstance(getattr(camType, key), property)
-                and getattr(getattr(camType, key).fget, 'saveable', False) #Only save values marked as savable.
-                and not getattr(getattr(camType, key).fget, 'derivedFrom', False) #Don't save any derived values.
-            }
+            configdata = self.camera.config
             with open(self.configFile, 'w') as outFile:
-                json.dump(savableConfig, outFile, sort_keys=True, indent=4, separators=(',', ': '))
+                json.dump(self.dbusifyTypes(configdata), outFile, sort_keys=True, indent=4, separators=(',', ': '))
             self.changecfg = False
         
         return False
