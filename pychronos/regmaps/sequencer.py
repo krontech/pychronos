@@ -289,8 +289,16 @@ class sequencer(pychronos.fpgamap):
             Sleep time, in seconds, between steps of the readout proceedure.
         """
         backup = [self.liveAddr[0], self.liveAddr[1], self.liveAddr[2]]
-        address = self.writeAddr
         self.__result = None
+
+        # We can't atomically read the current write address of the FPGA, since
+        # the GPMC bus is only 16-bits wide and the address register is 32-bits.
+        # Workaround the problem by double-reading until we get a stable result.
+        while True:
+            test = self.writeAddr
+            address = self.writeAddr
+            if (address == test):
+                break
 
         # Remove the currently-writing frame from the live buffer, or do
         # nothing if not writing to the live display region (eg: recording)
