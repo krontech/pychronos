@@ -1173,6 +1173,23 @@ class camera:
         self.sensor.setGain(value / self.sensor.baseIso)
         self.__propChange("currentGain")
 
+    @camProperty(notify=True, save=True)
+    def digitalGain(self):
+        """float: Digital image gain applied during video processing."""
+        disp = pychronos.regmaps.display()
+        return float(disp.gain / 4096)
+    @digitalGain.setter
+    def digitalGain(self, value):
+        disp = pychronos.regmaps.display()
+        gainval = int(value * 4096)
+        if (gainval > 0xffff):
+             disp.gain = 0xffff
+        elif (gainval < 0):
+             disp.gain = 0
+        else:
+             disp.gain = gainval
+        self.__propChange("digitalGain")
+
     #===============================================================================================
     # API Parameters: Camera Status Group
     @camProperty(notify=True)
