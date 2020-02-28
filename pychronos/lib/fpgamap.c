@@ -544,10 +544,75 @@ fpgamap_reg_array(PyObject *self, PyObject *args, PyObject *kwargs)
     return fpga_get_arrayview(self, &info);
 }
 
+PyDoc_STRVAR(fpgamap_reg_atomic_docstring,
+"regAtomic(offset, size)\n\
+--\n\
+\n\
+Helper function to perform an atomic read of an integer value of the\n\
+given size from memory beginning offset bytes from the start of the\n\
+register mapping.\n\
+\n\
+Since the memory bus to the FPGA is only 16-bits, it is possible that\n\
+reading larger integers may be preempted by the FPGA internals, leading\n\
+to corrupted values. This method reads a stable value by double-reading\n\
+until we get the same value twice.\n\
+\n\
+Parameters\n\
+----------\n\
+offset : `int`\n\
+    Offset in bytes from the start of the register mapping.\n\
+size : `int`\n\
+    Length of the integer to read.\n\
+\n\
+Returns\n\
+-------\n\
+int");
+static PyObject *
+fpgamap_reg_atomic(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    unsigned long offset;
+    unsigned long size;
+    char *keywords[] = {
+        "offset",
+        "size",
+        NULL,
+    };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kk", keywords, &offset, &size)) {
+        return NULL;
+    }
+
+    if (size == 4) {
+        volatile uint32_t *ptr = fpgaptr(self, offset, volatile uint32_t);
+        uint32_t value = 0;
+        for (;;) {
+            uint32_t test = *ptr;
+            value = *ptr;
+            if (test == value) break;
+        }
+        return PyLong_FromUnsignedLongLong(value);
+    }
+    else if (size == 8) {
+        volatile uint64_t *ptr = fpgaptr(self, offset, volatile uint64_t);
+        uint64_t value = 0;
+        for (;;) {
+            uint64_t test = *ptr;
+            value = *ptr;
+            if (test == value) break;
+        }
+        return PyLong_FromUnsignedLongLong(value);
+    }
+    /* Otherwise, this is the wrong size for an atomic access */
+    else {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid atomic register access size");
+        return NULL;
+    }
+}
+
 static PyMethodDef fpgamap_methods[] = {
     {"regRead",     (PyCFunction)fpgamap_reg_read,  METH_VARARGS | METH_KEYWORDS, fpgamap_reg_read_docstring},
     {"regWrite",    (PyCFunction)fpgamap_reg_write, METH_VARARGS | METH_KEYWORDS, fpgamap_reg_write_docstring},
     {"regArray",    (PyCFunction)fpgamap_reg_array, METH_VARARGS | METH_KEYWORDS, fpgamap_reg_array_docstring},
+    {"regAtomic",   (PyCFunction)fpgamap_reg_atomic, METH_VARARGS | METH_KEYWORDS, fpgamap_reg_atomic_docstring},
     {NULL, NULL, 0, NULL},
 };
 
