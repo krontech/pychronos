@@ -68,7 +68,7 @@ class jsonRpcBatchCall:
         """Make another JSON-RPC call to the D-Bus object"""
         reqId = request.get("id", None)
         method = getattr(obj, request["method"], None)
-        if not method._dbus_is_method:
+        if not method or not method._dbus_is_method:
            self.batch.append({
                "jsonrpc": "2.0",
                "error": {"code": JSRPC_METHOD_NOT_FOUND, "message": "Method not found"},
