@@ -138,6 +138,9 @@ class lux1310(api):
         self.currentProgram = self.timing.PROGRAM_STANDARD
         self.frameClocks = int(0.001 * self.LUX1310_SENSOR_HZ)
         self.exposureClocks = int(self.frameClocks * 0.95)
+
+        self.__currentGain = 1
+        self.__currentWavetable = self.wavetables[0]
         
         super().__init__()
 
@@ -239,10 +242,12 @@ class lux1310(api):
         self.regs.regGainSelSamp = 0x007f
         self.regs.regGainSelFb = 0x007f
         self.regs.regGainBit = 0x03
+        self.__currentGain = 1
 
         # Load the default (longest) wavetable and enable the timing engine.
         self.regs.wavetable(self.wavetables[0].wavetab)
         self.regs.regTimingEn = True
+        self.__currentWavetable = self.wavetables[0]
         time.sleep(0.01)
 
         # Start the FPGA timing engine using the standard timing program.
@@ -286,7 +291,7 @@ class lux1310(api):
         fSize.vOffset = self.regs.regYstart
         fSize.vRes = self.regs.regYend - fSize.vOffset + 1
         fSize.vDarkRows = self.regs.regNbDrkRows
-        fSize.minFrameTime = self.getMinFrameClocks(fSize) / self.LUX1310_SENSOR_HZ
+        fSize.minFrameTime = self.getMinFrameClocks(fSize, self.__currentWavetable.clocks) / self.LUX1310_SENSOR_HZ
         return fSize
 
     def isValidResolution(self, size):
@@ -325,6 +330,7 @@ class lux1310(api):
 
         # If a suitable wavetable exists, then load it.
         if (wavetab):
+            self.__currentWavetable = wavetab
             self.regs.regTimingEn = False
             self.regs.regRdoutDly = wavetab.clocks
             self.regs.reg[0x7A] = wavetab.clocks
@@ -570,6 +576,9 @@ class lux1310(api):
         self.regs.regGainSelSamp = samp
         self.regs.regGainSelFb = feedback
         self.regs.regGainBit = sgain
+
+        # Update the cached gain value.
+        self.__currentGain = int(self.getCurrentGain())
     
     def getCurrentGain(self):
         gsMap = {
@@ -866,6 +875,4 @@ class lux1310(api):
             return False
 
     def calFilename(self, prefix, extension=""):
-        wtClocks = self.regs.regRdoutDly
-        gain = int(self.getCurrentGain())
-        return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
+        return "%s_G%d_WT%d%s" % (prefix, self.__currentGain, self.__currentWavetable.clocks, extension)
