@@ -27,9 +27,10 @@ class jsonRpcBatchCall:
 
         # Start the in-progress counter at 1 keep from finishing.
         self.inProgress = 1
+        self.isList = isinstance(request, list)
 
         # A JSON-RPC call can be a list of calls, or just one call.
-        if isinstance(request, list):
+        if self.isList:
             for x in request:
                 self.callMethod(dbusObj, x)
         else:
@@ -38,11 +39,14 @@ class jsonRpcBatchCall:
         # Decrement the in-progress counter after all calls have been started.
         self.inProgress -= 1
         if self.inProgress == 0:
-            data = json.dumps(self.batch)
-            logging.debug("Raw JSON-RPC response: %s", data)
-            if self.address:
-                self.sock.sendto(data.encode('utf-8'), 0, self.address)
+            self.sendResponse()
     
+    def sendResponse(self):
+        data = json.dumps(self.batch if self.isList else self.batch[0])
+        #logging.debug("Raw JSON-RPC response: %s", data)
+        if self.address:
+            self.sock.sendto(data.encode('utf-8'), 0, self.address)
+
     def __del__(self):
         logging.debug("JSON-RPC batch call completed")
     
@@ -51,20 +55,14 @@ class jsonRpcBatchCall:
         self.batch.append({ "jsonrpc": "2.0", "result": result, "id": reqId })
 
         if self.inProgress == 0:
-            data = json.dumps(self.batch)
-            logging.debug("Raw JSON-RPC response: %s", data)
-            if self.address:
-                self.sock.sendto(data.encode('utf-8'), 0, self.address)
+            self.sendResponse()
 
     def onAsyncError(self, exc, reqId):
         self.inProgress -= 1
         self.batch.append({ "jsonrpc": "2.0", "error": {"code": JSRPC_INVALID_REQUEST, "message": str(exc)}, "id": reqId })
 
         if self.inProgress == 0:
-            data = json.dumps(self.batch)
-            logging.debug("Raw JSON-RPC response: %s", data)
-            if self.address:
-                self.sock.sendto(data.encode('utf-8'), 0, self.address)
+            self.sendResponse()
     
     def callMethod(self, obj, request):
         """Make another JSON-RPC call to the D-Bus object"""
@@ -115,8 +113,8 @@ class jsonRpcBridge:
         # Receive a datagram for the RPC request.
         try:
             (data, address) = self.sock.recvfrom(16384)
-            logging.info("Received request at time=%f", time.monotonic())
-            logging.debug("Raw JSON-RPC request: %s", data.decode("utf-8"))
+            #logging.info("Received request at time=%f", time.monotonic())
+            #logging.debug("Raw JSON-RPC request: %s", data.decode("utf-8"))
             request = json.loads(data.decode("utf-8"))
             jsonRpcBatchCall(self.sock, address, self.dbusObj, request)
         except Exception as e:
