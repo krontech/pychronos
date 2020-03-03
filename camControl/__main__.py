@@ -21,6 +21,7 @@ from pychronos.error import *
 from pychronos.utils import getBoardRevision
 
 from camControl import controlApi
+from camControl import jsonRpcBridge
 
 class cameraTimer:
     def __init__(self, camera):
@@ -49,6 +50,9 @@ def main():
     parser.add_argument('--config', metavar='FILE', action='store',
                         default='/var/camera/apiConfig.json',
                         help="Configuration file path")
+    parser.add_argument('--jsrpc', metavar='SOCKET', action='store',
+                        default='/tmp/camControl.sock',
+                        help="JSON-RPC socket name")
     parser.add_argument('--debug', default=False, action='store_true',
                         help="Enable debug logging")
     parser.add_argument('--pdb', default=False, action='store_true',
@@ -93,6 +97,9 @@ def main():
     bus = dbus.SystemBus()
     name = dbus.service.BusName('ca.krontech.chronos.control', bus=bus)
     obj  = controlApi(bus, '/ca/krontech/chronos/control', mainloop, cam, configFile=args.config)
+
+    if args.jsrpc:
+        jsrpc = jsonRpcBridge(obj, args.jsrpc)
 
     # Run the mainloop.
     logging.info("Running control service...")
