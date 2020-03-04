@@ -180,14 +180,21 @@ class lux1310(api):
         self.writeDAC(self.DAC_VDR3, 1.5)
         time.sleep(0.01) # Settling time
 
-        # Force a reset of the image sensor.
-        self.regs.control |= self.regs.RESET
-        self.regs.control &= ~self.regs.RESET
-        time.sleep(0.001)
+        # Reset the image sensor and get the chip ID.
+        # This may take a couple of tries to recover.
+        for attempt in range(0,3):
+            # Force a reset of the image sensor.
+            self.regs.control |= self.regs.RESET
+            self.regs.control &= ~self.regs.RESET
+            time.sleep(0.001)
 
-        # Reset the SCI interface.
-        self.regs.regSresetB = 0
-        rev = self.regs.regChipId
+            # Reset the SCI interface.
+            self.regs.regSresetB = 0
+            rev = self.regs.regChipId
+            if (rev == self.LUX1310_CHIP_ID):
+                break
+            logging.error("LUX1310 regChipId returned an invalid ID (%s) attempt=%d", hex(rev), attempt)
+
         if (rev != self.LUX1310_CHIP_ID):
             logging.error("LUX1310 regChipId returned an invalid ID (%s)", hex(rev))
             return False
