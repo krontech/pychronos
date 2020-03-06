@@ -12,6 +12,7 @@ import pychronos.spd as spd
 from pychronos.io import io
 from pychronos.power import power
 from pychronos.error import *
+from pychronos.types import *
 
 from . import utils
 from . import props
@@ -22,22 +23,6 @@ REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 BACKLIGHT_PIN = "/sys/class/gpio/gpio18/value"
 
-# Enumeration type for recording modes.
-class RecModes(Enum):
-    """Mode in which the recording sequencer stores frames into video memory.
-
-    Attributes:
-        normal: Frames are saved continuously into a ring buffer of up to `recMaxFrames` in length
-            until the recording is terminated by the recording end trigger.
-        segmented: Up to `recMaxFrames` of video memory is divided into `recSegments` number of of
-            ring buffers. The camera saves video into one ring buffer at a time, switching to the
-            next ring buffer at each recording trigger.
-        burst: Each rising edge of the recording trigger starts a new segment in video memory,
-            with frames being saved for as long as the recording trigger is active.
-    """
-    normal = 0
-    segmented = 1
-    burst = 2
 
 # Wrap a property that is inherited form a nested class.
 def propWrapper(membername, propname, propclass):
@@ -84,7 +69,7 @@ class camera:
         self.__recTrigDelay = 0
         self.__exposureMode = 'normal'
         self.__exposurePeriod = self.sensor.getCurrentExposure()
-        self.__tallyMode = 'auto'
+        self.__tallyMode = TallyModes.auto
         self.__wbTemperature = 5500
         self.__wbCustomColor = self.getWhiteBalance(self.__wbTemperature)
         self.__miscScratchPad = {}
@@ -147,7 +132,7 @@ class camera:
             raise CameraError("State change failed, camera is busy")
         
         # If the camera tally mode is 'auto' then also control the LED.
-        if self.__tallyMode == 'auto':
+        if self.__tallyMode == TallyModes.auto:
             with open(REC_LED_FRONT, 'w') as fp:
                 fp.write('1' if newState == 'recording' else '0')
             with open(REC_LED_BACK, 'w') as fp:
@@ -919,22 +904,17 @@ class camera:
     
     @camProperty(notify=True, save=True)
     def cameraTallyMode(self):
-        """Mode in which the recording LEDs should operate.
-        
-        Args:
-            'on': All recording LEDs on the camera are turned on.
-            'off': All recording LEDs on the camera are turned off.
-            'auto': The recording LEDs on the camera are on whenever the `status` property is equal to 'recording'.
-        """
+        """Mode in which the recording LEDs should operate."""
         return self.__tallyMode
     @cameraTallyMode.setter
     def cameraTallyMode(self, value):
         # Update the LEDs and tally state.
-        if (value == 'on'):
+        self.__tallyMode = TallyModes[value]
+        if (self.__tallyMode == TallyModes.on):
             ledstate = '1'
-        elif (value == 'off'):
+        elif (self.__tallyMode == TallyModes.off):
             ledstate = '0'
-        elif (value == 'auto'):
+        elif (self.__tallyMode == TallyModes.auto):
             ledstate = '1' if self.__state == 'recording' else '0'
         else:
             raise ValueError("cameraTallyMode value of '%s' is not supported" % (value))
@@ -944,7 +924,6 @@ class camera:
         with open(REC_LED_BACK, 'w') as fp:
             fp.write(ledstate)
 
-        self.__tallyMode = value
         self.__propChange('cameraTallyMode')
     
     #===============================================================================================

@@ -12,6 +12,7 @@ from pychronos.camera import camProperty
 from pychronos.io import io
 from pychronos.power import power
 from pychronos.error import *
+from pychronos.types import *
 
 # module information
 from pychronos.about import __version__
