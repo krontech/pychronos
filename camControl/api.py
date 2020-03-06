@@ -268,6 +268,31 @@ class controlApi(dbus.service.Object):
         args['filename'] = filepath
         self.video.recordfile(args, reply_handler=onReply, error_handler=onError)
     
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
+    def startPlayback(self, args, onReply=None, onError=None):
+        """Switches the video system into playback mode, or sets the playback position and rate.
+
+        When in playback mode, the camera will replay the captured video on the LCD, HDMI port
+        and its RTSP stream. The user may configure the starting frame number and the rate at
+        which video is replayed.
+
+        The actual video stream replayed by the camera is fixed at either 30 or 60fps, the camera
+        will either skip or duplicate frames to achieve the requested framerate. For example,
+        setting the `framerate` to 120fps will typically play every 2nd frame at 60fps.
+
+        The `framerate` can be either positive for forward playback, or negative to rewind backwards
+        through video. A value of zero will effectively pause the video on the current frame.
+
+        Args:
+            position (int) : The starting frame number from which video should play.
+            framerate (int) : The rate, in frames per second, at which video should advance
+                through the playback memory.
+            loopcount (int, optional) : The number of frames, after which the video system
+                should return back to position and continue playback. This allows the user to
+                select a subset of the video to play.
+        """
+        self.video.playback(args, reply_handler=onReply, error_handler=onError)
+    
     #===============================================================================================
     #Method('get', arguments='as', returns='a{sv}')
     #Method('set', arguments='a{sv}', returns='a{sv}')
