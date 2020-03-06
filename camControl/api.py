@@ -218,6 +218,14 @@ class controlApi(dbus.service.Object):
     def startFilesave(self, args, onReply=None, onError=None):
         """Saves a region of recorded video to external storage.
 
+        Upon calling this method, the video system will switch to the `filesave` state and begin
+        encoding video data to the output `device`. During this procedure, the `playbackStart`,
+        `playbackPosition` and `playbackLength` parameters will be updated to track the progress
+        of the filesave.
+
+        When the filesave is completed, the video system will exit the `filesave` state, and
+        revert back to whichever state it was in when the `startFilesave` method was called.
+
         Args:
             format (string) : Enumerate the output video format.
             device (string) : Name of the external storage device where video should be saved.
@@ -288,8 +296,8 @@ class controlApi(dbus.service.Object):
             framerate (int) : The rate, in frames per second, at which video should advance
                 through the playback memory.
             loopcount (int, optional) : The number of frames, after which the video system
-                should return back to position and continue playback. This allows the user to
-                select a subset of the video to play.
+                should return back to `position` and continue playback. This allows the user
+                to select a subset of the video to play.
         """
         self.video.playback(args, reply_handler=onReply, error_handler=onError)
     
@@ -316,8 +324,8 @@ class controlApi(dbus.service.Object):
     def get(self, attrs, onReply=None, onError=None): #Use "attrs", not "args", because too close to "*args".
         """Retrieves parameter values from the API.
         
-        The resulting dictionary will contain an element for each paramter that was successfully
-        read from the API. If any parameters could not be read, they will be included in an 'error'
+        The resulting dictionary will contain an element for each parameter that was successfully
+        read from the API. If any parameters could not be read, they will be included in an `error`
         dictionary giving the reasons that they could not be retrieved.
 
         Args:
@@ -351,7 +359,17 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}',  async_callbacks=('onReply', 'onError'))
     def set(self, newValues, onReply=None, onError=None):
-        """Set named values in the control API and the video API."""
+        """Sets parameter values in the API.
+        
+        The resulting dictionary will contain an element for each paramer that was successfully
+        set in the API. If any parameters could not be set, they will be included in an `error`
+        dictionary given the reason that they could not be set. Typically this is either because
+        the value given was not valid for the parameter, or the parameter did not exist.
+
+        Args:
+           **values (dict): A dictionary naming each of the parameters to update, and the
+                to which they should be set.
+        """
         
         keys = sorted(newValues.keys(), key=self.paramsort, reverse=True)
         failedAttributes = {}
@@ -441,10 +459,17 @@ class controlApi(dbus.service.Object):
     @lru_cache(maxsize=1)
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def availableKeys(self):
-        """Get a list of the properties we can get/set/subscribe.
-            
-            For a list of functions, see org.freedesktop.DBus.Properties.GetAll."""
-        
+        """Gets a list of the parameters available in the API.
+
+        This method returns a dictionary with an entry for each parameter that can be
+        accessed via the API. Each entry will describe the `type` of the parameter as 
+        a D-Bus signature, a `doc` string that describes the function of the parameter,
+        as well `get`, `set`, and `notify` flags that indicate whether the parameter can
+        is read-only, read-write or generates `notify` events when its value changes.
+
+        Returns:
+            keys (dict): A dictionary describing each parameter in the API.
+        """
         try:
             videoKeys = self.video.describe(timeout=150)
         except dbus.exceptions.DBusException:
@@ -455,7 +480,17 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
     def availableCalls(self):
-        """Get a list of the methds that can be accessed via D-Bus"""
+        """Gets a list of the methds that can be called via the API.
+        
+        This method returns a dictionary with an entry for each method that can be called
+        via the API. Each entry will include a `brief` string that summarizes the purpose
+        of the API method. Optionally, the entries may also contain a `description` with
+        a more extensive detail, as well as `args` and `returns` dictionaries that list
+        the parameters that the method accepts, and any values that the method returns.
+
+        Returns:
+            calls (dict): A dictionary describing each method that is callable by the API.
+        """
         results = {}
         for name in dir(type(self)):
             call = getattr(type(self), name, None)
@@ -496,14 +531,17 @@ class controlApi(dbus.service.Object):
     #Method('softReset', arguments='', returns='a{sv}')
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def reboot(self, args):
-        """ Restart the control API and/or the camera.
-            
-            Args:
-                settings (boolean, optional): When true, the user and API settings are removed
-                    during the reboot, returning the camera to its factory default state.
-                power (boolean, optional): When true, the camera will perform a full power cycle.
-                reload (boolean, optional): When true, the control API and user interfaces will
-                    restart themeselves (default: true).
+        """ Restarts the control API and/or the camera.
+
+        This method allows the user to restart their camera software, and optionally perform
+        a full power cycle and/or return to factory default settings at the same time.
+
+        Args:
+            settings (boolean, optional): When true, the user and API settings are removed
+                during the reboot, returning the camera to its factory default state.
+            power (boolean, optional): When true, the camera will perform a full power cycle.
+            reload (boolean, optional): When true, the control API and user interfaces will
+                restart themeselves (default: true).
         """
         try:
             self.runGenerator(self.camera.abort())
@@ -583,7 +621,6 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def clearCalibration(self, args):
-        """ Remove calibration data, returning to factory calibration. """
         try:
             self.camera.clearCalibration(**args)
             return {
@@ -600,9 +637,8 @@ class controlApi(dbus.service.Object):
     #Method('exportCalData', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def exportCalData(self, args):
-        """Export flat-field frames in numpy format to USB thumb drive."""
         try:
-            self.runGenerator(self.camera.exportCalData(**args))
+            self.runGenerator(self.camera.exportCalData(**args), "exportCalData")
             return {
                 "state": self.camera.state
             }
@@ -615,7 +651,6 @@ class controlApi(dbus.service.Object):
 
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def importCalData(self, args):
-        """ Import calibration data that was generated off-camera. """
         try:
             self.camera.importCalData(**args)
             return {
@@ -688,7 +723,12 @@ class controlApi(dbus.service.Object):
     
     @dbus.service.method(interface, in_signature='', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
     def flushRecording(self, onReply=None, onError=None):
-        """Flush recoreded video data from memory."""
+        """Flushes recoreded video data from memory.
+        
+        Normally when recording video, the camera will overwrite video data only as needed
+        to make room for new data from the the image sensor. This method discards all video
+        data from the video memory so that the user can start fresh on their next recording.
+        """
         self.video.flush(reply_handler=onReply, error_handler=onError, timeout=150)
 
     #===============================================================================================
@@ -699,7 +739,8 @@ class controlApi(dbus.service.Object):
 
         This method checks the sensor's ability to operate at the desired resolution parameters
         and, if successful, reports on some of the parameters that would apply if that resolution
-        was configured.
+        was configured. Otherwise, this method will generate an error to indicate that the
+        resolution setting is not supported by the image sensor.
 
         Args:
             hRes (int): Horizontal image resolution, in pixels.

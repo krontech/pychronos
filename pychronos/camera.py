@@ -768,7 +768,12 @@ class camera:
         return not self.__calSuggested
 
     def clearCalibration(self, factory=False):
-        """Remove calibration data to return the camera to its factory calibration.
+        """Removes user calibration data, returning the camera to its factory state.
+
+        When called with no arguments, this removes only the user calibration, allowing
+        the camera to return to its factory new state. The caller may also specify the
+        removal of factory calibration data, though this is not recommended unless the
+        user has made a backup of their calibration data first.
 
         Args:
             factory (bool, optional): Also remove factory calibration data. (default: false)
@@ -810,6 +815,16 @@ class camera:
         self.__setState('idle')
 
     def importCalData(self):
+        """Imports calibration data that was generated off-camera.
+
+        This method looks for any calibration data present on a USB thumb drive, typically mounted
+        at /media/sda1, and copies the calibration data to the camera's internal filesystem for
+        later use.
+        
+        This method is used during factory calibration to import calibration data that the camera
+        is not capable of generating on its own. Typically the camera will be connected to a test
+        jig to stimulate the camera, with data being acquired using the `exportCalData` method.
+        """
         self.sensor.importColGains()
 
     #===============================================================================================

@@ -52,7 +52,7 @@ def __parse_block(doclines):
         # Otherwise, it's just text.
         lstrip = line.strip()
         if len(result):
-            result += (lstrip + " ") if len(lstrip) else "\n"
+            result += (" " + lstrip) if len(lstrip) else "\n"
         else:
             result = lstrip
     return result
@@ -132,7 +132,7 @@ def parse(doc):
         # Otherwise, it's just text.
         line = line.strip()
         if len(verbose):
-            verbose += (line + " ") if len(line) else "\n"
+            verbose += (" " + line) if len(line) else "\n"
         else:
             verbose = line
 
