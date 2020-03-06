@@ -246,7 +246,10 @@ class controlApi(dbus.service.Object):
         # Remove some arguments for sanitiziation.
         devName = args.pop('device')
 
-        filename = args.pop('filename', time.strftime('vid_%F_%H-%M-%S'))
+        # Assemble the complete filename
+        filename = args.pop('filename', '')
+        if not filename:
+            filename = time.strftime('vid_%F_%H-%M-%S')
         filename += suffixes.get(saveFormat, '')
 
         # Assemble the full pathname for recorded file.
