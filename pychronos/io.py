@@ -65,7 +65,7 @@ class io:
     # API Parameters: IO Configuration Group
     @camProperty()
     def ioDelayTime(self):
-        """float: Delay time, in seconds, for the programmable delay block"""
+        """Delay time, in seconds, for the programmable delay block"""
         return self.regs.delayTime
     @ioDelayTime.setter
     def ioDelayTime(self, value):
@@ -73,7 +73,7 @@ class io:
     
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingIo1(self):
-        """dict: Ouput driver 1 configuration"""
+        """Ouput driver 1 configuration"""
         return self.getIoSource(self.regs.io1)
     @ioMappingIo1.setter
     def ioMappingIo1(self, value):
@@ -82,7 +82,7 @@ class io:
 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingIo2(self):
-        """dict: Output driver 2 configuration"""
+        """Output driver 2 configuration"""
         return self.getIoSource(self.regs.io2)
     @ioMappingIo2.setter
     def ioMappingIo2(self, value):
@@ -91,7 +91,7 @@ class io:
     
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingCombOr1(self):
-        """dict: Combinatorial block OR input 1 configuration"""
+        """Combinatorial block OR input 1 configuration"""
         return self.getIoSource(self.regs.combOr1)
     @ioMappingCombOr1.setter
     def ioMappingCombOr1(self, value):
@@ -100,7 +100,7 @@ class io:
     
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingCombOr2(self):
-        """dict: Combinatorial block OR input 2 configuration"""
+        """Combinatorial block OR input 2 configuration"""
         return self.getIoSource(self.regs.combOr2)
     @ioMappingCombOr2.setter
     def ioMappingCombOr2(self, value):
@@ -109,7 +109,7 @@ class io:
     
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingCombOr3(self):
-        """dict: Combinatorial block OR input 3 configuration"""
+        """Combinatorial block OR input 3 configuration"""
         return self.getIoSource(self.regs.combOr3)
     @ioMappingCombOr3.setter
     def ioMappingCombOr3(self, value):
@@ -118,7 +118,7 @@ class io:
 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingCombAnd(self):
-        """dict: Combinatorial block AND input configuration"""
+        """Combinatorial block AND input configuration"""
         return self.getIoSource(self.regs.combAnd)
     @ioMappingCombAnd.setter
     def ioMappingCombAnd(self, value):
@@ -127,7 +127,7 @@ class io:
 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingCombXor(self):
-        """dict: Combinatorial block XOR input configuration"""
+        """Combinatorial block XOR input configuration"""
         return self.getIoSource(self.regs.combXor)
     @ioMappingCombXor.setter
     def ioMappingCombXor(self, value):
@@ -136,7 +136,7 @@ class io:
 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingDelay(self):
-        """dict: Programmable delay block input configuration"""
+        """Programmable delay block input configuration"""
         return self.getIoSource(self.regs.delay)
     @ioMappingDelay.setter
     def ioMappingDelay(self, value):
@@ -145,7 +145,7 @@ class io:
 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingToggleSet(self):
-        """dict: Toggle/flip-flop block SET input configuration"""
+        """Toggle/flip-flop block SET input configuration"""
         return self.getIoSource(self.regs.toggleSet)
     @ioMappingToggleSet.setter
     def ioMappingToggleSet(self, value):
@@ -154,7 +154,7 @@ class io:
 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingToggleClear(self):
-        """dict: Toggle/flip-flop block CLEAR input configuration"""
+        """Toggle/flip-flop block CLEAR input configuration"""
         return self.getIoSource(self.regs.toggleClear)
     @ioMappingToggleClear.setter
     def ioMappingToggleClear(self, value):
@@ -163,7 +163,7 @@ class io:
         
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingToggleFlip(self):
-        """dict: Toggle/flip-flop block FLIP input configuration"""
+        """Toggle/flip-flop block FLIP input configuration"""
         return self.getIoSource(self.regs.toggleFlip)
     @ioMappingToggleFlip.setter
     def ioMappingToggleFlip(self, value):
@@ -172,7 +172,7 @@ class io:
    
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingGate(self):
-        """dict: Gate input signal configuration"""
+        """Gate input signal configuration"""
         return self.getIoSource(self.regs.gate)
     @ioMappingGate.setter
     def ioMappingGate(self, value):
@@ -181,7 +181,7 @@ class io:
  
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingShutter(self):
-        """dict: Timing block shutter control signal configuration"""
+        """Timing block shutter control signal configuration"""
         return self.getIoSource(self.regs.shutter)
     @ioMappingShutter.setter
     def ioMappingShutter(self, value):
@@ -190,7 +190,7 @@ class io:
     
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingStartRec(self):
-        """dict: Recording start signal configuration"""
+        """Recording start signal configuration"""
         return self.getIoSource(self.regs.start)
     @ioMappingStartRec.setter
     def ioMappingStartRec(self, value):
@@ -199,7 +199,7 @@ class io:
 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingStopRec(self):
-        """dict: Recording stop signal configuration"""
+        """Recording stop signal configuration"""
         return self.getIoSource(self.regs.stop)
     @ioMappingStopRec.setter
     def ioMappingStopRec(self, value):
@@ -208,7 +208,7 @@ class io:
 
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioMappingTrigger(self):
-        """dict: Recording trigger signal configuration"""
+        """Recording trigger signal configuration"""
         return self.getIoSource(self.regs.trigger)
     @ioMappingTrigger.setter
     def ioMappingTrigger(self, value):
@@ -218,7 +218,7 @@ class io:
     __io1PwmScale = 6.838 # 100% PWM triggers at 6.838 volts.
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioThresholdIo1(self):
-        """float: Voltage threshold at which trigger input signal 1 should go high."""
+        """Voltage threshold at which trigger input signal 1 should go high."""
         return float(self.io1Pwm.duty * self.__io1PwmScale)
     @ioThresholdIo1.setter
     def ioThresholdIo1(self, value):
@@ -232,7 +232,7 @@ class io:
     __io2PwmScale = 6.838 # 100% PWM triggers at 6.838 volts.
     @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioThresholdIo2(self):
-        """float: Voltage threshold at which trigger input signal 2 should go high."""
+        """Voltage threshold at which trigger input signal 2 should go high."""
         return float(self.io2Pwm.duty * self.__io2PwmScale)
     @ioThresholdIo2.setter
     def ioThresholdIo2(self, value):
@@ -245,7 +245,7 @@ class io:
 
     @camProperty()
     def ioSourceStatus(self):
-        """dict: The available IO signals and their current values."""
+        """The available IO signals and their current values."""
         return {
             'none': False,
             'io1': self.regs.sourceIo1 == 1,
@@ -267,7 +267,7 @@ class io:
     
     @camProperty()
     def ioOutputStatus(self):
-        """dict: The output signals from the IO block and their current values."""
+        """The output signals from the IO block and their current values."""
         return {
             'io1': self.regs.io1_SignalOut == 1,
             'io2': self.regs.io2_SignalOut == 1,
@@ -282,6 +282,17 @@ class io:
 
     @camProperty()
     def ioDetailedStatus(self):
+        """Detailed status of the IO block.
+        
+        Returns:
+            detailedComb (dict): Dictionary of booleans showing the internal state of
+                the combinatorial logic block.
+            sources (dict): The contents of the `ioSouceStatus` parameter.
+            output (dict): Dictionary of booleans showing the state of all the output
+                signals from the IO block.
+            edgeTimers (dict): Dictionary containing the time in clock cycles since the
+                last rising and falling edges were measured for each output signal.
+        """
         return {
             'detailedComb': {
                 'or1': self.regs.combOr1SignalOut == 1,
@@ -328,6 +339,13 @@ class io:
     # API Parameters: Legacy ioMapping wrapper
     @camProperty()
     def ioMapping(self):
+        """Legacy interface to the IO block.
+        
+        This parameter contains a complex dictionary that both configures and describes
+        the entire IO block in a single `set` operation. It is difficult to describe all
+        of the nuances in which this parameter operates, so we recommend using the other
+        IO block parameters to achieve your goal instead.
+        """
         mapping = {
             # IO Sources
             'io1': self.ioMappingIo1,
@@ -417,13 +435,16 @@ class io:
 
     @camProperty()
     def ioStatusSourceIo1(self):
+        """The current logic level seen on the IO input 1 (BNC jack)."""
         return self.regs.sourceIo1 == 1
 
     @camProperty()
     def ioStatusSourceIo2(self):
+        """The current logic level seen on IO input 2 (green IO connector)."""
         return self.regs.sourceIo2 == 1
 
     @camProperty()
     def ioStatusSourceIo3(self):
+        """The current logic levle seeon on IO input 3 (opto-isolated input)."""
         return self.regs.sourceIo3 == 1
 

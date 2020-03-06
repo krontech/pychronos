@@ -144,7 +144,7 @@ class power:
     #===============================================================================================
     @camProperty(notify=True)
     def shippingMode(self):
-        """bool: True when the camera is configured for shipping mode"""
+        """True when the camera is configured for shipping mode"""
         return bool(self.cache.flags & self.FLAG_SHIPPING_MODE)
     @shippingMode.setter
     def shippingMode(self, value):
@@ -155,37 +155,37 @@ class power:
 
     @camProperty(notify=True)
     def externalPower(self):
-        """bool: True when the AC adaptor is present, and False when on battery power."""
+        """True when the AC adaptor is present, and False when on battery power."""
         return bool(self.cache.flags & self.FLAG_ADAPTOR_PRESENT)
 
     @camProperty(notify=True)
     def batteryPresent(self):
-        """bool: True when the battery is installed, and False when the camera is only running on adaptor power"""
+        """True when the battery is installed, and False when the camera is only running on adaptor power"""
         return bool(self.cache.flags & self.FLAG_BATTERY_PRESENT)
     
     @camProperty(notify=True)
     def batteryCritical(self):
-        """bool: True when the battery voltate is critically low and a powerdown is imminent"""
+        """True when the battery voltate is critically low and a powerdown is imminent"""
         return self._batteryCritical
 
     @camProperty()
     def batteryChargePercent(self):
-        """float: Estimated battery charge, with 0% being depleted and 100% being fully charged."""
+        """Estimated battery charge, with 0% being depleted and 100% being fully charged."""
         return self.cache.battCapacityPercent
     
     @camProperty(derivedFrom="batteryChargePercent")
     def batteryChargeNormalized(self):
-        """float: Estimated battery charge, with 0.0 being depleted and 1.0 being fully charged."""
+        """Estimated battery charge, with 0.0 being depleted and 1.0 being fully charged."""
         return self.cache.battCapacityPercent / 100
     
     @camProperty()
     def batteryVoltage(self):
-        """float: The voltage that is currently being output from the removable battery. A healthy and fully charged battery outputs between 12v and 12.5v. This value is graphed on the battery screen on the Chronos."""
+        """The voltage that is currently being output by the battery. A fully charged battery outputs between 12V and 12.5V."""
         return self.cache.battVoltageCam / 1000
     
     @camProperty(notify=True)
     def fanOverride(self):
-        """float: Fan speed in the range of 0=off to 1.0=full, or -1 for automatic fan control."""
+        """Fan speed in the range of 0=off to 1.0=full, or -1 for automatic fan control."""
         return -1.0 if (self.cache.fanOverride < 0) else (self.cache.fanOverride / 255.0)
     
     @fanOverride.setter
@@ -203,7 +203,7 @@ class power:
 
     @camProperty(notify=True)
     def powerOnWhenMainsConnected(self):
-        """bool: Set to `True` to have the camera turn itself on when it is plugged into mains power."""
+        """True if the camera should power itself on when plugged into mains power."""
         return bool(self.cache.powerMode & 1)
         
     @powerOnWhenMainsConnected.setter
@@ -216,7 +216,7 @@ class power:
     
     @camProperty(notify=True)
     def powerOffWhenMainsLost(self):
-        """bool: Set to `True` to have the camera turn itself off when it is unplugged from mains power."""
+        """True if the camera should power itself down when disconnected from mains power."""
         return bool(self.cache.powerMode & 2)
         
     @powerOffWhenMainsLost.setter
@@ -229,5 +229,5 @@ class power:
     
     @camProperty()
     def systemTemperature(self):
-        """Temperature of the CPU and mainboard as reported by the power manager."""
+        """The temperature, in degrees Celcius, measured near the main processor."""
         return self.cache.mbTemperature / 10
