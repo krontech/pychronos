@@ -13,7 +13,6 @@ class TallyModes(Enum):
     on = 1
     auto = 2
 
-# Enumeration type for recording modes.
 class RecModes(Enum):
     """Mode in which the recording sequencer stores frames into video memory.
 
@@ -29,3 +28,27 @@ class RecModes(Enum):
     normal = 0
     segmented = 1
     burst = 2
+
+class ExposureModes(Enum):
+    """Mode in which frame and exposure timing should operate.
+    
+    Attributes:
+        normal: Frame and exposure timing operate on fixed periods and are free-running.
+        frameTrigger: Frame starts on the rising edge of the trigger signal, and exposes
+            the frame for `exposurePeriod` nanoseconds. Once readout completes, the camera
+            will wait for another rising edge before starting the next frame. In this mode,
+            the `framePeriod` property constrains the minimum time between frames.
+        shutterGating: Frame starts on the rising edge of the trigger signal, and exposes
+            the frame for as long as the trigger signal is held high, regardless of the
+            `exposurePeriod` property. Once readout completes, the camera will wait for
+            another rising edge before starting the next frame. When in this mode, the
+            `framePeriod` property constrains the minimum time between frames. 
+    """
+    normal = 0
+    frameTrigger = 1
+    shutterGating = 2
+    # These two are not documented, because they're experimental for now.
+    # They seem to work fine on the LUX1310, but we need FPGA help to process
+    # the non-linear data from the sensor.
+    hdr2slope = 3
+    hdr3slope = 4

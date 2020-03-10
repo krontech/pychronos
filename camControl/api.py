@@ -71,7 +71,8 @@ class controlApi(dbus.service.Object):
         self.video.connect_to_signal('segment', self.videoSegmentSignal)
         self.video.connect_to_signal('update', self.videoUpdateSignal)
 
-        self.callLater(0.5, self.softReset)
+        # Perform a reset as soon as the GLib mainloop gets running.
+        self.runGenerator(self.runSoftReset())
 
     ## Internal helper to iterate over a generator from the GLib mainloop.
     def stepGenerator(self, generator, name):
@@ -276,6 +277,21 @@ class controlApi(dbus.service.Object):
         args['filename'] = filepath
         self.video.recordfile(args, reply_handler=onReply, error_handler=onError)
     
+    @dbus.service.method(interface, in_signature='', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
+    def stopFilesave(self, onReply=None, onError=None):
+        """Terminates an ongoing filesave operation
+
+        When the video system has started a filesave operation, it can take a very long time to
+        complete denepding on the quanitity of footage being saved, and the speed of media to
+        which it is being written. If operation was started in error, or the user changes their
+        mind, then this method may be used to terminate that operation rather than waiting for
+        it to complete.
+
+        It is acceptable to call this method even when no filesave operation is in progress,
+        however, it may result in an otherwise unexpected restart of the video system.
+        """
+        self.video.stop(reply_handler=onReply, error_handler=onError)
+    
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
     def startPlayback(self, args, onReply=None, onError=None):
         """Switches the video system into playback mode, or sets the playback position and rate.
@@ -300,6 +316,24 @@ class controlApi(dbus.service.Object):
                 to select a subset of the video to play.
         """
         self.video.playback(args, reply_handler=onReply, error_handler=onError)
+
+    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}', async_callbacks=('onReply', 'onError'))
+    def startLivedisplay(self, args, onReply=None, onError=None):
+        """Switches the video system into live display mode.
+
+        When in live display mode, the camera will replay the active video data being acquired
+        from the image sensor onto the LCD screen, HDMI port and its RTSP stream. The video
+        stream will monitor for changes in the video geometry, or hotplug events and may restart
+        and reconfigure itself as necessary to keep the video data flowing. The show must go on.
+
+        Any video properties that relate to video playback rate and position have no meaning or
+        effect when in this state.
+        """
+        # TODO: Accept and sanitize arguments? It's not clear which arguments we want to allow
+        # via the control interface. Most of them are migrating into properties anyways.
+        # TODO: This seems like a good way to connect the live recording mode into the video
+        # system.
+        self.video.livedisplay(dbus.types.Dictionary(signature='sv'), reply_handler=onReply, error_handler=onError)
     
     #===============================================================================================
     #Method('get', arguments='as', returns='a{sv}')
@@ -440,19 +474,24 @@ class controlApi(dbus.service.Object):
                     signature = 's'
                 else:
                     signature = dbus.lowlevel.Message.guess_signature(value)
-
-                results[name] = {
-                   'get': prop.fget is not None,
-                   'set': prop.fset is not None,
-                   'notifies': getattr(prop.fget, 'notifies', False),
-                   'doc': prop.__doc__,
-                   'type': signature,
+                
+                keyinfo = {
+                    'get': prop.fget is not None,
+                    'set': prop.fset is not None,
+                    'notifies': getattr(prop.fget, 'notifies', False),
+                    'type': signature,
                 }
+
+                # Include the parsed docstring.
+                keyinfo.update(gdocstring.parse(prop.__doc__))
+                keyinfo['doc'] = keyinfo.pop('brief')
 
                 # For Enumerated types, try to document the values too.
                 if isinstance(value, Enum):
                     enumvals = gdocstring.parse(type(value)).get('attributes', {})
-                    results[name]['enum'] = { k: v.get('doc', "") for (k, v) in enumvals.items() }
+                    keyinfo['enum'] = { k: v.get('doc', "") for (k, v) in enumvals.items() }
+                
+                results[name] = keyinfo
 
         return results
     
@@ -556,21 +595,6 @@ class controlApi(dbus.service.Object):
                 "error": type(e).__name__,
                 "message": str(e)
             }
-
-    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
-    def softReset(self):
-        """Perform a soft reset and initialization of the FPGA and image sensor."""
-        try:
-            self.runGenerator(self.runSoftReset())
-            return {
-                "state": self.camera.state
-            }
-        except CameraError as e:
-            return {
-                "state": self.camera.state,
-                "error": type(e).__name__,
-                "message": str(e)
-            }
     
     def loadConfig(self):
         if not self.configFile:
@@ -596,12 +620,8 @@ class controlApi(dbus.service.Object):
             yield from self.camera.startCalibration(analogCal=True, zeroTimeBlackCal=True, saveCal=False)
 
         # Re-configure the video system back into live display.
-        res = self.camera.resolution
         logging.info('Notifying cam-pipeline to reconfigure display')
-        self.video.livedisplay({
-            'hres':dbus.types.Int32(res['hRes'], variant_level=1),
-            'vres':dbus.types.Int32(res['vRes'], variant_level=1)
-        }, reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler, timeout=150)
+        self.video.livedisplay(dbus.types.Dictionary(signature='sv'), reply_handler=self.dbusReplyHandler, error_handler=self.dbusErrorHandler)
 
     #===============================================================================================
     #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),

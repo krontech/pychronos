@@ -67,7 +67,7 @@ class camera:
         self.__recSegments = 1
         self.__recPreBurst = 1
         self.__recTrigDelay = 0
-        self.__exposureMode = 'normal'
+        self.__exposureMode = ExposureModes.normal
         self.__exposurePeriod = self.sensor.getCurrentExposure()
         self.__tallyMode = TallyModes.auto
         self.__wbTemperature = 5500
@@ -1027,15 +1027,15 @@ class camera:
     # API Parameters: Exposure Group
     def __setupExposure(self, expPeriod, expMode):
         """Internal helper to setup the exposure time and mode."""
-        if expMode == 'normal':
+        if expMode == ExposureModes.normal:
             self.sensor.setExposureProgram(expPeriod)
-        elif expMode == 'frameTrigger':
+        elif expMode == ExposureModes.frameTrigger:
             self.sensor.setFrameTriggerProgram(expPeriod)
-        elif expMode == 'shutterGating':
+        elif expMode == ExposureModes.shutterGating:
             self.sensor.setShutterGatingProgram()
-        elif expMode == 'hdr2slope':
+        elif expMode == ExposureModes.hdr2slope:
             self.sensor.setHdrExposureProgram(expPeriod, 2)
-        elif expMode == 'hdr3slope':
+        elif expMode == ExposureModes.hdr3slope:
             self.sensor.setHdrExposureProgram(expPeriod, 3)
         else:
             raise NotImplementedError()
@@ -1120,29 +1120,16 @@ class camera:
     
     @camProperty(notify=True, save=True)
     def exposureMode(self):
-        """Mode in which frame timing and exposure should operate.
-        
-        Args:
-            'normal': Frame and exposure timing operate on fixed periods and are free-running.
-            'frameTrigger': Frame starts on the rising edge of the trigger signal, and **exposes
-                the frame for `exposurePeriod` nanoseconds**. Once readout completes, the camera will
-                wait for another rising edge before starting the next frame. In this mode, the
-                `framePeriod` property constrains the minimum time between frames.
-            'shutterGating': Frame starts on the rising edge of the trigger signal, and **exposes
-                the frame for as long as the trigger signal is held high**, regardless of the `exposurePeriod`
-                property. Once readout completes, the camera will wait for another
-                rising edge before starting the next frame. In this mode, the `framePeriod` property
-                constrains the minimum time between frames. 
-        """
-        ## TODO: The docstring needs some help to explain the 2 and 3-slope HDR modes.
+        """Mode in which frame timing and exposure should operate."""
         return self.__exposureMode
     @exposureMode.setter
     def exposureMode(self, value):
         self.__checkState('idle')
+        # Not all sensors support all modes.
         if value not in self.sensor.getSupportedExposurePrograms():
             raise ValueError("exposureMode value of '%s' is not supported" % (value))
         
-        self.__setupExposure(self.__exposurePeriod, value)
+        self.__setupExposure(self.__exposurePeriod, ExposureModes[value])
         self.__propChange("exposureMode")
 
     #===============================================================================================
@@ -1387,6 +1374,7 @@ class camera:
 
     @camProperty(notify=True)
     def calSuggested(self):
+        """True when the calibration of the camera needs updating."""
         return self.__calSuggested
 
     @camProperty(notify=True)
