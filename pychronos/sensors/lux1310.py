@@ -31,7 +31,7 @@ class lux1310(api):
     MAX_HRES = 1280
     MAX_VRES = 1024
     MIN_HRES = 192
-    MIN_VRES = 96
+    MIN_VRES = 32
     HRES_INCREMENT = 16
     VRES_INCREMENT = 2
     MAX_VDARK = 8
@@ -649,7 +649,7 @@ class lux1310(api):
 
         # Setup some math constants
         fSize = self.fSizeReal
-        numRows = 64
+        numRows = min(64, fSize.vRes)
         tRefresh = (self.frameClocks * 10) / self.LUX1310_SENSOR_HZ
         pixFullScale = (1 << fSize.bitDepth)
 
