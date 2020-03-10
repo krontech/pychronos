@@ -59,7 +59,8 @@ class power:
         else:
             self.gclient = None
         
-        # Issue initial requests for the power mode and fan control.
+        # Issue initial requests for the last shutdown reason, power mode, and fan control.
+        self.sendMessage("GET_SHUTDOWN_REASON")
         self.sendMessage("GET_POWERUP_MODE")
         self.sendMessage("GET_FAN_MODE")
 
@@ -231,3 +232,21 @@ class power:
     def systemTemperature(self):
         """The temperature, in degrees Celcius, measured near the main processor."""
         return self.cache.mbTemperature / 10
+
+    @camProperty()
+    def lastShutdownReason(self):
+        """The reason for the last shutdown that happened."""
+        reasonCode = self.cache.lastShutdownReason
+        reason = str(reasonCode) + ": "
+
+        if(reasonCode == 0):            reason += "Unintended "
+        if(reasonCode & 0b00000010):    reason += "LowBatt, "
+        if(reasonCode & 0b00000100):    reason += "Watchdog, "
+        if(reasonCode & 0b00001000):    reason += "Overtemp, "
+        if(reasonCode & 0b00010000):    reason += "AutoPwrOff, "
+        if(reasonCode & 0b01000000):    reason += "PwrBtn, "
+        if(reasonCode & 0b00100000):    reason += "Software, "
+        if(reasonCode & 0b10000000):    reason += "Forced, "
+        if(reasonCode & 0b00000001):    reason += "PMIC Ack"
+
+        return reason
