@@ -28,6 +28,7 @@ class pDataCache:
         self.mbTemperature = 0
         self.flags = 0
         self.fanPWM = 0
+        self.lastShutdownReason = -1
 
         # Modes used for power and fan status.
         self.powerMode = 0
@@ -60,6 +61,7 @@ class power:
             self.gclient = None
         
         # Issue initial requests for the last shutdown reason, power mode, and fan control.
+        #self.sendMessage("GET_APP_VERSION") WIP
         self.sendMessage("GET_SHUTDOWN_REASON")
         self.sendMessage("GET_POWERUP_MODE")
         self.sendMessage("GET_FAN_MODE")
@@ -248,5 +250,12 @@ class power:
         if(reasonCode & 0b00100000):    reason += "Software, "
         if(reasonCode & 0b10000000):    reason += "Forced, "
         if(reasonCode & 0b00000001):    reason += "PMIC Ack"
+        if(reasonCode < 0):             reason = "Unknown"
 
         return reason
+
+    #WIP
+    # @camProperty()
+    # def pmicFirmwareVersion(self):
+    #     version = str(self.cache.pmicFirmwareVersion)
+    #     return version
