@@ -446,7 +446,9 @@ class camera:
         """Begin the white balance procedure.
 
         Take a white reference sample from the live video stream, and compute the
-        white balance coefficients for the current lighting conditions.
+        white balance coefficients for the current lighting conditions. If successful,
+        the results of the white balance calculation will be stored in `wbCustomColor`
+        and `wbTemperature` will be set to 0K.
 
         Args:
             hStart (int, optional): Horizontal position at which the white reference should be taken.
@@ -454,6 +456,12 @@ class camera:
         
         Yields:
             float: The sleep time, in seconds, between steps of the white balance procedure.
+        
+        Raises:
+            CalibrationError: If frames could not be acquired from the video stream.
+            SignalClippingError: Pixels at the target area of the sensor are clipping and cannot
+                be used for a reliable measure of the white point.
+            LowSignalError: The measured value is too dim to produce an accurate white point.
         
         Example:
             This function returns a generator iterator with the sleep time between the

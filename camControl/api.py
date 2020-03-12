@@ -163,6 +163,7 @@ class controlApi(dbus.service.Object):
     
     #===============================================================================================
     #Method('notify', arguments='', returns='a{sv}'),
+    #Method('complete, arguments='', returns='a{sv}'),
     def onChangeHandler(self, pName, pValue):
         logging.debug("Parameter %s -> %s", pName, pValue)
         if not self.changeset:
@@ -465,9 +466,12 @@ class controlApi(dbus.service.Object):
         results = {}
         for name in dir(self.camera):
             prop = getattr(type(self.camera), name, None)
-            if (isinstance(prop, property)):
-                # By API convention, all dicts are of type a{sv}
+            if not isinstance(prop, property):
+                continue
+            
+            try:
                 value = getattr(self.camera, name)
+                # By API convention, all dicts are of type a{sv}
                 if isinstance(value, dict):
                     signature = 'a{sv}'
                 elif isinstance(value, Enum):
@@ -490,8 +494,13 @@ class controlApi(dbus.service.Object):
                 if isinstance(value, Enum):
                     enumvals = gdocstring.parse(type(value)).get('attributes', {})
                     keyinfo['enum'] = { k: v.get('doc', "") for (k, v) in enumvals.items() }
-                
+
+                # Store the parameter documentation.
                 results[name] = keyinfo
+
+            except Exception as e:
+                logging.warning("Failed to describe property %s: %s", name, e)
+                logging.warning(traceback.format_exc())
 
         return results
     
@@ -505,6 +514,20 @@ class controlApi(dbus.service.Object):
         a D-Bus signature, a `doc` string that describes the function of the parameter,
         as well `get`, `set`, and `notify` flags that indicate whether the parameter can
         is read-only, read-write or generates `notify` events when its value changes.
+
+        The dictionary for each key may also include additional details depending on the
+        type of the parameter. String parameters describing an enumerated type, may
+        include an `enum` dictionary which maps each of the acceptable values to a brief
+        docstring describing what that value does.
+        
+        Dictionary types may include an `args` dictionary describing the each member of
+        the dictionary does when it is set in the API, or they may include a `returns`
+        dictionary describing what each dictionary member means when it is returned by
+        the API.
+
+        Each key may also include a `description` member, which provides a detailed
+        multi-line documentation string. This is intended to provide more detail than
+        may be available in the single-line `doc`.
 
         Returns:
             keys (dict): A dictionary describing each parameter in the API.
@@ -552,22 +575,7 @@ class controlApi(dbus.service.Object):
         return self.dbusifyTypes(results)
 
     #===============================================================================================
-    #Method('status', arguments='', returns='a{sv}')
-    @dbus.service.method(interface, in_signature='', out_signature='a{sv}')
-    def status(self):
-        """Get the current :meth:`~pychronos.camera.state` of the camera.
-        
-            Return value::
-            
-                {
-                    'state': pychronos.camera.state
-                }
-        """
-        return {'state':self.camera.state}
-
-    #===============================================================================================
     #Method('reboot', arguments='a{sv}', returns='a{sv}')
-    #Method('softReset', arguments='', returns='a{sv}')
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def reboot(self, args):
         """ Restarts the control API and/or the camera.
@@ -625,6 +633,7 @@ class controlApi(dbus.service.Object):
 
     #===============================================================================================
     #Method('startCalibration', arguments='a{sv}', returns='a{sv}'),
+    #Method('clearCalibration', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def startCalibration(self, args):
         try:
@@ -655,6 +664,7 @@ class controlApi(dbus.service.Object):
     
     #===============================================================================================
     #Method('exportCalData', arguments='a{sv}', returns='a{sv}'),
+    #Method('importCalData', arguments='a{sv}', returns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def exportCalData(self, args):
         try:
@@ -685,13 +695,11 @@ class controlApi(dbus.service.Object):
 
     #===============================================================================================
     #Method('startAutoWhiteBalance', arguments='a{sv}', returns='a{sv}'),
-    #Method('revertAutoWhiteBalance', arguments='a{sv}', regutns='a{sv}'),
     #Method('startRecording', arguments='a{sv}', regutns='a{sv}'),
     #Method('stopRecording', arguments='', regutns='a{sv}'),
     #Method('flushRecording', arguments='', regutns='a{sv}'),
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def startAutoWhiteBalance(self, args):
-        """Take a reference image from the live display and compute the white balance."""
+    def startWhiteBalance(self, args):
         logging.info('starting white balance')
         try:
             self.runGenerator(self.camera.startWhiteBalance(**args), "startWhiteBalance")
@@ -704,14 +712,6 @@ class controlApi(dbus.service.Object):
                 "error": type(e).__name__,
                 "message": str(e)
             }
-
-    @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
-    def revertAutoWhiteBalance(self, args):
-        """This copies the contents of `wbCustomColor` into `wbColor`."""
-        self.camera.wbColor = self.camera.wbCustomColor
-        return {
-            "state": self.camera.state
-        }
     
     @dbus.service.method(interface, in_signature='a{sv}', out_signature='a{sv}')
     def startRecording(self, args):
