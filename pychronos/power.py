@@ -3,6 +3,7 @@ import socket
 import select
 import logging
 import re
+import time
 
 from . import props
 from .props import camProperty as camProperty
@@ -29,6 +30,7 @@ class pDataCache:
         self.flags = 0
         self.fanPWM = 0
         self.lastShutdownReason = -1
+        self.pmicFirmwareVersion = 0
 
         # Modes used for power and fan status.
         self.powerMode = 0
@@ -61,9 +63,12 @@ class power:
             self.gclient = None
         
         # Issue initial requests for the last shutdown reason, power mode, and fan control.
-        #self.sendMessage("GET_APP_VERSION") WIP
         self.sendMessage("GET_SHUTDOWN_REASON")
+        time.sleep(0.5)
+        self.sendMessage("GET_APP_VERSION")
+        time.sleep(0.5)
         self.sendMessage("GET_POWERUP_MODE")
+        time.sleep(0.5)
         self.sendMessage("GET_FAN_MODE")
 
     def sendMessage(self, string):
@@ -241,21 +246,22 @@ class power:
         reasonCode = self.cache.lastShutdownReason
         reason = str(reasonCode) + ": "
 
-        if(reasonCode == 0):            reason += "Unintended "
-        if(reasonCode & 0b00000010):    reason += "LowBatt, "
-        if(reasonCode & 0b00000100):    reason += "Watchdog, "
-        if(reasonCode & 0b00001000):    reason += "Overtemp, "
-        if(reasonCode & 0b00010000):    reason += "AutoPwrOff, "
-        if(reasonCode & 0b01000000):    reason += "PwrBtn, "
-        if(reasonCode & 0b00100000):    reason += "Software, "
-        if(reasonCode & 0b10000000):    reason += "Forced, "
-        if(reasonCode & 0b00000001):    reason += "PMIC Ack"
-        if(reasonCode < 0):             reason = "Unknown"
+        if(reasonCode < 0):
+            reason = "Unknown"
+        else:
+            if(reasonCode == 0):            reason += "Unintended "
+            if(reasonCode & 0b00000010):    reason += "LowBatt, "
+            if(reasonCode & 0b00000100):    reason += "Watchdog, "
+            if(reasonCode & 0b00001000):    reason += "Overtemp, "
+            if(reasonCode & 0b00010000):    reason += "AutoPwrOff, "
+            if(reasonCode & 0b01000000):    reason += "PwrBtn, "
+            if(reasonCode & 0b00100000):    reason += "Software, "
+            if(reasonCode & 0b10000000):    reason += "Forced, "
+            if(reasonCode & 0b00000001):    reason += "PMIC Ack"
 
         return reason
 
-    #WIP
-    # @camProperty()
-    # def pmicFirmwareVersion(self):
-    #     version = str(self.cache.pmicFirmwareVersion)
-    #     return version
+    @camProperty()
+    def pmicFirmwareVersion(self):
+        """The Power Management IC's firmware version."""
+        return str(self.cache.pmicFirmwareVersion)
