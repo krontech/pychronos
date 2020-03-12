@@ -488,7 +488,6 @@ class camera:
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, fSize.hRes * 2)
         gain = numpy.asarray(colGainRegs.mem16, dtype=numpy.uint16) / (1 << 12)
         fpn = numpy.asarray(pychronos.readframe(display.fpnAddr, fSize.hRes, fSize.vRes))
-        corrected = (frame - fpn) * gain
         
         # Sum up each of the R, G and B channels
         headroom = (1 << fSize.bitDepth) // 32
@@ -498,7 +497,14 @@ class camera:
         bSum = 0
         for row in range(vStart, vStart+vSamples):
             for col in range(hStart, hStart+hSamples):
-                pix = corrected[row][col]
+                black = fpn[row][col]
+                pix = frame[row][col]
+                if (pix > black):
+                    pix -= black
+                    pix *= gain[col]
+                else:
+                    pix = 0
+
                 if ((pix + headroom) > (1 << fSize.bitDepth)):
                     self.__setState('idle')
                     raise SignalClippingError("Signal clipping, reference image is too bright for white balance")
@@ -506,15 +512,15 @@ class camera:
                 if (row & 1):
                     # Odd Rows - Blue/Green pixels
                     if (col & 1):
-                        gSum += corrected[row][col]
+                        gSum += pix
                     else:
-                        bSum += corrected[row][col] * 2
+                        bSum += pix * 2
                 else:
                     # Even Rows - Green/Blue pixels
                     if (col & 1):
-                        rSum += corrected[row][col] * 2
+                        rSum += pix * 2
                     else:
-                        gSum += corrected[row][col]
+                        gSum += pix
         
         # Check for too-low of a signal.
         if ((rSum < minSum) or (gSum < minSum) or (bSum < minSum)):
@@ -1178,11 +1184,11 @@ class camera:
         """The current operating state of the camera.
         
         Args:
-            'idle': The camera is powered up and operating, but not doing anything.
-            'reset: The camera is in the process of resetting the FPGA and image sensor.
-            'blackCal': The camera is currently calibrating using a dark reference image.
-            'analogCal': The camera is currently performing analog calibration of the image sensor.
-            'recording': The camera is running a recording program to save images into video memory. 
+            idle: The camera is powered up and operating, but not doing anything.
+            reset: The camera is in the process of resetting the FPGA and image sensor.
+            blackCal: The camera is currently calibrating using a dark reference image.
+            analogCal: The camera is currently performing analog calibration of the image sensor.
+            recording: The camera is running a recording program to save images into video memory. 
         """
         return self.__state
     
@@ -1470,8 +1476,7 @@ class camera:
 
     @camProperty(notify=True, save=True)
     def colorMatrix(self):
-        """The 9 matrix coefficients for the 3x3 color matrix converting the image sensor
-        color space into sRGB. The coefficient values are stored in row-scan order."""
+        """The matrix coefficients for a 3x3 color matrix converting the image sensor color space into sRGB. The values are stored in row-scan order."""
         display = regmaps.display()
         return [
             display.colorMatrix[0] / display.COLOR_MATRIX_DIV,
