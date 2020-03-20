@@ -383,11 +383,11 @@ class camera:
             yield 0.1
         self.__setState('idle')
 
-    def startRecording(self, mode=None):
+    def startRecording(self, recMode=None):
         """Program the recording sequencer and start recording.
 
         Args:
-            mode (RecModes, optional): Override the current `recMode` property when
+            recMode (RecModes, optional): Override the current `recMode` property when
                 starting the recording.
 
         Yields:
@@ -402,8 +402,10 @@ class camera:
             >>> for delay in state:
             >>>     time.sleep(delay)
         """
-        if not mode:
+        if not recMode:
             mode = self.__recMode
+        else:
+            mode = RecModes[recMode]
 
         if mode == RecModes.normal:
             # Record into a single segment until the trigger event.
