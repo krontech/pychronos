@@ -26,9 +26,9 @@ BACKLIGHT_PIN = "/sys/class/gpio/gpio18/value"
 
 # Wrap a property that is inherited form a nested class.
 def propWrapper(membername, propname, propclass):
+    setter = None if not propclass.fset else lambda self, value: setattr(getattr(self, membername), propname, value)
     wrapper = property(fget = lambda self: getattr(getattr(self, membername), propname),
-                       fset = lambda self, value: setattr(getattr(self, membername), propname, value),
-                       doc=getattr(propclass, '__doc__'))
+                       fset = setter, doc=getattr(propclass, '__doc__'))
     # Duplicate the camera property metadata.
     wrapper.fget.notifies = getattr(propclass.fget, 'notifies', False)
     wrapper.fget.saveable = getattr(propclass.fget, 'saveable', False)
