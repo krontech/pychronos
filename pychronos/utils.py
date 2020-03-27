@@ -12,23 +12,52 @@ def __readsysfile(name):
 
 def getStorageDevices():
     # Get a list of the mounted devices.
-    df = subprocess.check_output(['df']).decode("utf-8").splitlines(keepends=False)
-    del df[0]
-
     results = {}
-    for line in df:
-        device, size, used, available, percent, mountpoint = line.split()
-        if device == 'tmpfs' or not mountpoint.startswith("/media/"):
-            continue
-        
-        name = mountpoint[7:]
-        results[name] = {
-            "device": device,
-            "mount": mountpoint,
-            "size":   int(size),
-            "used":   int(used),
-            "available": int(available)
-        }
+    with open("/proc/mounts", 'r') as fp:
+        mounts = fp.readlines()
+        for line in mounts:
+            device, mountpoint, fstype, options, dump, tries = line.split()
+            if device == 'tmpfs':
+                continue
+            if not mountpoint.startswith("/media/"):
+                continue
+            
+            # Get the block device, if any.
+            try:
+                args = ['lsblk', '-no', 'pkname', device]
+                blkdev = subprocess.check_output(args, stderr=subprocess.DEVNULL).decode('utf-8').strip()
+            except Exception:
+                blkdev = None
+
+            # Gather a description of the block device.
+            if (fstype == "cifs"):
+                desc = "SMB Share"
+            elif (fstype == "nfs"):
+                desc = "NFS Share"
+            elif (__readsysfile("/sys/class/block/%s/device/type" % blkdev) == "SD"):
+                desc = "MMC/SD Card"
+            elif blkdev is not None:
+                vendor = __readsysfile("/sys/class/block/%s/device/vendor" % blkdev)
+                model = __readsysfile("/sys/class/block/%s/device/model" % blkdev)
+                desc = vendor + " " + model
+
+            # Is this device a partition?
+            if device.startswith("/dev/"):
+                devname = device[5:]
+                if os.path.exists("/sys/class/block/%s/partition" % devname):
+                   desc += " Partiton " + __readsysfile("/sys/class/block/%s/partition" % devname)
+
+            # If it's also a FUSE filesystem, get the real filesystem.
+            if (fstype == "fuseblk"):
+                fstype = subprocess.check_output(['lsblk', '-no', 'fstype', device]).decode('utf-8').strip()
+
+            name = mountpoint[7:]
+            results[name] = {
+                "device": device,
+                "description": desc,
+                "mount": mountpoint,
+                "fstype": fstype
+            }
         
     return results
 
