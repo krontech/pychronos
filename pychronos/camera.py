@@ -1372,6 +1372,18 @@ class camera:
     def resolution(self, value):
         self.__checkState('idle')
         geometry = pychronos.sensors.frameGeometry(**value)
+
+        # Set defaults if not provided by value
+        fMax = self.sensor.getMaxGeometry()
+        if not "hOffset" in value:
+            geometry.hOffset = (fMax.hRes - geometry.hRes) / 2
+        if not "vOffset" in value:
+            geometry.vOffset = (fMax.vRes - geometry.vRes) / 2
+        if not "vDarkRows" in value:
+            geometry.vDarkRows = 0
+        if not "bitDepth" in value:
+            geometry.bitDepth = fMax.bitDepth
+
         self.sensor.setResolution(geometry)
         self.setupRecordRegion(geometry, self.REC_REGION_START)
         self.__propChange("resolution")
