@@ -32,7 +32,7 @@ def getStorageDevices():
             # Gather a description of the block device.
             if (fstype == "cifs"):
                 desc = "SMB Share"
-            elif (fstype == "nfs"):
+            elif ("nfs" in fstype):
                 desc = "NFS Share"
             elif (__readsysfile("/sys/class/block/%s/device/type" % blkdev) == "SD"):
                 desc = "MMC/SD Card"
