@@ -75,6 +75,7 @@ class camera:
         self.__miscScratchPad = {}
         self.__disableRingBuffer = False
         self.__calSuggested = False
+        self.__ioRecord = False
 
         # Setup the reserved video memory.
         self.MAX_FRAME_WORDS = self.getFrameSizeWords(sensor.getMaxGeometry())
@@ -157,6 +158,20 @@ class camera:
     def tick(self):
         """Perfom background processing for the camera."""
         self.power.checkPowerSocket()
+        
+        seqRegs = regmaps.sequencer()
+        
+        if (seqRegs.status & seqRegs.ACTIVE_REC) > 0): ## check if the FPGA is recording
+            if (self.__state == 'idle'): ## are we set to 'idle' while FPGA is recording?
+                logging.info("State should be RECORDING (state stuck as idle); changing state to recording")
+                self.__setState('recording')
+                self.__ioRecord = True
+
+        else:
+            if (self.__state == 'recording') and self.__ioRecord: ## are we set to 'recording' while FPGA is idle?
+                logging.info(">> State should be IDLE (state stuck as recording); changing state to idle")
+                self.__setState('idle')
+                self.__ioRecord = False
 
     #===============================================================================================
     # API Methods: Reset Group
