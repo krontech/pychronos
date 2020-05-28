@@ -161,7 +161,7 @@ class camera:
         
         seqRegs = regmaps.sequencer()
         
-        if (seqRegs.status & seqRegs.ACTIVE_REC) > 0): ## check if the FPGA is recording
+        if (seqRegs.status & seqRegs.ACTIVE_REC) > 0: ## check if the FPGA is recording
             if (self.__state == 'idle'): ## are we set to 'idle' while FPGA is recording?
                 logging.info("State should be RECORDING (state stuck as idle); changing state to recording")
                 self.__setState('recording')
