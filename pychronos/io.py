@@ -63,7 +63,7 @@ class io:
 
     #===============================================================================================
     # API Parameters: IO Configuration Group
-    @camProperty()
+    @camProperty(notify=True, save=True, prio=props.PRIO_IO)
     def ioDelayTime(self):
         """Delay time, in seconds, for the programmable delay block"""
         return self.regs.delayTime
