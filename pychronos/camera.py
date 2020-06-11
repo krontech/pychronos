@@ -23,7 +23,6 @@ REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
 REC_LED_BACK = "/sys/class/gpio/gpio25/value"
 BACKLIGHT_PIN = "/sys/class/gpio/gpio18/value"
 
-
 # Wrap a property that is inherited form a nested class.
 def propWrapper(membername, propname, propclass):
     setter = None if not propclass.fset else lambda self, value: setattr(getattr(self, membername), propname, value)
@@ -75,6 +74,8 @@ class camera:
         self.__miscScratchPad = {}
         self.__disableRingBuffer = False
         self.__calSuggested = False
+
+        self.__ioRecord = False
 
         # Setup the reserved video memory.
         self.MAX_FRAME_WORDS = self.getFrameSizeWords(sensor.getMaxGeometry())
@@ -143,6 +144,7 @@ class camera:
         if not self.__state in args:
             raise CameraError("Camera busy in state '%s'" % (self.__state))
 
+
     def setOnChange(self, handler):
         """Install an on-change handler to be called whenever properties are modified.
 
@@ -157,6 +159,22 @@ class camera:
     def tick(self):
         """Perfom background processing for the camera."""
         self.power.checkPowerSocket()
+
+        seqRegs = regmaps.sequencer()
+
+        if (seqRegs.status & seqRegs.ACTIVE_REC) > 0: ## check if the FPGA is recording
+            if (self.__state == 'idle'): ## are we set to 'idle' while FPGA is recording?
+                logging.info("State should be RECORDING (state stuck as idle); changing state to recording")
+                self.__setState('recording')
+                self.__ioRecord = True
+
+        else:
+            if (self.__state == 'recording') and self.__ioRecord: ## are we set to 'recording' while FPGA is idle?
+                logging.info(">> State should be IDLE (state stuck as recording); changing state to idle")
+                self.__setState('idle')
+                self.__ioRecord = False
+
+
 
     #===============================================================================================
     # API Methods: Reset Group
@@ -229,6 +247,8 @@ class camera:
         self.geometry.vDarkRows = 0
         self.setupRecordRegion(self.geometry, self.REC_REGION_START)
         sequencerRegs.frameSize = self.geometry.size() // self.BYTES_PER_WORD
+
+        self.stopRecording()
         
         # Enable video readout
         displayRegs = regmaps.display()
@@ -1258,6 +1278,41 @@ class camera:
         self.__checkState('idle')
         self.__recMode = RecModes[value]
         self.__propChange("recMode")
+
+        ## whenever the record mode is changed, write those settings into the fpga so that an IO block 'start' works
+        if self.__recMode == RecModes.normal:
+            # Record into a single segment until the trigger event.
+            cmd = regmaps.seqcommand(blockSize=self.recMaxFrames,
+                            blkTermFull=False, blkTermRising=True,
+                            recTermMemory=False, recTermBlockEnd=True)
+            program = [cmd]
+        elif mode == RecModes.segmented:
+            # Record into segments 
+            cmd = regmaps.seqcommand(blockSize=self.recMaxFrames // self.recSegments,
+                            blkTermFull=False, blkTermRising=True,
+                            recTermMemory=self.__disableRingBuffer, recTermBlockEnd=False)
+            program = [cmd]
+        elif mode == RecModes.burst:
+            # When trigger is inactive, save the pre-record into a ring buffer.
+            precmd = regmaps.seqcommand(blockSize=self.recPreBurst, blkTermRising=True)
+            # While trigger is active, save frames into the remaining memory.
+            burstcmd = regmaps.seqcommand(blockSize=self.recMaxFrames - self.recPreBurst - 1,
+                            blkTermFalling=True, recTermMemory=False)
+            program = [precmd, burstcmd]
+        else:
+            raise ValueError("recording mode of '%s' is not supported" % str(mode))
+
+        seq = regmaps.sequencer()
+        # Setup the nextStates into a loop, just in case the caller forgot and then
+        # load the program into the recording sequencer.
+        for i in range(0, len(program)):
+            program[i].nextState = (i + 1) % len(program)
+            seq.program[i] = program[i]
+
+        seq.trigDelay = self.__recTrigDelay ## make sure the trigger delay gets written
+
+
+
 
     @camProperty(notify=True, save=True)
     def recMaxFrames(self):
