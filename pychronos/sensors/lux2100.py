@@ -902,7 +902,7 @@ class lux2100(api):
             for intensity in range(0, len(adcTestModeVoltages[gain])):
 
                 # Inject a test voltage into the ADCs, see lux2100 datasheet p.30.
-                testVoltage = (adcTestModeVoltages[gain][intensity] << 8) + 0x00FF
+                testVoltage = (adcTestModeVoltages[gain][intensity] << 8) + 0x0011
                 sensor.sciWrite(0x67, testVoltage)
 
                 # Get the average of 3 frames.
