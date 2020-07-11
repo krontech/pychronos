@@ -1367,7 +1367,8 @@ class camera:
     @disableRingBuffer.setter
     def disableRingBuffer(self, value):
     	self.__disableRingBuffer = value
-      
+    	self.__propChange("disableRingBuffer")
+
     @camProperty(notify=True, save=True)
     def recTrigDelay(self):
         """The number of frames to delay the trigger rising edge by in 'normal' and 'segmented' recording modes."""
