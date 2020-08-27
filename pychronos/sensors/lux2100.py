@@ -14,6 +14,8 @@ from pychronos.regmaps import sequencer, ioInterface
 from pychronos.sensors import api, frameGeometry
 from . import lux2100regs, lux2100wt, lux2100timing
 
+BB_ENABLED_NF = 0
+
 class lux2100(api):
     """Driver for the Luxima LUX2100 image sensor.
 
@@ -40,7 +42,7 @@ class lux2100(api):
 
     VLOW_BOUNDARY = 8
     VHIGH_BOUNDARY = 8
-    HLEFT_DARK = 32
+    HLEFT_DARK = 32 ## default: 32
     HRIGHT_DARK = 32
 
     # Expected constants
@@ -200,19 +202,21 @@ class lux2100(api):
             data=bytearray([0, self.DAC_AUTOUPDATE << 4, 0, self.DAC_AUTOUPDATE << 4]))
 
         # Initialize the DAC voltage levels.
-        self.writeDAC(self.DAC_VRSTH,   3.3)
-        self.writeDAC(self.DAC_VTX2L,   0.0)
-        self.writeDAC(self.DAC_VRSTPIX, 2.5)
-        self.writeDAC(self.DAC_VABL,    0.0)
-        self.writeDAC(self.DAC_VTXH,    3.3)
-        self.writeDAC(self.DAC_VTX2H,   3.3)
-        self.writeDAC(self.DAC_VTXL,    0.0)
-        self.writeDAC(self.DAC_VDR1,    2.5)
-        self.writeDAC(self.DAC_VDR2,    2.0)
-        self.writeDAC(self.DAC_VDR3,    1.5)
-        self.writeDAC(self.DAC_VRDH,    0.0)
-        self.writeDAC(self.DAC_VPIX_LDO, 3.3)
-        self.writeDAC(self.DAC_VPIX_OP, 0.0)
+        self.writeDAC(self.DAC_VRSTH,   3.3) ## 2.5 - 3.6 ## default: 3.3
+        self.writeDAC(self.DAC_VTX2L,   0.0) ## 0.0 - 1.0 ## default: 0.0
+        self.writeDAC(self.DAC_VRSTPIX, 2.5) ## 0.3 - 2.5 ## default: 2.0
+        self.writeDAC(self.DAC_VABL,    0.0) ## 0.3 - 2.5 ## default: 0.0
+        self.writeDAC(self.DAC_VTXH,    3.3) ## 3.0 - 3.6 ## default: 3.3
+        self.writeDAC(self.DAC_VTX2H,   3.3) ## 3.0 - 3.6 ## default: 3.3
+        self.writeDAC(self.DAC_VTXL,    0.0) ## -0.5 - 0.0 ## default: 0.0
+
+        self.writeDAC(self.DAC_VDR1,    2.5) ## 0.5 - 2.5 ## default: 2.5
+        self.writeDAC(self.DAC_VDR2,    2.0) ## 0.5 - 2.5 ## default: 2.0
+        self.writeDAC(self.DAC_VDR3,    1.5) ## 0.5 - 2.5 ## default: 1.5
+        self.writeDAC(self.DAC_VRDH,    0.0) ## 0.0 ## default: 0.0
+
+        self.writeDAC(self.DAC_VPIX_LDO, 3.3) ## ?? default 3.3
+        self.writeDAC(self.DAC_VPIX_OP, 0.0) ## ?? default 0.0
         time.sleep(0.01) # Settling time
 
         # Force a reset of the image sensor.
@@ -241,9 +245,13 @@ class lux2100(api):
 
         # Return to normal data mode
         self.regs.regPclkVblank = 0xf00         # PCLK channel output during vertical blanking
-        self.regs.regPclkOpticalBlack = 0xfc0   # PCLK channel output during dark pixel readout
+        self.regs.regPclkOpticalBlack = 0xFE0   # PCLK channel output during dark pixel readout << Nicholas
         self.regs.regDigPatSel = 0              # Disable custom data pattern for pixel readout.
         self.regs.regSelRdoutDly = 7            # Delay to match ADC latency
+
+
+#        self.regs.regDrkColRd = True ## enable the dark columns (dark side bands) << Nicholas (NF) << doesn't work (don't seem to need)
+
 
         # Setup for 66-clock wavetable and 1080p with binning.
         self.regs.regRdoutDly = 66
@@ -253,7 +261,7 @@ class lux2100(api):
         self.regs.regPoutsel = 2
         self.regs.regInvertAnalog = True
         self.regs.regXstart = self.HLEFT_DARK * 2
-        self.regs.regXend = (self.HLEFT_DARK + self.MAX_HRES) * 2 - 1
+        self.regs.regXend = (self.HLEFT_DARK + self.MAX_HRES - BB_ENABLED_NF) * 2 - 1 ## Nicholas
         self.regs.regYstart = self.VLOW_BOUNDARY * 2
         self.regs.regYend = (self.VLOW_BOUNDARY + self.MAX_VRES - 1) * 2
 
@@ -275,12 +283,29 @@ class lux2100(api):
         self.regs.regSensor[0x6A] = 0xAA88 # internal control register
         self.regs.regSensor[0x6B] = 0xAC88 # internal control register
         self.regs.regSensor[0x6C] = 0x8AAA # internal control register
+
+
+        logging.info ("\n\n>>NF>>")
+        logging.info ("Register 0x02 is: 0x{:04x}".format(self.regs.regSensor[0x02]))
+#        logging.info ("x_start (0x06) is: 0x{:04x}".format(self.regs.regSensor[0x06]))
+#        logging.info ("x_end (0x07) is: 0x{:04x}".format(self.regs.regSensor[0x07]))
+        logging.info ("Trying to enable Black Bar read out")
+
+#        self.regs.regPclkOpticalBlack = 0xFC0   ## PCLK channel output during dark pixel readout << Nicholas
+        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
+
+        logging.info ("New value is: %i" % self.regs.regSensor[0x02])
+
+        logging.info ("The lineValid token (0x52) is: 0x{:04x}".format(self.regs.regSensor[0x052]))
+
+        logging.info ("<<NF<<\n\n")
+
+
         self.regs.regData[0x05] = 0x0007 # delay to match ADC latency
-        
         # Configure for nominal gain.
-        self.regs.regGainSelSamp = 0x007f
-        self.regs.regGainSelFb = 0x007f
-        self.regs.regSerialGain = 0x03
+        self.regs.regGainSelSamp = 0x007f ## register 0x57
+        self.regs.regGainSelFb = 0x007f ## register 0x58
+        self.regs.regSerialGain = 0x03 ## register 0x58
 
         # Enable ADC offset correction.
         for x in range(0, self.ADC_CHANNELS):
@@ -319,7 +344,7 @@ class lux2100(api):
         
         fSize = self.getMaxGeometry()
         fSize.hOffset = (self.regs.regXstart // 2) - self.HLEFT_DARK
-        fSize.hRes = (self.regs.regXend // 2) - self.HLEFT_DARK - fSize.hOffset + 1
+        fSize.hRes = ((self.regs.regXend ) // 2) - self.HLEFT_DARK - fSize.hOffset + 1
         fSize.vOffset = (self.regs.regYstart // 2) - self.VLOW_BOUNDARY
         fSize.vRes = (self.regs.regYend // 2) - self.VLOW_BOUNDARY - fSize.vOffset + 1
         fSize.vDarkRows = self.regs.regNbDrkRowsTop // 2
@@ -603,7 +628,7 @@ class lux2100(api):
             self.timing.programStandard(self.frameClocks, self.exposureClocks)
 
     def startAnalogCal(self, saveLocation=None):
-        logging.debug('Starting ADC gain calibration')
+        logging.info('Starting ADC gain calibration')
 
         # Setup some math constants
         numRows = 64
@@ -615,13 +640,17 @@ class lux2100(api):
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
         colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000)
 
+        ## Nicholas >> turn off the black-bar data from the sensor (and therefore the black-bar corrections)
+        self.regs.regSensor[0x02] &= ~0x0200 ## disable the dark columns >> Nicholas
+
+
         # Enable the analog test mode.
         self.regs.regPoutsel = 3
         self.regs.regSelVdum = 3
         self.regs.regSelVlnkeepRst = 0
 
         # Search for a dummy voltage high reference point.
-        vhigh = 31
+        vhigh = 16 ## Nicholas >> changed this from default of 31
         while (vhigh > 0):
             self.regs.regSelVlnkeepRst = vhigh
             yield tRefresh
@@ -658,13 +687,18 @@ class lux2100(api):
             else:
                 vlow += 1
 
+
+        ## Nicholas >> turn back on the black-bar data from the sensor (and therefore the black-bar corrections)
+        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
+
+
         # Disable the analog test mode.
         self.regs.regSelVlnkeepRst = 30
         self.regs.regSelVdum = 0
         self.regs.regPoutsel = 2
 
-        logging.debug("ADC Gain calibration voltages=[%s, %s]" % (vlow, vhigh))
-        logging.debug("ADC Gain calibration averages=[%s, %s]" %
+        logging.info("ADC Gain calibration voltages=[%s, %s]" % (vlow, vhigh))
+        logging.info("ADC Gain calibration averages=[%s, %s]" %
                 (numpy.average(lowColumns), numpy.average(highColumns)))
 
         # Determine which column has the strongest response and sanity-check the gain
@@ -685,7 +719,7 @@ class lux2100(api):
         # Compute the 2-point calibration coefficient.
         diff = (highColumns - lowColumns)
         gain2pt = numpy.full(self.ADC_CHANNELS, maxColumn) / diff
-        logging.debug("ADC Columns 2-point gain: %s" % (gain2pt))
+        logging.info("ADC Columns 2-point gain: %s" % (gain2pt))
         
         # Load the 2-point gain calibration 
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000)
@@ -771,7 +805,7 @@ class lux2100(api):
             self.regs.regAdcOs[col] = self.adcOffsets[col]
     
     def startBlackCal(self, saveLocation=None):
-        logging.debug('Starting ADC offset calibration')
+        logging.info('Starting ADC offset calibration')
         self.__backupSettings()
 
         # Retrieve the current resolution and frame period.
@@ -781,7 +815,7 @@ class lux2100(api):
 
         # Enable black bars if not already done.
         if (fSize.vDarkRows == 0):
-            logging.debug("Enabling dark pixel readout")
+            logging.info("Enabling dark pixel readout")
             fSize.vDarkRows = self.MAX_VDARK // 2
             fSize.vOffset += fSize.vDarkRows
             fSize.vRes -= fSize.vDarkRows
@@ -831,6 +865,7 @@ class lux2100(api):
         try:
             logging.info("Loading offset calibration from %s", filename)
             adcOffsetData = numpy.fromfile(filename, dtype=numpy.int16, count=self.ADC_CHANNELS)
+#            adcOffsetData = [0] * ADC_CHANNELS ## Nicholas
             for i in range(0, self.ADC_CHANNELS):
                 self.adcOffsets[i] = adcOffsetData[i]
                 self.regs.regAdcOs[i] = adcOffsetData[i]
@@ -850,7 +885,7 @@ class lux2100(api):
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
 
     def startFlatFieldExport(self, saveLocation='/media/sda1'):
-        logging.debug('Starting flat-field export')
+        logging.info('Starting flat-field export')
 
         display = pychronos.regmaps.display()
         sensor = pychronos.regmaps.sensor()
