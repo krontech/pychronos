@@ -48,6 +48,7 @@
 #define FPGA_COL_OFFSET_BASE        0x5000
 #define FPGA_IO_BASE                0x6000
 #define FPGA_TIMING_BASE            0x6100
+#define FPGA_IMAGER_BASE            0x6500
 #define FPGA_PIPELINE_BASE          0x7000
 #define FPGA_VIDSRC_BASE            0x7100
 #define FPGA_CALSRC_BASE            0x7200

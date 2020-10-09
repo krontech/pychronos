@@ -345,6 +345,7 @@ pychronos_init_types(PyObject *mod)
     PyModule_AddIntMacro(mod, FPGA_COL_OFFSET_BASE);
     PyModule_AddIntMacro(mod, FPGA_IO_BASE);
     PyModule_AddIntMacro(mod, FPGA_TIMING_BASE);
+    PyModule_AddIntMacro(mod, FPGA_IMAGER_BASE);
     PyModule_AddIntMacro(mod, FPGA_PIPELINE_BASE);
     PyModule_AddIntMacro(mod, FPGA_VIDSRC_BASE);
     PyModule_AddIntMacro(mod, FPGA_CALSRC_BASE);

@@ -14,6 +14,8 @@ from pychronos.regmaps import sequencer, ioInterface
 from pychronos.sensors import api, frameGeometry
 from . import lux2100regs, lux2100wt, lux2100timing
 
+from struct import pack ## added for exporting gain data
+
 BB_ENABLED_NF = 0
 
 class lux2100(api):
@@ -103,12 +105,16 @@ class lux2100(api):
     @property
     def cfaPattern(self):
         try:
+            logging.info(">>> NF >>> CFA-Pattern >>> trying to open \"lux2100-color\"")
             fp = open(self.board["lux2100-color"])
             if int(fp.read()) == 1:
+                logging.info (">>> NF >>> sending back GRBG")
                 return 'GRBG'
             else:
+                logging.info (">>> NF >>> sending back \"None\" from else")
                 return None
         except:
+            logging.info (">>> NF >>> sending back \"None\" from Except")
             return None
     
     @property
@@ -291,8 +297,10 @@ class lux2100(api):
 #        logging.info ("x_end (0x07) is: 0x{:04x}".format(self.regs.regSensor[0x07]))
         logging.info ("Trying to enable Black Bar read out")
 
-#        self.regs.regPclkOpticalBlack = 0xFC0   ## PCLK channel output during dark pixel readout << Nicholas
-        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
+#        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
+
+#        self.regs.regDrkRowsStAddr = (self.VLOW_BOUNDARY - 8) * 2
+#        self.regs.regNbDrkRowsTop = 8 * 2
 
         logging.info ("New value is: %i" % self.regs.regSensor[0x02])
 
@@ -533,11 +541,13 @@ class lux2100(api):
     def getColorMatrix(self, cTempK=5500):
         if not self.cfaPattern:
             # Identity matrix for monochrome cameras.
+            logging.info (">> NF >> sending mono matrix (Identity)")
             return [1.0, 0.0, 0.0,
                     0.0, 1.0, 0.0,
                     0.0, 0.0, 1.0]
         else:
             # CIECAM16/D55
+            logging.info (">> NF >> sending color matrix (cfaPattern gave something back)")
             return [ 1.9147, -0.5768, -0.2342, 
                     -0.3056,  1.3895, -0.0969,
                      0.1272, -0.9531,  1.6492]
@@ -572,6 +582,33 @@ class lux2100(api):
         self.regs.regGainSelSamp = samp
         self.regs.regGainSelFb = feedback
         self.regs.regSerialGain = sgain
+
+    def setGainNF(self, gain):
+        gainConfig = {
+        1:			( 0x007f,	0x007f,		0x3,	0x7 ),
+        2:			( 0x01ff,	0x000f,		0x3,	0x7 ),
+        4:			( 0x0fff,	0x001f,		0x1,	0x7 ),
+        8:			( 0x0fff,	0x001f,		0x0,	0x7 ),
+        16:			( 0x0fff,	0x000f,		0x0,	0x7 ),
+
+    }
+        if (not int(gain) in gainConfig):
+            raise ValueError("Unsupported image gain setting")
+
+        samp, feedback, sgain, icol = gainConfig[int(gain)] ## copy one of the lines above
+        self.regs.regGainSelSamp = samp ## sample caps setting
+        self.regs.regGainSelFb = feedback ## feedback caps setting
+        self.regs.regSerialGain = sgain ## serial gain register caps setting
+##        self.regs.regIcolCapEn = icol ## icol caps setting
+
+         ## For some reason, when I try writing to just the "regIcolCapEn" register, it very occasionally
+         ## completely messes up the image. This seems to be due to the other bits in this register getting
+         ## affected somehow. Perhaps writing to it ("regIcolCapEn") only works most of the time. This
+         ## is the same register as "regIcolCapEn", but I can write an entire byte (with regIcolCapEn, it
+         ## only writes the upper nibble [mask is 0x00f0]).
+        self.regs.regSerialGainV2 = ( 0x0010 * icol ) + 0x0009 ## icol caps setting (also write some of the "reserved" mystery bits)
+
+
 
     def getCurrentGain(self):
         sampnbits = 4
@@ -650,7 +687,7 @@ class lux2100(api):
         self.regs.regSelVlnkeepRst = 0
 
         # Search for a dummy voltage high reference point.
-        vhigh = 16 ## Nicholas >> changed this from default of 31
+        vhigh = 31 ## Nicholas >> played with this from default of 31
         while (vhigh > 0):
             self.regs.regSelVlnkeepRst = vhigh
             yield tRefresh
@@ -689,7 +726,7 @@ class lux2100(api):
 
 
         ## Nicholas >> turn back on the black-bar data from the sensor (and therefore the black-bar corrections)
-        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
+#        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
 
 
         # Disable the analog test mode.
@@ -706,6 +743,7 @@ class lux2100(api):
         # and apply a gain of 1.0 instead.
         maxColumn = 0
         for col in range(0, self.ADC_CHANNELS):
+            logging.info(">> NF >> ADC calibration column: %i" % col)
             minrange = (pixFullScale // 16)
             diff = highColumns[col] - lowColumns[col]
             if (highColumns[col] <= (lowColumns[col] + minrange)):
@@ -735,7 +773,7 @@ class lux2100(api):
         if saveLocation:
             colGainData = numpy.asarray(gain2pt, dtype=numpy.float)
             colGainData.tofile(self.calFilename(saveLocation + '/colGain', ".bin"))
-        
+
     def loadAnalogCal(self, calLocation):
         # Load calibration!
         display = pychronos.regmaps.display()
@@ -781,21 +819,24 @@ class lux2100(api):
     
     def autoAdcOffsetIteration(self, fSize, numFrames=4):
         # Read out the calibration frames.
-        fAverage = numpy.zeros((fSize.hRes // self.ADC_CHANNELS, self.ADC_CHANNELS), dtype=numpy.uint32)
+        fAverage = numpy.zeros((fSize.hRes // self.ADC_CHANNELS * 4, self.ADC_CHANNELS), dtype=numpy.uint32)
         seq = sequencer()
         for x in range(0, numFrames):
-            yield from seq.startLiveReadout(fSize.hRes, 1)
+##            yield from seq.startLiveReadout(fSize.hRes, 1)
+            yield from seq.startLiveReadout(fSize.hRes, 4)
             if not seq.liveResult:
                 logging.error("ADC offset training failed to read frame")
                 return
             fAverage += numpy.reshape(seq.liveResult, (-1, self.ADC_CHANNELS))
         
+#        fAverage = fAverage[fAverage.shape[0]/2:, :] ## ignore the first half of the bars (keep only the lower 4)
         # Train the ADC offsets for a target of Average = Footroom + StandardDeviation
         fAverage //= numFrames
-        adcAverage = numpy.average(fAverage, 0)
-        adcStdDev = numpy.std(fAverage, 0)
+        adcAverage = numpy.average(fAverage, 0) ## average of each column
+        adcStdDev = numpy.std(fAverage, 0) ## standard deviation of each column
         for col in range(0, self.ADC_CHANNELS):
-            self.adcOffsets[col] -= (adcAverage[col] - adcStdDev[col] - self.ADC_FOOTROOM) / 2
+#            self.adcOffsets[col] -= (adcAverage[col] - adcStdDev[col] - self.ADC_FOOTROOM) / 2
+            self.adcOffsets[col] -= (adcAverage[col] - self.ADC_FOOTROOM) / 2 ## Nicholas >> try without subtracting the standard deviation
             if (self.adcOffsets[col] < self.ADC_OFFSET_MIN):
                 self.adcOffsets[col] = self.ADC_OFFSET_MIN
             elif (self.adcOffsets[col] > self.ADC_OFFSET_MAX):
@@ -813,21 +854,22 @@ class lux2100(api):
         fPeriod = self.frameClocks / self.LUX2100_SENSOR_HZ
         iterations=16
 
+## >> note from Nicholas >> the black bars along the top of the sensor are pretty close to useless, so I'm experimenting with not even using them
         # Enable black bars if not already done.
-        if (fSize.vDarkRows == 0):
-            logging.info("Enabling dark pixel readout")
-            fSize.vDarkRows = self.MAX_VDARK // 2
-            fSize.vOffset += fSize.vDarkRows
-            fSize.vRes -= fSize.vDarkRows
+#        if (fSize.vDarkRows == 0):
+#            logging.info("Enabling dark pixel readout")
+#            fSize.vDarkRows = self.MAX_VDARK // 2
+#            fSize.vOffset += fSize.vDarkRows
+#            fSize.vRes -= fSize.vDarkRows
 
             # Disable the FPGA timing engine and apply the changes.
-            self.timing.programInterm()
-            time.sleep(0.01) # Extra delay to allow frame readout to finish. 
-            self.regs.regTimingEn = False
-            self.updateReadoutWindow(fSize)
-            self.regs.regTimingEn = True
-            time.sleep(0.01)
-            self.timing.programStandard(self.frameClocks, self.exposureClocks)
+#            self.timing.programInterm()
+#            time.sleep(0.01) # Extra delay to allow frame readout to finish. 
+#            self.regs.regTimingEn = False
+#            self.updateReadoutWindow(fSize)
+#            self.regs.regTimingEn = True
+#            time.sleep(0.01)
+#            self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
         # Perform ADC offset calibration using the optical black regions.
         tRefresh = (self.frameClocks * 3) / self.LUX2100_SENSOR_HZ
@@ -848,6 +890,7 @@ class lux2100(api):
         if saveLocation:
             filename = "/offset_%dx%doff%dx%d" % (self.fSizeReal.hRes, self.fSizeReal.vRes, self.fSizeReal.hOffset, self.fSizeReal.vOffset)
             adcOffsetData = numpy.asarray(self.adcOffsets, dtype=numpy.int16)
+            logging.info(">>NF>> adcOffsetData is size: %s" % adcOffsetData.shape)
             adcOffsetData.tofile(self.calFilename(saveLocation + filename, ".bin"))
 
         # Restore the frame period and wavetable.
@@ -884,7 +927,7 @@ class lux2100(api):
             gain = 16 # HACK: G16 is a bit wonky and comes out closer to 10
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
 
-    def startFlatFieldExport(self, saveLocation='/media/sda1'):
+    def IGNORENFstartFlatFieldExport(self, saveLocation='/media/sda1'):
         logging.info('Starting flat-field export')
 
         display = pychronos.regmaps.display()
@@ -912,13 +955,17 @@ class lux2100(api):
             [0x2D, 0x2E, 0x2F]                                  #x16,24 dB
         ]
 
+
+        ## Nicholas >> turn off the black-bar data from the sensor (and therefore the black-bar corrections)
+        self.regs.regSensor[0x02] &= ~0x0200 ## disable the dark columns >> Nicholas
+
         # Disable certain FPGA overlays to get raw sensor values.
-        display.pipeline |= display.BYPASS_GAIN | display.BYPASS_GAMMA_TABLE | display.BYPASS_DEMOSAIC
+        display.pipeline |= display.BYPASS_GAIN | display.BYPASS_GAMMA_TABLE | display.BYPASS_DEMOSAIC | display.BYPASS_FPN
 
         # Enter test mode.
         self.regs.regPoutsel = 1
 
-        for gain in range(0, len(adcTestModeVoltages)):  
+        for gain in range(0, len(adcTestModeVoltages)):
             # Create a folder for each level of analog gain.
 
             gainPath = saveLocation + "/%s/x%d/" % (serialNum, 1 << gain)
@@ -941,7 +988,7 @@ class lux2100(api):
                 sensor.sciWrite(0x67, testVoltage)
 
                 # Get the average of 3 frames.
-                numFrameSamples = 3
+                numFrameSamples = 8
                 fAverage = numpy.zeros((vRes, hRes), dtype=numpy.uint16)
 
                 for i in range(0, numFrameSamples):
@@ -956,7 +1003,131 @@ class lux2100(api):
                 outFrame = numpy.array(fAverage / numFrameSamples, dtype=numpy.uint16)
                 numpy.save(fName, outFrame)
 
+        ## Nicholas >> turn back on the black-bar data from the sensor (and therefore the black-bar corrections)
+        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
+
         return True
+
+    def startFlatFieldExport(self):
+        logging.info('Starting Nicholas\'s On-Camera Calibration Calculation')
+
+        display = pychronos.regmaps.display()
+        sensor = pychronos.regmaps.sensor()
+        seq = sequencer()
+        hRes = pychronos.sensors.lux2100().getMaxGeometry().hRes
+        vRes = pychronos.sensors.lux2100().getMaxGeometry().vRes
+
+
+        gainSampCap =   [0x007F, 0x01FF, 0x0FFF, 0x0FFF, 0x0FFF]
+        gainSerFbCap =  [0x037F, 0x030F, 0x011F, 0x001F, 0x000F]
+
+        adcTestModeVoltages = [
+#            [0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34],   #x1, 0 dB
+#            [0x2D, 0x2E, 0x2F, 0x30, 0x31],                     #x2, 6 dB
+#            [0x2D, 0x2E, 0x2F, 0x30],                           #x4, 12 dB
+#            [0x2D, 0x2E, 0x2F],                                 #x8, 18 dB
+#            [0x2D, 0x2E, 0x2F]                                  #x16,24 dB
+            [0x2E, 0x34], #x1, 0dB
+            [0x2E, 0x31], #x2, 6dB
+            [0x2E, 0x30], #x4, 12dB
+            [0x2E, 0x2F], #x8, 18dB
+            [0x2E, 0x2F]  #x16, 24dB
+        ]
+
+        bright = 1
+        dim = 0
+
+        ## Nicholas >> turn off the black-bar data from the sensor (and therefore the black-bar corrections)
+        self.regs.regSensor[0x02] &= ~0x0200 ## disable the dark columns >> Nicholas
+
+        # Disable certain FPGA overlays to get raw sensor values.
+        display.pipeline |= display.BYPASS_GAIN | display.BYPASS_GAMMA_TABLE | display.BYPASS_DEMOSAIC | display.BYPASS_FPN | display.BYPASS_COLOR_MATRIX
+
+        # Enter test mode.
+        self.regs.regPoutsel = 1
+
+        for gain in range(0, len(adcTestModeVoltages)):
+
+            logging.info("Starting tests for gain: x%i" % (2**gain))
+            # Set analog gain value
+#            self.regs.regGainSelSamp = gainSampCap[gain]
+#            self.regs.regGainSelFb = gainSerFbCap[gain]
+            self.setGainNF(2**gain) ## set the analog gain level
+
+
+            # Inject a test voltage into the ADCs, see lux2100 datasheet p.30.
+            testVoltage = (adcTestModeVoltages[gain][dim] << 8) + 0x0011
+            sensor.sciWrite(0x67, testVoltage)
+
+            # Get the average of some frames.
+            numFrameSamples = 16
+            dimAverage = numpy.zeros((numFrameSamples, hRes)) ## set up a numpy array to store the column averages for each frame
+
+            for i in range(0, numFrameSamples):
+                logging.info("Getting <Dim> sample %i of %i" % (i, numFrameSamples))
+                yield from seq.startLiveReadout(hRes, vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                dimAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+
+            dimAverage = numpy.mean(dimAverage, axis=0) ## average all the samples for the total average value of each column
+
+
+            testVoltage = (adcTestModeVoltages[gain][bright] << 8) + 0x011
+            sensor.sciWrite(0x67, testVoltage)
+
+            brightAverage = numpy.zeros((numFrameSamples, hRes)) ## set up a numpy array to store the column averages for each frame
+
+            for i in range(0, numFrameSamples):
+                logging.info("Getting <Bright> sample %i of %i" % (i, numFrameSamples))
+                yield from seq.startLiveReadout(hRes, vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                brightAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+
+            brightAverage = numpy.mean(brightAverage, axis=0) ## average all the samples for the total average value of each column
+
+
+            logging.info ("now, I'll compute the gain")
+
+            columnGain = brightAverage - dimAverage ## find the difference between these brightness levels
+
+            columnGain = numpy.mean(columnGain) / columnGain ## calculate the gain for the sensor
+
+            logging.info("got values of: %s" % columnGain)
+
+            logging.info("Gain calculated; ensuring values are within range")
+
+            columnGain[columnGain > 1.9] = 1 ## if the gain is too high, just use a gain of 1
+
+            columnGain[columnGain < 0.5] = 1 ## if the gain is too low, just use a gain of 1
+
+
+            logging.info("Now, I'm re-packing the data into a file for export")
+
+            saveGainArray = (4096 * columnGain).astype('int32') ## convert to a fixed-point number that can be stored and decoded later
+
+            outputFileName = "/var/camera/cal/factory_colGain_G%i_WT66.bin" % (2**gain) ## I think this should work...
+
+            with open(outputFileName, "wb") as colGainFileNF: ## save the file
+                colGainFileNF.write(pack("<7680B", *bytearray(saveGainArray)))
+
+
+        ## Nicholas >> turn back on the black-bar data from the sensor (and therefore the black-bar corrections)
+#        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
+
+        logging.info("Finished Nicholas\'s calibration, now I'm putting things back")
+
+        self.regs.regSelVlnkeepRst = 30
+        self.regs.regSelVdum = 0
+        self.regs.regPoutsel = 2
+
+        display.pipeline &= ~(display.BYPASS_GAIN | display.BYPASS_GAMMA_TABLE | display.BYPASS_DEMOSAIC | display.BYPASS_FPN | display.BYPASS_COLOR_MATRIX)
+
+        return True
+
 
     def importColGains(self, sourceLocation='/media/sda1', calLocation='/var/camera/cal'):
         # Copy column gain calibration data into camera.

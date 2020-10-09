@@ -14,9 +14,13 @@ from pychronos.power import power
 from pychronos.error import *
 from pychronos.types import *
 
+from pychronos.regmaps.imagerNF import imager
+
 from . import utils
 from . import props
 from .props import camProperty as camProperty
+
+from struct import pack ## added for exporting gain data
 
 # Recording LEDs
 REC_LED_FRONT = "/sys/class/gpio/gpio41/value"
@@ -58,6 +62,7 @@ class camera:
         self.dimmSize = [0, 0]
         self.power = power(onChange=lambda n, v: self.onChange(n, v) if self.onChange else None)
         self.io = io(onChange=lambda n, v: self.onChange(n, v) if self.onChange else None)
+        self.imager = imager
         
         # Setup internal defaults.
         self.__state = 'idle'
@@ -612,13 +617,13 @@ class camera:
 
         fAverage = numpy.zeros((fSize.vRes, fSize.hRes), dtype=numpy.uint16)
         if (useLiveBuffer):
-            # Readout anfd average the frames from the live buffer.
+            # Readout and average the frames from the live buffer.
             for i in range(0, numFrames):
                 # Breakout in case of a soft reset.
                 if self.__state == 'reset':
                     self.__setState('idle')
                     return
-                logging.debug('waiting for frame %d of %d', i+1, numFrames)
+                logging.info('waiting for frame %d of %d', i+1, numFrames)
                 yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
                 if not seq.liveResult:
                     self.__setState('idle')
@@ -627,7 +632,7 @@ class camera:
         else:
             # Take a recording and read the results from the live buffer.
             program = [regmaps.seqcommand(blockSize=numFrames+1, recTermBlkEnd=True, recTermBlkFull=True)]
-            logging.debug('making recording')
+            logging.info('making recording')
             yield from seq.startCustomRecording([program])
             addr = seq.regionStart
             for i in range(0, numFrames):
@@ -700,6 +705,150 @@ class camera:
         # Restore the previous exposure settings.
         self.__setupExposure(self.__exposurePeriod, self.__exposureMode)
     
+
+    def __NFGain(self, numFrames=32): ## this is the on-camera column-gain calculation routine made by Nicholas
+
+        ## improvements:
+        ## - set the size of the frame (to max)
+        ## - set the gain to all the different levels automatically
+        ## - make it so that the gain can be calculated while using analog test mode
+
+        logging.info("starting Nicholas's gain calculation routine")
+        logging.info("numFrames is %i" % numFrames)
+        yield 1
+        logging.info("Get ready to capture bright frames in:...")
+        yield 1
+        logging.info("3...")
+        yield 1
+        logging.info("2...")
+        yield 1
+        logging.info("1...")
+        yield 1
+        fSize = self.sensor.getCurrentGeometry() ## this will get the dimensions of the sensor
+        seq = regmaps.sequencer() ## this is a home for the readout from the sensor
+        logging.info("Capturing...")
+        logging.info("fSize gives back: %s" % str(fSize))
+        logging.info("hRes: %i, vRes: %i" % (fSize.hRes, fSize.vRes))
+        brightArray = numpy.zeros((numFrames, fSize.hRes), dtype=numpy.float) ## set up a 'bright' array
+        logging.info ("array of zeros created")
+        for i in range(0, numFrames):
+            # Breakout in case of a soft reset.
+            if self.__state == 'reset':
+                logging.info("state was stuck in \"reset\"")
+                self.__setState('idle')
+                return
+            logging.info('waiting for <bright> frame %d of %d' % (i+1, numFrames))
+            yield 0.3
+            yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+            if not seq.liveResult:
+                self.__setState('idle')
+                raise CalibrationError("Failed to acquire frames during Nicholas's gain calc")
+
+#            logging.info("the size of the data is: %s", numpy.asarray(seq.liveResult).shape)
+            brightArray[i, :] = numpy.mean(numpy.asarray(seq.liveResult)[8:, :], axis=0) ## keep the mean of each column
+#            brightArray[i, :] = numpy.median(numpy.asarray(seq.liveResult)[8:, :], axis=0) ## keep the median of each column
+
+        logging.info("here's the brightArray: %s" % brightArray)
+
+        yield 1
+        logging.info("Get ready to capture dim frames in...")
+        yield 1
+        logging.info("10...")
+        yield 1
+        logging.info("9...")
+        yield 1
+        logging.info("8...")
+        yield 1
+        logging.info("7...")
+        yield 1
+        logging.info("6...")
+        yield 1
+        logging.info("5...")
+        yield 1
+        logging.info("4...")
+        yield 1
+        logging.info("3...")
+        yield 1
+        logging.info("2...")
+        yield 1
+        logging.info("1...")
+        yield 1
+
+        dimArray = numpy.zeros((numFrames, fSize.hRes), dtype=numpy.float)
+        logging.info("dimArray Created")
+        for i in range(0, numFrames):
+            # Breakout in case of a soft reset.
+            if self.__state == 'reset':
+                logging.info("state was stuck in \"reset\"")
+                self.__setState('idle')
+                return
+            logging.info('waiting for <dim> frame %d of %d' % (i+1, numFrames))
+            yield 0.3
+            yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+            if not seq.liveResult:
+                self.__setState('idle')
+                raise CalibrationError("Failed to acquire frames during Nicholas's gain calc")
+
+#            logging.info("the size of the data is: %s", numpy.asarray(seq.liveResult).shape)
+            dimArray[i, :] = numpy.mean(numpy.asarray(seq.liveResult)[8:, :], axis=0) ## get the mean of each column
+#            dimArray[i, :] = numpy.median(numpy.asarray(seq.liveResult)[8:, :], axis=0) ## get the median of each column
+
+        logging.info("here's the dimArray: %s" % dimArray)
+
+        logging.info("averaging brights and dims")
+
+        brightArray = numpy.mean(brightArray, axis=0)
+        dimArray = numpy.mean(dimArray, axis=0)
+
+        logging.info("calculating gain")
+
+        columnGain = brightArray - dimArray ## find the difference between these brightness levels
+
+        columnGain = numpy.mean(columnGain) / columnGain ## calculate the gain for the sensor
+
+        logging.info("got values of: %s" % columnGain)
+
+        logging.info("Gain calculated; ensuring values are within range")
+
+        columnGain[columnGain > 1.9] = 1 ## if the gain is too high, just use a gain of 1
+
+        columnGain[columnGain < 0.5] = 1 ## if the gain is too low, just use a gain of 1
+
+
+        logging.info("Now, I'm re-packing the data into a file for export")
+
+        saveGainArray = (4096 * columnGain).astype('int32') ## convert to a fixed-point number that can be stored and decoded later
+
+        outputFileName = "/var/camera/cal/factory_colGain_G4_WT66.bin"
+
+        with open(outputFileName, "wb") as colGainFileNF: ## save the file
+            colGainFileNF.write(pack("<7680B", *bytearray(saveGainArray)))
+
+        logging.info(">>> End of Nicholas's \"Gain Calculation\" routine")
+
+
+
+    @camProperty()
+    def blackBarOffset(self):
+        """ Get the offset value for a black bar (index 0-31), value of 0-4095"""
+        logging.info(">> Nicholas >> Black-bar offsets requested")
+        return "StringyBoi"
+    @blackBarOffset.setter
+    def blackBarOffset(self, value):
+        """ Set the offset value for a black bar (index 0-31), value of 0-4095"""
+        logging.info(">> Faliszewski ")
+        temp = ">> Faliszewski2 >> values are: %s" % (str(value))
+        logging.info(temp)
+        temp2 = str(value.get("a"))
+        logging.info(">> Faliszewski3 >> %s" % temp2)
+        self.imager.setBbOffs(value)
+        logging.info(">>> Faliszewski4 >>> Past setBbOffs Call")
+
+
+
+
+
+
     def startCalibration(self, blackCal=False, analogCal=False, zeroTimeBlackCal=False, saveCal=False, factory=False):
         """Begin one or more calibration procedures at the current settings.
 
@@ -749,6 +898,8 @@ class camera:
         if factory:
             calLocation = "/var/camera/cal"
             fpnLocation = "/var/camera/cal/factoryFPN"
+            logging.info('>>> NF >>> factory calibration requested <<< NF <<<')
+            yield from self.__NFGain() ## do my own calculation for the column gains
         elif saveCal:
             calLocation = "/var/camera/cal"
             fpnLocation = "/var/camera/userFPN"
@@ -829,7 +980,8 @@ class camera:
         data can be imported to the camera using the `importCalData` method.
         """
         try:
-            yield from self.sensor.startFlatFieldExport()
+#            yield from self.sensor.startFlatFieldExport()
+            yield from self.sensor.startNFCalibration()
         except Exception as e:
             self.__setState('idle')
             raise e
