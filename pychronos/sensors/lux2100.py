@@ -105,16 +105,12 @@ class lux2100(api):
     @property
     def cfaPattern(self):
         try:
-            logging.info(">>> NF >>> CFA-Pattern >>> trying to open \"lux2100-color\"")
             fp = open(self.board["lux2100-color"])
             if int(fp.read()) == 1:
-                logging.info (">>> NF >>> sending back GRBG")
                 return 'GRBG'
             else:
-                logging.info (">>> NF >>> sending back \"None\" from else")
                 return None
         except:
-            logging.info (">>> NF >>> sending back \"None\" from Except")
             return None
     
     @property
@@ -241,7 +237,8 @@ class lux2100(api):
 
         # Set an extra serial gain register if rev is 2
         if (self.regs.revChip == 2):
-            self.regs.regSerialGainV2 = 0x0079
+#            self.regs.regSerialGainV2 = 0x0079
+            self.regs.regSerialGainV2 = 0x0019
 
         # Setup ADC training.
         self.regs.regPclkVblank = 0xFC0 # Set blanking pattern for ADC training.
@@ -311,9 +308,13 @@ class lux2100(api):
 
         self.regs.regData[0x05] = 0x0007 # delay to match ADC latency
         # Configure for nominal gain.
-        self.regs.regGainSelSamp = 0x007f ## register 0x57
-        self.regs.regGainSelFb = 0x007f ## register 0x58
-        self.regs.regSerialGain = 0x03 ## register 0x58
+#        self.regs.regGainSelSamp = 0x007f ## register 0x57
+#        self.regs.regGainSelFb = 0x007f ## register 0x58
+#        self.regs.regSerialGain = 0x03 ## register 0x58
+        self.regs.regGainSelSamp = 0x003f ## register 0x57
+        self.regs.regGainSelFb = 0x0001 ## register 0x58
+        self.regs.regSerialGain = 0x07 ## register 0x58
+
 
         # Enable ADC offset correction.
         for x in range(0, self.ADC_CHANNELS):
@@ -541,13 +542,11 @@ class lux2100(api):
     def getColorMatrix(self, cTempK=5500):
         if not self.cfaPattern:
             # Identity matrix for monochrome cameras.
-            logging.info (">> NF >> sending mono matrix (Identity)")
             return [1.0, 0.0, 0.0,
                     0.0, 1.0, 0.0,
                     0.0, 0.0, 1.0]
         else:
             # CIECAM16/D55
-            logging.info (">> NF >> sending color matrix (cfaPattern gave something back)")
             return [ 1.9147, -0.5768, -0.2342, 
                     -0.3056,  1.3895, -0.0969,
                      0.1272, -0.9531,  1.6492]
@@ -567,7 +566,7 @@ class lux2100(api):
     def maxGain(self):
         return 16
     
-    def setGain(self, gain):
+    def DISABLEsetGain(self, gain):
         gainConfig = {  # Sampling Cap, Feedback Cap, Serial Gain
             1:          ( 0x007f,       0x007f,       0x3),
             2:          ( 0x01ff,       0x000f,       0x3),
@@ -583,15 +582,37 @@ class lux2100(api):
         self.regs.regGainSelFb = feedback
         self.regs.regSerialGain = sgain
 
-    def setGainNF(self, gain):
-        gainConfig = {
-        1:			( 0x007f,	0x007f,		0x3,	0x7 ),
-        2:			( 0x01ff,	0x000f,		0x3,	0x7 ),
-        4:			( 0x0fff,	0x001f,		0x1,	0x7 ),
-        8:			( 0x0fff,	0x001f,		0x0,	0x7 ),
-        16:			( 0x0fff,	0x000f,		0x0,	0x7 ),
+    def setGain(self, gain):
+        gainConfig = { ## sampling caps, feedback caps, serial caps, icol caps
+#            1:          ( 0x000f,   0x0001,       0x7,  0x1 ), ## new settings for x1
+#            1:          ( 0x001f,   0x000f,       0x7,  0x3 ), ## alternate acceptable x1 settings
 
-    }
+            1:          ( 0x003f,   0x0001,       0x7,  0x1 ), ## new settings for x1 (gain is ~1.25)
+#            1:          ( 0x07ff,   0x0003,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25)
+#            1:          ( 0x0001,   0x0000,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25)
+
+            2:          ( 0x0fff,   0x0001,       0x7,  0x1 ), ## new settings for x2
+#            2:          ( 0x0fff,   0x0007,       0x7,  0x3 ), ## alternate acceptable x2 settings
+
+            4:          ( 0x0fff,   0x0001,       0x7,  0x3 ), ## new settings for x4 (gain is ~4.0)
+#            4:          ( 0x07ff,   0x0003,       0x7,  0x7 ), ## alternate acceptable x4 settings
+
+            8:          ( 0x07ff,   0x0000,       0x7,  0x3 ), ## new settings for x8 (gain is ~7.5)
+#            8:          ( 0x003f,   0x0000,       0x7,  0x7 ), ## alternate acceptable x8 settings
+
+            16:         ( 0x01ff,   0x0000,       0x7,  0x7 ), ## actual gain ~9.75
+#            16:         ( 0x03ff,   0x0000,       0x7,  0x7 ), ## actual gain ~10.5 (alternate acceptable settings)
+#            16:         ( 0x001f,   0x0000,       0x7,  0xf ), ## actual gain ~9.0 (alternate acceptable settings)
+
+            10:         ( 0x007f,   0x007f,       0x3,  0x7 ), ## previous default x1 setting
+            20:         ( 0x01ff,   0x000f,       0x3,  0x7 ), ## previous default x2 setting
+            40:         ( 0x0fff,   0x001f,       0x1,  0x7 ), ## previous default x4 setting
+            80:         ( 0x0fff,   0x001f,       0x0,  0x7 ), ## previous default x8 setting
+            160:        ( 0x0fff,   0x000f,       0x0,  0x7 ), ## previous default x16 setting
+
+        }
+        logging.info (">> NF >> Setting Analog Gain to: %i" % gain)
+
         if (not int(gain) in gainConfig):
             raise ValueError("Unsupported image gain setting")
 
@@ -635,7 +656,7 @@ class lux2100(api):
         while (x != 0):
             icolnbits += (x & 1)
             x >>= 1
- 
+
         return (sampnbits * icolnbits) / (gsernbits * fbacknbits)
 
     def __backupSettings(self):
@@ -835,8 +856,9 @@ class lux2100(api):
         adcAverage = numpy.average(fAverage, 0) ## average of each column
         adcStdDev = numpy.std(fAverage, 0) ## standard deviation of each column
         for col in range(0, self.ADC_CHANNELS):
-#            self.adcOffsets[col] -= (adcAverage[col] - adcStdDev[col] - self.ADC_FOOTROOM) / 2
-            self.adcOffsets[col] -= (adcAverage[col] - self.ADC_FOOTROOM) / 2 ## Nicholas >> try without subtracting the standard deviation
+            self.adcOffsets[col] -= (adcAverage[col] - adcStdDev[col] - self.ADC_FOOTROOM) / 2
+#            self.adcOffsets[col] -= (adcAverage[col] - self.ADC_FOOTROOM) / 2 ## Nicholas >> try without subtracting the standard deviation
+            logging.info(">> NF >> column: %i,  adcAverage: %i,  offsets: %i" % (col, adcAverage[col], self.adcOffsets[col]))
             if (self.adcOffsets[col] < self.ADC_OFFSET_MIN):
                 self.adcOffsets[col] = self.ADC_OFFSET_MIN
             elif (self.adcOffsets[col] > self.ADC_OFFSET_MAX):
@@ -927,7 +949,7 @@ class lux2100(api):
             gain = 16 # HACK: G16 is a bit wonky and comes out closer to 10
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
 
-    def IGNORENFstartFlatFieldExport(self, saveLocation='/media/sda1'):
+    def IGNOREstartFlatFieldExport(self, saveLocation='/media/sda1'):
         logging.info('Starting flat-field export')
 
         display = pychronos.regmaps.display()
@@ -979,6 +1001,7 @@ class lux2100(api):
             # Set analog gain value
             self.regs.regGainSelSamp = gainSampCap[gain]
             self.regs.regGainSelFb = gainSerFbCap[gain]
+#            self.setGain(2**gain) ## set the analog gain level
 
             # Iterate and collect flat-fields at each level of ADC test voltage step.
             for intensity in range(0, len(adcTestModeVoltages[gain])):
@@ -1004,7 +1027,7 @@ class lux2100(api):
                 numpy.save(fName, outFrame)
 
         ## Nicholas >> turn back on the black-bar data from the sensor (and therefore the black-bar corrections)
-        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
+#        self.regs.regSensor[0x02] |= 0x0200 ## enable the dark columns >> Nicholas
 
         return True
 
@@ -1018,20 +1041,33 @@ class lux2100(api):
         vRes = pychronos.sensors.lux2100().getMaxGeometry().vRes
 
 
-        gainSampCap =   [0x007F, 0x01FF, 0x0FFF, 0x0FFF, 0x0FFF]
-        gainSerFbCap =  [0x037F, 0x030F, 0x011F, 0x001F, 0x000F]
-
         adcTestModeVoltages = [
 #            [0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34],   #x1, 0 dB
 #            [0x2D, 0x2E, 0x2F, 0x30, 0x31],                     #x2, 6 dB
 #            [0x2D, 0x2E, 0x2F, 0x30],                           #x4, 12 dB
 #            [0x2D, 0x2E, 0x2F],                                 #x8, 18 dB
 #            [0x2D, 0x2E, 0x2F]                                  #x16,24 dB
+
+ ## on-cam calibration settings 1
             [0x2E, 0x34], #x1, 0dB
             [0x2E, 0x31], #x2, 6dB
             [0x2E, 0x30], #x4, 12dB
             [0x2E, 0x2F], #x8, 18dB
             [0x2E, 0x2F]  #x16, 24dB
+
+ ## on-cam calibration settings 2
+#            [0x2D, 0x34], #x1, 0 dB
+#            [0x2D, 0x31], #x2, 6 dB
+#            [0x2D, 0x30], #x4, 12 dB
+#            [0x2D, 0x2F], #x8, 18 dB
+#            [0x2D, 0x2F]  #x16,24 dB
+
+ ## on-cam calibration settings 3
+#            [0x2D, 0x2E], #x1, 0 dB
+#            [0x2D, 0x2E], #x2, 6 dB
+#            [0x2D, 0x2E], #x4, 12 dB
+#            [0x2D, 0x2E], #x8, 18 dB
+#            [0x2D, 0x2E]  #x16,24 dB
         ]
 
         bright = 1
@@ -1049,10 +1085,9 @@ class lux2100(api):
         for gain in range(0, len(adcTestModeVoltages)):
 
             logging.info("Starting tests for gain: x%i" % (2**gain))
+
             # Set analog gain value
-#            self.regs.regGainSelSamp = gainSampCap[gain]
-#            self.regs.regGainSelFb = gainSerFbCap[gain]
-            self.setGainNF(2**gain) ## set the analog gain level
+            self.setGain(2**gain) ## set the analog gain level
 
 
             # Inject a test voltage into the ADCs, see lux2100 datasheet p.30.
