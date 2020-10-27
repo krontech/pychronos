@@ -231,7 +231,7 @@ class lux2100(api):
 
         # Set an extra serial gain register if rev is 2
         if (self.regs.revChip == 2):
-            self.regs.regSerialGainV2 = 0x0079
+            self.regs.regSerialGainV2 = 0x0019 ## register 0x76 (Icol Gain Caps) >> new default gain of x1 (technically, ~1.25)
 
         # Setup ADC training.
         self.regs.regPclkVblank = 0xFC0 # Set blanking pattern for ADC training.
@@ -277,10 +277,10 @@ class lux2100(api):
         self.regs.regSensor[0x6C] = 0x8AAA # internal control register
         self.regs.regData[0x05] = 0x0007 # delay to match ADC latency
         
-        # Configure for nominal gain.
-        self.regs.regGainSelSamp = 0x007f
-        self.regs.regGainSelFb = 0x007f
-        self.regs.regSerialGain = 0x03
+        # Configure for nominal gain. ## new default gain of x1 (technically ~1.25)
+        self.regs.regGainSelSamp = 0x003f ## register 0x57 (Sample Caps)
+        self.regs.regGainSelFb = 0x0001 ## register 0x58 (Feedback Caps)
+        self.regs.regSerialGain = 0x07 ## register 0x58 (Serial Gain Caps)
 
         # Enable ADC offset correction.
         for x in range(0, self.ADC_CHANNELS):
@@ -533,20 +533,46 @@ class lux2100(api):
         return 16
     
     def setGain(self, gain):
-        gainConfig = {  # Sampling Cap, Feedback Cap, Serial Gain
-            1:          ( 0x007f,       0x007f,       0x3),
-            2:          ( 0x01ff,       0x000f,       0x3),
-            4:          ( 0x0fff,       0x001f,       0x1),
-            8:          ( 0x0fff,       0x001f,       0x0),
-            16:         ( 0x0fff,       0x000f,       0x0),
+        gainConfig = { ## sampling caps, feedback caps, serial caps, icol caps
+            1:          ( 0x003f,   0x0001,       0x7,  0x1 ), ## new settings for x1 (gain is ~1.25)
+#            1:          ( 0x07ff,   0x0003,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25)
+#            1:          ( 0x0001,   0x0000,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25)
+
+            2:          ( 0x0fff,   0x0001,       0x7,  0x1 ), ## new settings for x2 (gain is ~2.0)
+#            2:          ( 0x0fff,   0x0007,       0x7,  0x3 ), ## alternate acceptable x2 settings
+
+            4:          ( 0x0fff,   0x0001,       0x7,  0x3 ), ## new settings for x4 (gain is ~4.0)
+#            4:          ( 0x07ff,   0x0003,       0x7,  0x7 ), ## alternate acceptable x4 settings
+
+            8:          ( 0x07ff,   0x0000,       0x7,  0x3 ), ## new settings for x8 (gain is ~7.5)
+#            8:          ( 0x003f,   0x0000,       0x7,  0x7 ), ## alternate acceptable x8 settings
+
+            16:         ( 0x01ff,   0x0000,       0x7,  0x7 ), ## actual gain ~9.75
+#            16:         ( 0x03ff,   0x0000,       0x7,  0x7 ), ## actual gain ~10.5 (alternate acceptable settings)
+#            16:         ( 0x001f,   0x0000,       0x7,  0xf ), ## actual gain ~9.0 (alternate acceptable settings)
+
+#            1:         ( 0x007f,   0x007f,       0x3,  0x7 ), ## previous default x1 setting
+#            2:         ( 0x01ff,   0x000f,       0x3,  0x7 ), ## previous default x2 setting
+#            4:         ( 0x0fff,   0x001f,       0x1,  0x7 ), ## previous default x4 setting
+#            8:         ( 0x0fff,   0x001f,       0x0,  0x7 ), ## previous default x8 setting
+#            16:        ( 0x0fff,   0x000f,       0x0,  0x7 ), ## previous default x16 setting
         }
+
         if (not int(gain) in gainConfig):
             raise ValueError("Unsupported image gain setting")
-        
-        samp, feedback, sgain = gainConfig[int(gain)]
-        self.regs.regGainSelSamp = samp
-        self.regs.regGainSelFb = feedback
-        self.regs.regSerialGain = sgain
+
+        samp, feedback, sgain, icol = gainConfig[int(gain)] ## copy a gain setting from one of the lines above
+        self.regs.regGainSelSamp = samp ## sample caps setting
+        self.regs.regGainSelFb = feedback ## feedback caps setting
+        self.regs.regSerialGain = sgain ## serial gain register caps setting
+##        self.regs.regIcolCapEn = icol ## icol caps setting
+
+         ## For some reason, when I try writing to just the "regIcolCapEn" register, it very occasionally
+         ## completely messes up the image. This seems to be due to the other bits in this register getting
+         ## affected somehow. Perhaps writing to it ("regIcolCapEn") only works most of the time. This
+         ## is the same register as "regIcolCapEn", but I can write an entire byte (with regIcolCapEn, it
+         ## only writes the upper nibble [mask is 0x00f0]).
+        self.regs.regSerialGainV2 = ( 0x0010 * icol ) + 0x0009 ## icol caps setting (also write some of the "reserved" mystery bits)
 
     def getCurrentGain(self):
         sampnbits = 4
@@ -849,7 +875,7 @@ class lux2100(api):
             gain = 16 # HACK: G16 is a bit wonky and comes out closer to 10
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
 
-    def startFlatFieldExport(self, saveLocation='/media/sda1'):
+    def startFlatFieldExport(self, saveLocation='/media/sda1'): ## This function will get replaced in an upcoming commit
         logging.debug('Starting flat-field export')
 
         display = pychronos.regmaps.display()
@@ -895,8 +921,9 @@ class lux2100(api):
                 return False
 
             # Set analog gain value
-            self.regs.regGainSelSamp = gainSampCap[gain]
-            self.regs.regGainSelFb = gainSerFbCap[gain]
+#            self.regs.regGainSelSamp = gainSampCap[gain]
+#            self.regs.regGainSelFb = gainSerFbCap[gain]
+            self.setGain(2**gain) ## set the analog gain level
 
             # Iterate and collect flat-fields at each level of ADC test voltage step.
             for intensity in range(0, len(adcTestModeVoltages[gain])):
