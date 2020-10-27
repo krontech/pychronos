@@ -14,6 +14,8 @@ from pychronos.regmaps import sequencer, ioInterface
 from pychronos.sensors import api, frameGeometry
 from . import lux2100regs, lux2100wt, lux2100timing
 
+from struct import pack ## added for exporting gain data
+
 class lux2100(api):
     """Driver for the Luxima LUX2100 image sensor.
 
@@ -719,6 +721,7 @@ class lux2100(api):
         for col in range(self.MAX_HRES):
             colGainRegs.mem16[col] = int(gain2pt[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
             colCurveRegs.mem16[col] = 0
+
         
         display = pychronos.regmaps.display()
         display.gainControl &= ~display.GAINCTL_3POINT
@@ -875,7 +878,7 @@ class lux2100(api):
             gain = 16 # HACK: G16 is a bit wonky and comes out closer to 10
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
 
-    def startFlatFieldExport(self, saveLocation='/media/sda1'): ## This function will get replaced in an upcoming commit
+    def IGNOREstartFlatFieldExport(self, saveLocation='/media/sda1'): ## This function will get replaced in an upcoming commit
         logging.debug('Starting flat-field export')
 
         display = pychronos.regmaps.display()
@@ -947,6 +950,147 @@ class lux2100(api):
                 fName = gainPath + "%d.npy" % intensity
                 outFrame = numpy.array(fAverage / numFrameSamples, dtype=numpy.uint16)
                 numpy.save(fName, outFrame)
+
+        return True
+
+    def startFlatFieldExport(self):
+        logging.info('Starting Nicholas\'s On-Camera Calibration Calculation')
+
+        display = pychronos.regmaps.display()
+        seq = sequencer()
+        hRes = pychronos.sensors.lux2100().getMaxGeometry().hRes
+        vRes = pychronos.sensors.lux2100().getMaxGeometry().vRes
+
+
+        brightVoltage = 0
+        dimVoltage = 0
+
+        ## Disable FPGA overlays and transformations to get raw sensor values.
+        display.pipeline |= (display.BYPASS_GAIN | display.BYPASS_GAMMA_TABLE | display.BYPASS_DEMOSAIC | display.BYPASS_FPN | display.BYPASS_COLOR_MATRIX)
+
+         ## enable Analog Test Mode
+        self.regs.regPoutsel = 3
+        self.regs.regSelVdum = 3
+        self.regs.regSelVlnkeepRst = 0
+
+        for gain in range(0, len(adcTestModeVoltages)): ## step for each gain level's settings
+            # Set analog gain value
+            self.setGain(2**gain) ## set the analog gain level
+
+             ## set all the ADC offsets to zero first >> might change this to do  an analog cal / adc offset iteration  instead
+            for i in range(0, self.ADC_CHANNELS):
+                self.adcOffsets[i] = 0
+                self.regs.regAdcOs[i] = 0
+
+            ## find a reasonable value for "dim"
+            for voltage in range(10, 32):
+                self.regs.regSelVlnkeepRst = voltage ## set the test mode voltage (brightness)
+                yield 0.01 ## short delay to allow new frames to enter the buffer
+                yield from seq.startLiveReadout(hRes, vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+                if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
+                    break ## don't need to keep looking
+            logging.info(">>NF>>dim voltage: %i   min is: %i,  max is: %i" % (voltage, numpy.min(frame), numpy.max(frame)))
+
+            dimVoltage = voltage
+
+
+            ## find a reasonable value for "bright"
+            for voltage in range(31, 15, -1):
+                self.regs.regSelVlnkeepRst = voltage ## set the test mode voltage (brightness)
+                yield 0.01 ## short delay to allow new frames to enter the buffer
+                yield from seq.startLiveReadout(hRes, vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+                if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
+                    break ## don't need to keep looking
+            logging.info(">>NF>> bright voltage: %i   min is: %i,  max is: %i" % (voltage,numpy.min(frame), numpy.max(frame)))
+
+            brightVoltage = voltage
+
+
+            if dimVoltage >= brightVoltage:
+                dimVoltage = brightVoltage - 1 ## force 'dim' to be darker than 'bright'
+
+
+
+            # Get the average of some frames.
+            numFrameSamples = 32
+
+
+            self.regs.regSelVlnkeepRst = dimVoltage ## set the test mode voltage (brightness)
+            dimAverage = numpy.zeros((numFrameSamples, hRes)) ## set up a numpy array to store the column averages for each frame
+
+            for i in range(0, numFrameSamples):
+                yield 0.01 ## short delay to allow new frames to be captured
+                logging.info("Getting <Dim> sample %i of %i" % (i, numFrameSamples))
+                yield from seq.startLiveReadout(hRes, vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                dimAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+
+            dimAverage = numpy.mean(dimAverage, axis=0) ## average all the samples keeping the total average value of each column
+
+
+            self.regs.regSelVlnkeepRst = brightVoltage ## set the test mode voltage (brightness)
+            brightAverage = numpy.zeros((numFrameSamples, hRes)) ## set up a numpy array to store the column averages for each frame
+
+            for i in range(0, numFrameSamples):
+                yield 0.01 ## short delay to allow new frames to be captured
+                logging.info("Getting <Bright> sample %i of %i" % (i, numFrameSamples))
+                yield from seq.startLiveReadout(hRes, vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                brightAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+
+            brightAverage = numpy.mean(brightAverage, axis=0) ## average all the samples keeping the total average value of each column
+
+
+
+            logging.info ("now, I'll compute the gain")
+
+            columnGain = brightAverage - dimAverage ## find the difference between these brightness levels
+
+            columnGain = numpy.mean(columnGain) / columnGain ## calculate the gain for the sensor
+
+            logging.info("got values of: %s" % columnGain)
+
+            logging.info("Gain calculated; ensuring values are within range")
+
+            columnGain[columnGain > 1.9] = 1 ## if the gain is too high, just use a gain of 1
+
+            columnGain[columnGain < 0.5] = 1 ## if the gain is too low, just use a gain of 1
+
+
+            logging.info("Now, I'm re-packing the data into a file for export")
+
+            saveGainArray = (4096 * columnGain).astype('int32') ## convert to a fixed-point number that can be stored and decoded later
+
+            outputFileName = "/var/camera/cal/factory_colGain_G%i_WT66.bin" % (2**gain) ## I think this should work...
+
+            with open(outputFileName, "wb") as colGainFileNF: ## save the file
+                colGainFileNF.write(pack("<7680B", *bytearray(saveGainArray)))
+
+
+
+        logging.info("Finished Nicholas\'s calibration, now I'm taking the sensor back out of \"Analog Test Mode\"")
+
+         ## take sensor out of "Analog Test Mode"
+        self.regs.regSelVlnkeepRst = 30
+        self.regs.regSelVdum = 0
+        self.regs.regPoutsel = 2
+
+        self.setGain(1) ## set the gain back to x1
+
+         ## re-enable FPGA overlays
+        display.pipeline &= ~(display.BYPASS_GAIN | display.BYPASS_GAMMA_TABLE | display.BYPASS_DEMOSAIC | display.BYPASS_FPN | display.BYPASS_COLOR_MATRIX)
 
         return True
 
