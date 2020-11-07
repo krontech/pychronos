@@ -398,7 +398,6 @@ class lux2100(api):
         self.regs.regNbDrkRowsTop = size.vDarkRows * 2
 
     def setResolution(self, size):
-        logging.info(">>NF>> setResolution got size: %s" % size)
         if (not self.isValidResolution(size)):
             raise ValueError("Invalid frame resolution")
         
@@ -749,7 +748,6 @@ class lux2100(api):
         if gain > 8:
             gain = 16 # HACK: G16 is a bit wonky, and actually comes out closer to 10
         filename = calLocation + "/factory_colGain_G%d_WT%d.bin" % (gain, wtClocks)
-        logging.info(">>NF>> calLocation is: %s" % filename)
         try:
             logging.info("Loading column gain calibration from %s", filename)
             colGainData = numpy.fromfile(filename, dtype=numpy.int32, count=self.MAX_HRES)
@@ -975,187 +973,205 @@ class lux2100(api):
         logging.info("Resolution starts at: %s" % fSize) ## print the resolution
 
 
-        wtSettings = { ## hRes, vRes, hOff, vOff,  minFrameTime, fSizeWords, ramSizeWords, startAddr
-            66:   (1920, 1080,   0,   0, 0.00099989, 97216, 1073741824, 587520), ## settings for 1920x1080 (WT66) >> should be default
-            45:   (1280, 1024, 320,  28, 0.00066137, 61440, 1073741824, 587520), ## settings for 1280x1024 (WT45)
-            35:   (1024,  768, 448, 156,   0.000395, 36864, 1073741824, 587520), ## settings for 1024x768 (WT35)
-            25:   ( 800,  600, 576, 240, 0.00022975, 22528, 1073741824, 587520)  ## settings for 800x600 (WT25)
-        }
-
         seq = pychronos.regmaps.sequencer() ## get a sequencer instance
 
-        logging.info("starting WT loop")
 
-        for waveTable in [66, 45, 35, 25]: ## step through all the wavetables
+        fSize = self.getCurrentGeometry() ## get the resolution (and offset) settings ## check if my settings worked
+        logging.info("Resolution is: %s" % fSize) ## print the resolution
 
-            fSize.hRes, fSize.vRes, fSize.hOffset, fSize.vOffset, fSize.minFrameTime, fSizeWords, ramSizeWords, startAddr = wtSettings[waveTable] ## get each of the settings from the table/list above
+        waveTable = self.__currentWavetable.clocks ## get the current wavetable (should be 66)
 
-            logging.info("setting resolution")
-            self.setResolution(fSize) ## >> that's easy enough
+        if waveTable != 66 or fSize.hRes != 1920: ## not the right resolution
+            fSize.hRes = 1920
+            fSize.vRes = 1080
+            fSize.hOffset = 0
+            fSize.vOffset = 0
+            fSize.minFrameTime = 0.00099989
+            fSizeWords = 97216
+            startAddr = 587520
 
-
+            logging.info("Resolution / wavetable incorrect; changing now")
+            self.setResolution(fSize) ## apply the new resolution
             seq.frameSize = fSizeWords ## set sequencer's frame size
             seq.regionStart = startAddr ## set sequencer's starting address (should always be the same)
-#            seq.regionStop = (ramSizeWords // fSizeWords) * fSizeWords ## setup the maximum available memory >> this will probably need to be changed to work with 8Gb models
             seq.regionStop = startAddr + (1000 * fSizeWords) ## set the end address to 1000 frames (so that it fits on any RAM size)
+            waveTable = self.__currentWavetable.clocks ## get the current wavetable (should be 66)
 
-            fSize = self.getCurrentGeometry() ## get the resolution (and offset) settings ## check if my settings worked
-            logging.info("Resolution is: %s" % fSize) ## print the resolution
+        ## should include a check here to verify the settings (resolution, frame rate, etc.), and maybe change them if necessary
 
-
-#            waveTable = self.__currentWavetable.clocks ## read if my settings actually got applied
-
-            logging.info("The current wavetable is: %i" % waveTable)
+        logging.info("The current wavetable is: %i" % waveTable)
 
 
-            ## Disable FPGA overlays and transformations to get raw sensor values.
-            display.pipeline |= (display.BYPASS_GAIN + display.BYPASS_FPN + display.BYPASS_GAMMA_TABLE + display.BYPASS_DEMOSAIC + display.BYPASS_COLOR_MATRIX)
+        ## Disable FPGA overlays and transformations to get raw sensor values.
+        display.pipeline |= (display.BYPASS_GAIN + display.BYPASS_FPN + display.BYPASS_GAMMA_TABLE + display.BYPASS_DEMOSAIC + display.BYPASS_COLOR_MATRIX)
 
 
-            colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000) ## get the column-gain
-#            colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000) ## this might be useful later...
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000) ## get the column-gain
+#       colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000) ## this might be useful later...
 
-            try:
-                logging.info("Setting all column offsets to one")
-                for col in range(0, self.MAX_HRES):
-                    colGainRegs.mem16[col] = 1 * (1 << self.COL_GAIN_FRAC_BITS) ## gain gets multiplied by 4096 for storage (it's stored as an integer), so that's where this number comes from
-            except:
-                logging.info("ERROR: Failed to clear column gains")
-
-
-             ## enable Analog Test Mode
-            self.regs.regPoutsel = 3
-            self.regs.regSelVdum = 3
-            self.regs.regSelVlnkeepRst = 0
-
-            display.pipeline |= display.BYPASS_FPN ## try to turn off the black-cal again (for some reason, it wasn't always working before)
-
-            for gain in range(0, 5): ## step for each gain level's settings
-
-                logging.info("Setting gain to x%i" % (2**gain))
-                # Set analog gain value
-                self.setGain(2**gain) ## set the analog gain level
+        try:
+            logging.info("Setting all column offsets to one")
+            for col in range(0, self.MAX_HRES):
+                colGainRegs.mem16[col] = 1 * (1 << self.COL_GAIN_FRAC_BITS) ## gain gets multiplied by 4096 for storage (it's stored as an integer), so that's where this number comes from
+        except:
+            logging.info("ERROR: Failed to clear column gains")
 
 
-                 ## set all the ADC offsets to zero first
-                for i in range(0, self.ADC_CHANNELS):
-                    self.adcOffsets[i] = 0
-                    self.regs.regAdcOs[i] = 0
+         ## enable Analog Test Mode
+        self.regs.regPoutsel = 3
+        self.regs.regSelVdum = 3
+        self.regs.regSelVlnkeepRst = 0
 
-                self.regs.regSelVlnkeepRst = 13 ## set the image to black (or at least very dim) for ADC calibration
-                logging.info("setting ADC offsets")
+        display.pipeline |= display.BYPASS_FPN ## try to turn off the black-cal again (for some reason, it wasn't always working before)
 
-                ## Enable ADC calibration and iterate on the offsets.
-                self.regs.regAdcCalEn = True
-                for i in range(0, 16):
-                    yield 0.03
-                    yield from self.autoAdcOffsetIteration(fSize)
+        for gain in range(0, 5): ## step for each gain level's settings
+            logging.info("Setting gain to x%i" % (2**gain))
 
-                logging.info("Searching for \"dim\" level")
-
-                ## find a reasonable value for "dim"
-                for voltage in range(10, 32):
-                    self.regs.regSelVlnkeepRst = voltage ## set the test mode voltage (brightness)
-                    yield 0.03 ## short delay to allow new frames to enter the buffer
-                    yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
-                    if not seq.liveResult:
-                        logging.error("NF Calibration failed to read frame.")
-                        return False
-                    frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
-                    if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
-                        break ## don't need to keep looking
-                logging.info(">>NF>>dim voltage: %i   min is: %i,  max is: %i" % (voltage, numpy.min(frame), numpy.max(frame)))
-
-                dimVoltage = voltage
-
-                logging.info("Searching for \"bright\" level")
-                ## find a reasonable value for "bright"
-                for voltage in range(31, 12, -1):
-                    self.regs.regSelVlnkeepRst = voltage ## set the test mode voltage (brightness)
-                    yield 0.03 ## short delay to allow new frames to enter the buffer
-                    yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
-                    if not seq.liveResult:
-                        logging.error("NF Calibration failed to read frame.")
-                        return False
-                    frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
-                    if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
-                        break ## don't need to keep looking
-                logging.info(">>NF>> bright voltage: %i   min is: %i,  max is: %i" % (voltage,numpy.min(frame), numpy.max(frame)))
-
-                brightVoltage = voltage
+             # Set analog gain value
+            self.setGain(2**gain) ## set the analog gain level
 
 
-                if dimVoltage >= brightVoltage:
-                    dimVoltage = brightVoltage - 1 ## force 'dim' to be darker than 'bright'
+             ## set all the ADC offsets to zero first
+            for i in range(0, self.ADC_CHANNELS):
+                self.adcOffsets[i] = 0
+                self.regs.regAdcOs[i] = 0
+
+            self.regs.regSelVlnkeepRst = 13 ## set the image to black (or at least very dim) for ADC calibration
+            logging.info("setting ADC offsets")
+
+             ## Enable ADC calibration and iterate on the offsets.
+            self.regs.regAdcCalEn = True
+            for i in range(0, 16):
+                yield 0.03
+                yield from self.autoAdcOffsetIteration(fSize)
+
+            logging.info("Searching for \"dim\" level")
+
+             ## find a reasonable value for "dim"
+            for voltage in range(10, 32):
+                self.regs.regSelVlnkeepRst = voltage ## set the test mode voltage (brightness)
+                yield 0.03 ## short delay to allow new frames to enter the buffer
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+                if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
+                    break ## don't need to keep looking
+            logging.info("dim voltage: %i   min is: %i,  max is: %i" % (voltage, numpy.min(frame), numpy.max(frame)))
+
+            dimVoltage = voltage
+
+            logging.info("Searching for \"bright\" level")
+             ## find a reasonable value for "bright"
+            for voltage in range(31, 12, -1):
+                self.regs.regSelVlnkeepRst = voltage ## set the test mode voltage (brightness)
+                yield 0.03 ## short delay to allow new frames to enter the buffer
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+                if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
+                    break ## don't need to keep looking
+            logging.info("bright voltage: %i   min is: %i,  max is: %i" % (voltage,numpy.min(frame), numpy.max(frame)))
+
+            brightVoltage = voltage
 
 
+            if dimVoltage >= brightVoltage:
+                dimVoltage = brightVoltage - 1 ## force 'dim' to be darker than 'bright'
 
-                # Get the average of some frames.
-                numFrameSamples = 16
-
-
-                self.regs.regSelVlnkeepRst = dimVoltage ## set the test mode voltage (brightness)
-                dimAverage = numpy.zeros((numFrameSamples, fSize.hRes)) ## set up a numpy array to store the column averages for each frame
-
-                for i in range(0, numFrameSamples):
-                    yield 0.03 ## short delay to allow new frames to be captured
-                    logging.info("Getting <Dim> sample %i of %i" % (i, numFrameSamples))
-                    yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
-                    if not seq.liveResult:
-                        logging.error("NF Calibration failed to read frame.")
-                        return False
-                    dimAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
-
-                dimAverage = numpy.mean(dimAverage, axis=0) ## average all the samples keeping the total average value of each column
+             # Get the average of some frames.
+            numFrameSamples = 16
 
 
-                self.regs.regSelVlnkeepRst = brightVoltage ## set the test mode voltage (brightness)
-                brightAverage = numpy.zeros((numFrameSamples, fSize.hRes)) ## set up a numpy array to store the column averages for each frame
+            self.regs.regSelVlnkeepRst = dimVoltage ## set the test mode voltage (brightness)
+            dimAverage = numpy.zeros((numFrameSamples, fSize.hRes)) ## set up a numpy array to store the column averages for each frame
 
-                for i in range(0, numFrameSamples):
-                    yield 0.03 ## short delay to allow new frames to be captured
-                    logging.info("Getting <Bright> sample %i of %i" % (i, numFrameSamples))
-                    yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
-                    if not seq.liveResult:
-                        logging.error("NF Calibration failed to read frame.")
-                        return False
-                    brightAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+            for i in range(0, numFrameSamples):
+                yield 0.03 ## short delay to allow new frames to be captured
+                logging.info("Getting <Dim> sample %i of %i" % (i, numFrameSamples))
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                dimAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
 
-                brightAverage = numpy.mean(brightAverage, axis=0) ## average all the samples keeping the total average value of each column
-
-
-
-                logging.info ("now, I'll compute the column gains")
-
-                columnGain = brightAverage - dimAverage ## find the difference between these brightness levels
-
-                columnGain = numpy.mean(columnGain) / columnGain ## calculate the gain for the sensor
-
-                logging.info("got values of: %s" % columnGain)
-
-                logging.info("Gain calculated; ensuring values are within range")
-
-                columnGain[columnGain > 1.9] = 1 ## if the gain is too high, just use a gain of 1
-
-                columnGain[columnGain < 0.5] = 1 ## if the gain is too low, just use a gain of 1
+            dimAverage = numpy.mean(dimAverage, axis=0) ## average all the samples keeping the total average value of each column
 
 
-                logging.info("Now, I'm re-packing the data into a file for export")
+            self.regs.regSelVlnkeepRst = brightVoltage ## set the test mode voltage (brightness)
+            brightAverage = numpy.zeros((numFrameSamples, fSize.hRes)) ## set up a numpy array to store the column averages for each frame
 
-                saveGainArray = (4096 * columnGain).astype('int32') ## convert to a fixed-point number that can be stored and decoded later
+            for i in range(0, numFrameSamples):
+                yield 0.03 ## short delay to allow new frames to be captured
+                logging.info("Getting <Bright> sample %i of %i" % (i, numFrameSamples))
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("NF Calibration failed to read frame.")
+                    return False
+                brightAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
 
-                outputFileName = "/var/camera/cal/factory_colGain_G%i_WT%i.bin" % ((2**gain), waveTable) ## use the current gain level and wave-table number in the filename
-                logging.info("saving file to %s" % outputFileName)
+            brightAverage = numpy.mean(brightAverage, axis=0) ## average all the samples keeping the total average value of each column
 
-                saveSettings = "<" + str(4*fSize.hRes) + "B"
+            logging.info ("now, I'll compute the column gains")
 
-                try:
-                    with open(outputFileName, "wb") as colGainFileNF: ## save the file
-                        colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
-                except Exception as err:
-                    logging.error("Could not save calibration file %s" % outputFileName)
+            columnGain = brightAverage - dimAverage ## find the difference between these brightness levels
+
+            columnGain = numpy.mean(columnGain) / columnGain ## calculate the gain for the sensor
+
+            logging.info("got values of: %s" % columnGain)
+
+            logging.info("Gain calculated; ensuring values are within range")
+
+            columnGain[columnGain > 1.9] = 1 ## if the gain is too high, just use a gain of 1
+            columnGain[columnGain < 0.5] = 1 ## if the gain is too low, just use a gain of 1
+
+            logging.info("Now, I'm re-packing the data into a file for export")
+
+            saveGainArray = (4096 * columnGain).astype('int32') ## convert to a fixed-point number that can be stored and decoded later
+
+#            wt45Array = (4096 * columnGain[320:1600]).astype('int32')
+#            wt35Array = (4096 * columnGain[448:1472]).astype('int32')
+#            wt25Array = (4096 * columnGain[576:1376]).astype('int32')
+
+            outputFileName = "/var/camera/cal/factory_colGain_G%i_WT%i.bin" % ((2**gain), waveTable) ## use the current gain level and wave-table number in the filename
+            wt45FileName = "/var/camera/cal/factory_colGain_G%i_WT45.bin" % (2**gain) ## use the current gain level, but a different wave-table
+            wt35FileName = "/var/camera/cal/factory_colGain_G%i_WT35.bin" % (2**gain) ## use the current gain level, but a different wave-table
+            wt25FileName = "/var/camera/cal/factory_colGain_G%i_WT25.bin" % (2**gain) ## use the current gain level, but a different wave-table
+
+            logging.info("saving file to %s" % outputFileName)
+
+            saveSettings = "<" + str(4*fSize.hRes) + "B"
+
+            try: ## save all the other wave tables' calibration files
+                with open(outputFileName, "wb") as colGainFileNF:
+                    colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
+                with open(wt45FileName, "wb") as colGainFileNF:
+                    colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
+                with open(wt35FileName, "wb") as colGainFileNF:
+                    colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
+                with open(wt25FileName, "wb") as colGainFileNF:
+                    colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
+            except Exception as err:
+                logging.error("Could not save calibration file %s" % outputFileName)
 
 
+#            try:
+#                saveSettings = "<" + str(4*1280) + "B"
+#                with open(wt45FileName, "wb") as colGainFileNF: ## save the file
+#                    colGainFileNF.write(pack(saveSettings, *bytearray(wt45Array)))
+
+#                saveSettings = "<" + str(4*1024) + "B"
+#                with open(wt35FileName, "wb") as colGainFileNF: ## save the file
+#                    colGainFileNF.write(pack(saveSettings, *bytearray(wt35Array)))
+
+#                saveSettings = "<" + str(4*800) + "B"
+#                with open(wt25FileName, "wb") as colGainFileNF: ## save the file
+#                    colGainFileNF.write(pack(saveSettings, *bytearray(wt25Array)))
+#            except:
+#                logging.error("One or more alternate wavetables failed to save")
 
 
         logging.info("Finished Nicholas\'s calibration, now I'm taking the sensor back out of \"Analog Test Mode\"")

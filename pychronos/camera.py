@@ -830,8 +830,10 @@ class camera:
         """
         try:
             yield from self.sensor.startFlatFieldExport()
+            logging.info(">>NF>> back from \"startFlatFieldExport\" call")
         except Exception as e:
             self.__setState('idle')
+            logging.info(">>NF>> had exception in \"startFlatFieldExport\" call")
             raise e
         self.__setState('idle')
 
