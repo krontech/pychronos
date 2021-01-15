@@ -518,10 +518,10 @@ class lux2100(api):
                     0.0, 1.0, 0.0,
                     0.0, 0.0, 1.0]
         else:
-            # CIECAM16/D55
-            return [ 1.9147, -0.5768, -0.2342, 
-                    -0.3056,  1.3895, -0.0969,
-                     0.1272, -0.9531,  1.6492]
+            # ACWPPD55
+            return [ 2.20691, -0.86351, -0.23999,
+                    -0.37569, 1.63493, -0.27217,
+                    0.01404, -0.91139, 1.72075]
     
     @property
     def wbPresets(self):
@@ -747,7 +747,7 @@ class lux2100(api):
         gain = int(self.getCurrentGain())
         if gain > 8:
             gain = 16 # HACK: G16 is a bit wonky, and actually comes out closer to 10
-        filename = calLocation + "/factory_colGain_G%d_WT%d.bin" % (gain, wtClocks)
+        filename = calLocation + "/onCam_colGain_G%d_WT%d.bin" % (gain, wtClocks)
         try:
             logging.info("Loading column gain calibration from %s", filename)
             colGainData = numpy.fromfile(filename, dtype=numpy.int32, count=self.MAX_HRES)
@@ -757,7 +757,7 @@ class lux2100(api):
             display.gainControl &= ~display.GAINCTL_3POINT
             return True   
         except Exception as err:
-            logging.info("Couldn't load factory col gain, falling back to auto 2-point col gain.")         
+            logging.info("Couldn't load onCam col gain, falling back to auto 2-point col gain.")         
 
         # If the factory calibration file is missing, fall back to 2-point cal data, using one column gain coefficient per ADC channel.
         # Generate the calibration filename.
@@ -1136,10 +1136,10 @@ class lux2100(api):
 #            wt35Array = (4096 * columnGain[448:1472]).astype('int32')
 #            wt25Array = (4096 * columnGain[576:1376]).astype('int32')
 
-            outputFileName = "/var/camera/cal/factory_colGain_G%i_WT%i.bin" % ((2**gain), waveTable) ## use the current gain level and wave-table number in the filename
-            wt45FileName = "/var/camera/cal/factory_colGain_G%i_WT45.bin" % (2**gain) ## use the current gain level, but a different wave-table
-            wt35FileName = "/var/camera/cal/factory_colGain_G%i_WT35.bin" % (2**gain) ## use the current gain level, but a different wave-table
-            wt25FileName = "/var/camera/cal/factory_colGain_G%i_WT25.bin" % (2**gain) ## use the current gain level, but a different wave-table
+            outputFileName = "/var/camera/cal/onCam_colGain_G%i_WT%i.bin" % ((2**gain), waveTable) ## use the current gain level and wave-table number in the filename
+            wt45FileName = "/var/camera/cal/onCam_colGain_G%i_WT45.bin" % (2**gain) ## use the current gain level, but a different wave-table
+            wt35FileName = "/var/camera/cal/onCam_colGain_G%i_WT35.bin" % (2**gain) ## use the current gain level, but a different wave-table
+            wt25FileName = "/var/camera/cal/onCam_colGain_G%i_WT25.bin" % (2**gain) ## use the current gain level, but a different wave-table
 
             logging.info("saving file to %s" % outputFileName)
 
@@ -1206,7 +1206,7 @@ class lux2100(api):
         for wt in range(0, len(wtClocks)):
             for gain in range(0, len(gainLvls)):
                 #Build filename string
-                fName = 'factory_colGain_G%d_WT%d.bin' % (gainLvls[gain], wtClocks[wt])
+                fName = 'onCam_colGain_G%d_WT%d.bin' % (gainLvls[gain], wtClocks[wt])
                 try:
                     shutil.copy(os.path.join(sourceLocation, fName), os.path.join(calLocation, fName))
                     logging.info("Copied %s from %s to %s", fName, sourceLocation, calLocation)
