@@ -557,11 +557,6 @@ class lux2100(api):
 #            16:         ( 0x03ff,   0x0000,       0x7,  0x7 ), ## actual gain ~10.5 (alternate acceptable settings)
 #            16:         ( 0x001f,   0x0000,       0x7,  0xf ), ## actual gain ~9.0 (alternate acceptable settings)
 
-#            1:         ( 0x007f,   0x007f,       0x3,  0x7 ), ## previous default x1 setting
-#            2:         ( 0x01ff,   0x000f,       0x3,  0x7 ), ## previous default x2 setting
-#            4:         ( 0x0fff,   0x001f,       0x1,  0x7 ), ## previous default x4 setting
-#            8:         ( 0x0fff,   0x001f,       0x0,  0x7 ), ## previous default x8 setting
-#            16:        ( 0x0fff,   0x000f,       0x0,  0x7 ), ## previous default x16 setting
         }
 
         if (not int(gain) in gainConfig):
@@ -571,7 +566,6 @@ class lux2100(api):
         self.regs.regGainSelSamp = samp ## sample caps setting
         self.regs.regGainSelFb = feedback ## feedback caps setting
         self.regs.regSerialGain = sgain ## serial gain register caps setting
-##        self.regs.regIcolCapEn = icol ## icol caps setting
 
          ## For some reason, when I try writing to just the "regIcolCapEn" register, it very occasionally
          ## completely messes up the image. This seems to be due to the other bits in this register getting
@@ -811,22 +805,6 @@ class lux2100(api):
         fSize = copy.deepcopy(self.fSizeReal)
         fPeriod = self.frameClocks / self.LUX2100_SENSOR_HZ
         iterations=16
-
-#        # Enable black bars if not already done.
-#        if (fSize.vDarkRows == 0):
-#            logging.debug("Enabling dark pixel readout")
-#            fSize.vDarkRows = self.MAX_VDARK // 2
-#            fSize.vOffset += fSize.vDarkRows
-#            fSize.vRes -= fSize.vDarkRows
-
-#            # Disable the FPGA timing engine and apply the changes.
-#            self.timing.programInterm()
-#            time.sleep(0.01) # Extra delay to allow frame readout to finish. 
-#            self.regs.regTimingEn = False
-#            self.updateReadoutWindow(fSize)
-#            self.regs.regTimingEn = True
-#            time.sleep(0.01)
-#            self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
         # Perform ADC offset calibration using the optical black regions.
         tRefresh = (self.frameClocks * 3) / self.LUX2100_SENSOR_HZ
@@ -928,8 +906,6 @@ class lux2100(api):
                 return False
 
             # Set analog gain value
-#            self.regs.regGainSelSamp = gainSampCap[gain]
-#            self.regs.regGainSelFb = gainSerFbCap[gain]
             self.setGain(2**gain) ## set the analog gain level
 
             # Iterate and collect flat-fields at each level of ADC test voltage step.
@@ -958,13 +934,10 @@ class lux2100(api):
         return True
 
     def startFlatFieldExport(self, saveLocation='/media/sda1'):
-        logging.info('Starting Nicholas\'s On-Camera Calibration Calculation')
+        logging.info('Starting On-Camera Calibration Calculation')
 
         display = pychronos.regmaps.display()
         seq = sequencer()
-#        hRes = pychronos.sensors.lux2100().getMaxGeometry().hRes
-#        vRes = pychronos.sensors.lux2100().getMaxGeometry().vRes
-
 
         brightVoltage = 0
         dimVoltage = 0
@@ -997,8 +970,6 @@ class lux2100(api):
             seq.regionStop = startAddr + (1000 * fSizeWords) ## set the end address to 1000 frames (so that it fits on any RAM size)
             waveTable = self.__currentWavetable.clocks ## get the current wavetable (should be 66)
 
-        ## should include a check here to verify the settings (resolution, frame rate, etc.), and maybe change them if necessary
-
         logging.info("The current wavetable is: %i" % waveTable)
 
 
@@ -1007,7 +978,6 @@ class lux2100(api):
 
 
         colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000) ## get the column-gain
-#       colCurveRegs = pychronos.fpgamap(pychronos.FPGA_COL_CURVE_BASE, 0x1000) ## this might be useful later...
 
         try:
             logging.info("Setting all column offsets to one")
@@ -1053,7 +1023,7 @@ class lux2100(api):
                 yield 0.03 ## short delay to allow new frames to enter the buffer
                 yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
                 if not seq.liveResult:
-                    logging.error("NF Calibration failed to read frame.")
+                    logging.error("Calibration failed to read frame.")
                     return False
                 frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
                 if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
@@ -1069,7 +1039,7 @@ class lux2100(api):
                 yield 0.03 ## short delay to allow new frames to enter the buffer
                 yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
                 if not seq.liveResult:
-                    logging.error("NF Calibration failed to read frame.")
+                    logging.error("Calibration failed to read frame.")
                     return False
                 frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
                 if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
@@ -1094,7 +1064,7 @@ class lux2100(api):
                 logging.info("Getting <Dim> sample %i of %i" % (i, numFrameSamples))
                 yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
                 if not seq.liveResult:
-                    logging.error("NF Calibration failed to read frame.")
+                    logging.error("Calibration failed to read frame.")
                     return False
                 dimAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
 
@@ -1109,7 +1079,7 @@ class lux2100(api):
                 logging.info("Getting <Bright> sample %i of %i" % (i, numFrameSamples))
                 yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
                 if not seq.liveResult:
-                    logging.error("NF Calibration failed to read frame.")
+                    logging.error("Calibration failed to read frame.")
                     return False
                 brightAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
 
@@ -1132,9 +1102,6 @@ class lux2100(api):
 
             saveGainArray = (4096 * columnGain).astype('int32') ## convert to a fixed-point number that can be stored and decoded later
 
-#            wt45Array = (4096 * columnGain[320:1600]).astype('int32')
-#            wt35Array = (4096 * columnGain[448:1472]).astype('int32')
-#            wt25Array = (4096 * columnGain[576:1376]).astype('int32')
 
             outputFileName = "/var/camera/cal/onCam_colGain_G%i_WT%i.bin" % ((2**gain), waveTable) ## use the current gain level and wave-table number in the filename
             wt45FileName = "/var/camera/cal/onCam_colGain_G%i_WT45.bin" % (2**gain) ## use the current gain level, but a different wave-table
@@ -1158,23 +1125,8 @@ class lux2100(api):
                 logging.error("Could not save calibration file %s" % outputFileName)
 
 
-#            try:
-#                saveSettings = "<" + str(4*1280) + "B"
-#                with open(wt45FileName, "wb") as colGainFileNF: ## save the file
-#                    colGainFileNF.write(pack(saveSettings, *bytearray(wt45Array)))
 
-#                saveSettings = "<" + str(4*1024) + "B"
-#                with open(wt35FileName, "wb") as colGainFileNF: ## save the file
-#                    colGainFileNF.write(pack(saveSettings, *bytearray(wt35Array)))
-
-#                saveSettings = "<" + str(4*800) + "B"
-#                with open(wt25FileName, "wb") as colGainFileNF: ## save the file
-#                    colGainFileNF.write(pack(saveSettings, *bytearray(wt25Array)))
-#            except:
-#                logging.error("One or more alternate wavetables failed to save")
-
-
-        logging.info("Finished Nicholas\'s calibration, now I'm taking the sensor back out of \"Analog Test Mode\"")
+        logging.info("Finished calibration; now taking the sensor back out of \"Analog Test Mode\"")
 
              ## take sensor out of "Analog Test Mode"
         self.regs.regSelVlnkeepRst = 30
