@@ -14,6 +14,8 @@ from pychronos.regmaps import sequencer, ioInterface
 from pychronos.sensors import api, frameGeometry
 from . import lux2100regs, lux2100wt, lux2100timing
 
+from struct import pack ## added for exporting gain data
+
 class lux2100(api):
     """Driver for the Luxima LUX2100 image sensor.
 
@@ -231,7 +233,7 @@ class lux2100(api):
 
         # Set an extra serial gain register if rev is 2
         if (self.regs.revChip == 2):
-            self.regs.regSerialGainV2 = 0x0079
+            self.regs.regSerialGainV2 = 0x0019 ## register 0x76 (Icol Gain Caps) >> new default gain of x1 (technically, ~1.25)
 
         # Setup ADC training.
         self.regs.regPclkVblank = 0xFC0 # Set blanking pattern for ADC training.
@@ -277,10 +279,10 @@ class lux2100(api):
         self.regs.regSensor[0x6C] = 0x8AAA # internal control register
         self.regs.regData[0x05] = 0x0007 # delay to match ADC latency
         
-        # Configure for nominal gain.
-        self.regs.regGainSelSamp = 0x007f
-        self.regs.regGainSelFb = 0x007f
-        self.regs.regSerialGain = 0x03
+        # Configure for nominal gain. ## new default gain of x1 (technically ~1.25)
+        self.regs.regGainSelSamp = 0x003f ## register 0x57 (Sample Caps)
+        self.regs.regGainSelFb = 0x0001 ## register 0x58 (Feedback Caps)
+        self.regs.regSerialGain = 0x07 ## register 0x58 (Serial Gain Caps)
 
         # Enable ADC offset correction.
         for x in range(0, self.ADC_CHANNELS):
@@ -369,7 +371,7 @@ class lux2100(api):
     def updateWavetable(self, size, frameClocks):
         self.__currentWavetable = self.selectWavetable(size)
         
-        logging.debug("Selecting WT%d for %dx%d", self.__currentWavetable.clocks, size.hRes, size.vRes)
+        logging.info("Selecting WT%d for %dx%d", self.__currentWavetable.clocks, size.hRes, size.vRes)
 
         # If a suitable wavetable exists, then load it.
         self.regs.regRdoutDly = self.__currentWavetable.clocks
@@ -411,6 +413,8 @@ class lux2100(api):
         self.timing.programInterm()
         time.sleep(0.01) # Extra delay to allow frame readout to finish. 
 
+        logging.info("trying to select a wavetable")
+
         # Switch to the desired resolution pick the best matching wavetable.
         self.regs.regTimingEn = False
         self.updateReadoutWindow(size)
@@ -426,6 +430,8 @@ class lux2100(api):
         self.exposureClocks = int(self.frameClocks * 0.95)
         self.currentProgram = self.timing.PROGRAM_STANDARD
         self.timing.programStandard(self.frameClocks, self.exposureClocks)
+
+        logging.info("End of \"setResolution\"")
     
     #--------------------------------------------
     # Frame Timing Configuration Functions
@@ -512,10 +518,10 @@ class lux2100(api):
                     0.0, 1.0, 0.0,
                     0.0, 0.0, 1.0]
         else:
-            # CIECAM16/D55
-            return [ 1.9147, -0.5768, -0.2342, 
-                    -0.3056,  1.3895, -0.0969,
-                     0.1272, -0.9531,  1.6492]
+            # ACWPPD55
+            return [ 2.20691, -0.86351, -0.23999,
+                    -0.37569, 1.63493, -0.27217,
+                    0.01404, -0.91139, 1.72075]
     
     @property
     def wbPresets(self):
@@ -533,20 +539,40 @@ class lux2100(api):
         return 16
     
     def setGain(self, gain):
-        gainConfig = {  # Sampling Cap, Feedback Cap, Serial Gain
-            1:          ( 0x007f,       0x007f,       0x3),
-            2:          ( 0x01ff,       0x000f,       0x3),
-            4:          ( 0x0fff,       0x001f,       0x1),
-            8:          ( 0x0fff,       0x001f,       0x0),
-            16:         ( 0x0fff,       0x000f,       0x0),
+        gainConfig = { ## sampling caps, feedback caps, serial caps, icol caps
+            1:          ( 0x003f,   0x0001,       0x7,  0x1 ), ## new settings for x1 (gain is ~1.25)
+#            1:          ( 0x07ff,   0x0003,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25)
+#            1:          ( 0x0001,   0x0000,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25)
+
+            2:          ( 0x0fff,   0x0001,       0x7,  0x1 ), ## new settings for x2 (gain is ~2.0)
+#            2:          ( 0x0fff,   0x0007,       0x7,  0x3 ), ## alternate acceptable x2 settings
+
+            4:          ( 0x0fff,   0x0001,       0x7,  0x3 ), ## new settings for x4 (gain is ~4.0)
+#            4:          ( 0x07ff,   0x0003,       0x7,  0x7 ), ## alternate acceptable x4 settings
+
+#            8:          ( 0x07ff,   0x0000,       0x7,  0x3 ), ## new settings for x8 (gain is ~7.5)
+            8:          ( 0x003f,   0x0000,       0x7,  0x7 ), ## alternate acceptable x8 settings
+
+            16:         ( 0x01ff,   0x0000,       0x7,  0x7 ), ## actual gain ~9.75
+#            16:         ( 0x03ff,   0x0000,       0x7,  0x7 ), ## actual gain ~10.5 (alternate acceptable settings)
+#            16:         ( 0x001f,   0x0000,       0x7,  0xf ), ## actual gain ~9.0 (alternate acceptable settings)
+
         }
+
         if (not int(gain) in gainConfig):
             raise ValueError("Unsupported image gain setting")
-        
-        samp, feedback, sgain = gainConfig[int(gain)]
-        self.regs.regGainSelSamp = samp
-        self.regs.regGainSelFb = feedback
-        self.regs.regSerialGain = sgain
+
+        samp, feedback, sgain, icol = gainConfig[int(gain)] ## copy a gain setting from one of the lines above
+        self.regs.regGainSelSamp = samp ## sample caps setting
+        self.regs.regGainSelFb = feedback ## feedback caps setting
+        self.regs.regSerialGain = sgain ## serial gain register caps setting
+
+         ## For some reason, when I try writing to just the "regIcolCapEn" register, it very occasionally
+         ## completely messes up the image. This seems to be due to the other bits in this register getting
+         ## affected somehow. Perhaps writing to it ("regIcolCapEn") only works most of the time. This
+         ## is the same register as "regIcolCapEn", but I can write an entire byte (with regIcolCapEn, it
+         ## only writes the upper nibble [mask is 0x00f0]).
+        self.regs.regSerialGainV2 = ( 0x0010 * icol ) + 0x0009 ## icol caps setting (also write some of the "reserved" mystery bits)
 
     def getCurrentGain(self):
         sampnbits = 4
@@ -693,6 +719,7 @@ class lux2100(api):
         for col in range(self.MAX_HRES):
             colGainRegs.mem16[col] = int(gain2pt[col % self.ADC_CHANNELS] * (1 << self.COL_GAIN_FRAC_BITS))
             colCurveRegs.mem16[col] = 0
+
         
         display = pychronos.regmaps.display()
         display.gainControl &= ~display.GAINCTL_3POINT
@@ -714,7 +741,7 @@ class lux2100(api):
         gain = int(self.getCurrentGain())
         if gain > 8:
             gain = 16 # HACK: G16 is a bit wonky, and actually comes out closer to 10
-        filename = calLocation + "/factory_colGain_G%d_WT%d.bin" % (gain, wtClocks)
+        filename = calLocation + "/onCam_colGain_G%d_WT%d.bin" % (gain, wtClocks)
         try:
             logging.info("Loading column gain calibration from %s", filename)
             colGainData = numpy.fromfile(filename, dtype=numpy.int32, count=self.MAX_HRES)
@@ -724,7 +751,7 @@ class lux2100(api):
             display.gainControl &= ~display.GAINCTL_3POINT
             return True   
         except Exception as err:
-            logging.info("Couldn't load factory col gain, falling back to auto 2-point col gain.")         
+            logging.info("Couldn't load onCam col gain, falling back to auto 2-point col gain.")         
 
         # If the factory calibration file is missing, fall back to 2-point cal data, using one column gain coefficient per ADC channel.
         # Generate the calibration filename.
@@ -778,22 +805,6 @@ class lux2100(api):
         fSize = copy.deepcopy(self.fSizeReal)
         fPeriod = self.frameClocks / self.LUX2100_SENSOR_HZ
         iterations=16
-
-        # Enable black bars if not already done.
-        if (fSize.vDarkRows == 0):
-            logging.debug("Enabling dark pixel readout")
-            fSize.vDarkRows = self.MAX_VDARK // 2
-            fSize.vOffset += fSize.vDarkRows
-            fSize.vRes -= fSize.vDarkRows
-
-            # Disable the FPGA timing engine and apply the changes.
-            self.timing.programInterm()
-            time.sleep(0.01) # Extra delay to allow frame readout to finish. 
-            self.regs.regTimingEn = False
-            self.updateReadoutWindow(fSize)
-            self.regs.regTimingEn = True
-            time.sleep(0.01)
-            self.timing.programStandard(self.frameClocks, self.exposureClocks)
         
         # Perform ADC offset calibration using the optical black regions.
         tRefresh = (self.frameClocks * 3) / self.LUX2100_SENSOR_HZ
@@ -849,7 +860,7 @@ class lux2100(api):
             gain = 16 # HACK: G16 is a bit wonky and comes out closer to 10
         return "%s_G%d_WT%d%s" % (prefix, gain, wtClocks, extension)
 
-    def startFlatFieldExport(self, saveLocation='/media/sda1'):
+    def IGNOREstartFlatFieldExport(self, saveLocation='/media/sda1'): ## This function will get replaced in an upcoming commit
         logging.debug('Starting flat-field export')
 
         display = pychronos.regmaps.display()
@@ -895,8 +906,7 @@ class lux2100(api):
                 return False
 
             # Set analog gain value
-            self.regs.regGainSelSamp = gainSampCap[gain]
-            self.regs.regGainSelFb = gainSerFbCap[gain]
+            self.setGain(2**gain) ## set the analog gain level
 
             # Iterate and collect flat-fields at each level of ADC test voltage step.
             for intensity in range(0, len(adcTestModeVoltages[gain])):
@@ -923,6 +933,214 @@ class lux2100(api):
 
         return True
 
+    def startFlatFieldExport(self, saveLocation='/media/sda1'):
+        logging.info('Starting On-Camera Calibration Calculation')
+
+        display = pychronos.regmaps.display()
+        seq = sequencer()
+
+        brightVoltage = 0
+        dimVoltage = 0
+
+        fSize = self.getCurrentGeometry() ## get the resolution (and offset) settings
+        logging.info("Resolution starts at: %s" % fSize) ## print the resolution
+
+
+        seq = pychronos.regmaps.sequencer() ## get a sequencer instance
+
+
+        fSize = self.getCurrentGeometry() ## get the resolution (and offset) settings ## check if my settings worked
+        logging.info("Resolution is: %s" % fSize) ## print the resolution
+
+        waveTable = self.__currentWavetable.clocks ## get the current wavetable (should be 66)
+
+        if waveTable != 66 or fSize.hRes != 1920: ## not the right resolution
+            fSize.hRes = 1920
+            fSize.vRes = 1080
+            fSize.hOffset = 0
+            fSize.vOffset = 0
+            fSize.minFrameTime = 0.00099989
+            fSizeWords = 97216
+            startAddr = 587520
+
+            logging.info("Resolution / wavetable incorrect; changing now")
+            self.setResolution(fSize) ## apply the new resolution
+            seq.frameSize = fSizeWords ## set sequencer's frame size
+            seq.regionStart = startAddr ## set sequencer's starting address (should always be the same)
+            seq.regionStop = startAddr + (1000 * fSizeWords) ## set the end address to 1000 frames (so that it fits on any RAM size)
+            waveTable = self.__currentWavetable.clocks ## get the current wavetable (should be 66)
+
+        logging.info("The current wavetable is: %i" % waveTable)
+
+
+        ## Disable FPGA overlays and transformations to get raw sensor values.
+        display.pipeline |= (display.BYPASS_GAIN + display.BYPASS_FPN + display.BYPASS_GAMMA_TABLE + display.BYPASS_DEMOSAIC + display.BYPASS_COLOR_MATRIX)
+
+
+        colGainRegs = pychronos.fpgamap(pychronos.FPGA_COL_GAIN_BASE, 0x1000) ## get the column-gain
+
+        try:
+            logging.info("Setting all column offsets to one")
+            for col in range(0, self.MAX_HRES):
+                colGainRegs.mem16[col] = 1 * (1 << self.COL_GAIN_FRAC_BITS) ## gain gets multiplied by 4096 for storage (it's stored as an integer), so that's where this number comes from
+        except:
+            logging.info("ERROR: Failed to clear column gains")
+
+
+         ## enable Analog Test Mode
+        self.regs.regPoutsel = 3
+        self.regs.regSelVdum = 3
+        self.regs.regSelVlnkeepRst = 0
+
+        display.pipeline |= display.BYPASS_FPN ## try to turn off the black-cal again (for some reason, it wasn't always working before)
+
+        for gain in range(0, 5): ## step for each gain level's settings
+            logging.info("Setting gain to x%i" % (2**gain))
+
+             # Set analog gain value
+            self.setGain(2**gain) ## set the analog gain level
+
+
+             ## set all the ADC offsets to zero first
+            for i in range(0, self.ADC_CHANNELS):
+                self.adcOffsets[i] = 0
+                self.regs.regAdcOs[i] = 0
+
+            self.regs.regSelVlnkeepRst = 13 ## set the image to black (or at least very dim) for ADC calibration
+            logging.info("setting ADC offsets")
+
+             ## Enable ADC calibration and iterate on the offsets.
+            self.regs.regAdcCalEn = True
+            for i in range(0, 16):
+                yield 0.03
+                yield from self.autoAdcOffsetIteration(fSize)
+
+            logging.info("Searching for \"dim\" level")
+
+             ## find a reasonable value for "dim"
+            for voltage in range(10, 32):
+                self.regs.regSelVlnkeepRst = voltage ## set the test mode voltage (brightness)
+                yield 0.03 ## short delay to allow new frames to enter the buffer
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("Calibration failed to read frame.")
+                    return False
+                frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+                if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
+                    break ## don't need to keep looking
+            logging.info("dim voltage: %i   min is: %i,  max is: %i" % (voltage, numpy.min(frame), numpy.max(frame)))
+
+            dimVoltage = voltage
+
+            logging.info("Searching for \"bright\" level")
+             ## find a reasonable value for "bright"
+            for voltage in range(31, 12, -1):
+                self.regs.regSelVlnkeepRst = voltage ## set the test mode voltage (brightness)
+                yield 0.03 ## short delay to allow new frames to enter the buffer
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("Calibration failed to read frame.")
+                    return False
+                frame = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+                if numpy.min(frame) > 1 and numpy.max(frame) < 4090: ## acceptable level
+                    break ## don't need to keep looking
+            logging.info("bright voltage: %i   min is: %i,  max is: %i" % (voltage,numpy.min(frame), numpy.max(frame)))
+
+            brightVoltage = voltage
+
+
+            if dimVoltage >= brightVoltage:
+                dimVoltage = brightVoltage - 1 ## force 'dim' to be darker than 'bright'
+
+             # Get the average of some frames.
+            numFrameSamples = 16
+
+
+            self.regs.regSelVlnkeepRst = dimVoltage ## set the test mode voltage (brightness)
+            dimAverage = numpy.zeros((numFrameSamples, fSize.hRes)) ## set up a numpy array to store the column averages for each frame
+
+            for i in range(0, numFrameSamples):
+                yield 0.03 ## short delay to allow new frames to be captured
+                logging.info("Getting <Dim> sample %i of %i" % (i, numFrameSamples))
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("Calibration failed to read frame.")
+                    return False
+                dimAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+
+            dimAverage = numpy.mean(dimAverage, axis=0) ## average all the samples keeping the total average value of each column
+
+
+            self.regs.regSelVlnkeepRst = brightVoltage ## set the test mode voltage (brightness)
+            brightAverage = numpy.zeros((numFrameSamples, fSize.hRes)) ## set up a numpy array to store the column averages for each frame
+
+            for i in range(0, numFrameSamples):
+                yield 0.03 ## short delay to allow new frames to be captured
+                logging.info("Getting <Bright> sample %i of %i" % (i, numFrameSamples))
+                yield from seq.startLiveReadout(fSize.hRes, fSize.vRes)
+                if not seq.liveResult:
+                    logging.error("Calibration failed to read frame.")
+                    return False
+                brightAverage[i, :] = numpy.mean(numpy.asarray(seq.liveResult), axis=0) ## keep the mean of each column
+
+            brightAverage = numpy.mean(brightAverage, axis=0) ## average all the samples keeping the total average value of each column
+
+            logging.info ("now, I'll compute the column gains")
+
+            columnGain = brightAverage - dimAverage ## find the difference between these brightness levels
+
+            columnGain = numpy.mean(columnGain) / columnGain ## calculate the gain for the sensor
+
+            logging.info("got values of: %s" % columnGain)
+
+            logging.info("Gain calculated; ensuring values are within range")
+
+            columnGain[columnGain > 1.9] = 1 ## if the gain is too high, just use a gain of 1
+            columnGain[columnGain < 0.5] = 1 ## if the gain is too low, just use a gain of 1
+
+            logging.info("Now, I'm re-packing the data into a file for export")
+
+            saveGainArray = (4096 * columnGain).astype('int32') ## convert to a fixed-point number that can be stored and decoded later
+
+
+            outputFileName = "/var/camera/cal/onCam_colGain_G%i_WT%i.bin" % ((2**gain), waveTable) ## use the current gain level and wave-table number in the filename
+            wt45FileName = "/var/camera/cal/onCam_colGain_G%i_WT45.bin" % (2**gain) ## use the current gain level, but a different wave-table
+            wt35FileName = "/var/camera/cal/onCam_colGain_G%i_WT35.bin" % (2**gain) ## use the current gain level, but a different wave-table
+            wt25FileName = "/var/camera/cal/onCam_colGain_G%i_WT25.bin" % (2**gain) ## use the current gain level, but a different wave-table
+
+            logging.info("saving file to %s" % outputFileName)
+
+            saveSettings = "<" + str(4*fSize.hRes) + "B"
+
+            try: ## save all the other wave tables' calibration files
+                with open(outputFileName, "wb") as colGainFileNF:
+                    colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
+                with open(wt45FileName, "wb") as colGainFileNF:
+                    colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
+                with open(wt35FileName, "wb") as colGainFileNF:
+                    colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
+                with open(wt25FileName, "wb") as colGainFileNF:
+                    colGainFileNF.write(pack(saveSettings, *bytearray(saveGainArray)))
+            except Exception as err:
+                logging.error("Could not save calibration file %s" % outputFileName)
+
+
+
+        logging.info("Finished calibration; now taking the sensor back out of \"Analog Test Mode\"")
+
+             ## take sensor out of "Analog Test Mode"
+        self.regs.regSelVlnkeepRst = 30
+        self.regs.regSelVdum = 0
+        self.regs.regPoutsel = 2
+
+        self.setGain(1) ## set the gain back to x1
+
+         ## re-enable FPGA overlays
+        display.pipeline &= ~(display.BYPASS_GAIN | display.BYPASS_GAMMA_TABLE | display.BYPASS_DEMOSAIC | display.BYPASS_FPN | display.BYPASS_COLOR_MATRIX)
+
+
+        return True
+
     def importColGains(self, sourceLocation='/media/sda1', calLocation='/var/camera/cal'):
         # Copy column gain calibration data into camera.
         gainLvls = [1, 2, 4, 8, 16]
@@ -940,7 +1158,7 @@ class lux2100(api):
         for wt in range(0, len(wtClocks)):
             for gain in range(0, len(gainLvls)):
                 #Build filename string
-                fName = 'factory_colGain_G%d_WT%d.bin' % (gainLvls[gain], wtClocks[wt])
+                fName = 'onCam_colGain_G%d_WT%d.bin' % (gainLvls[gain], wtClocks[wt])
                 try:
                     shutil.copy(os.path.join(sourceLocation, fName), os.path.join(calLocation, fName))
                     logging.info("Copied %s from %s to %s", fName, sourceLocation, calLocation)

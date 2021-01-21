@@ -270,6 +270,8 @@ class camera:
         # Reboot any other modules we included.
         self.io.doReset()
 
+        self.__recTrigDelay = 0 ## force the trigger delay to zero on reset
+
         # Soft reboot completed
         self.__setState('idle')
 
@@ -830,8 +832,10 @@ class camera:
         """
         try:
             yield from self.sensor.startFlatFieldExport()
+            logging.info("back from \"startFlatFieldExport\" call")
         except Exception as e:
             self.__setState('idle')
+            logging.info("had exception in \"startFlatFieldExport\" call")
             raise e
         self.__setState('idle')
 
@@ -1286,13 +1290,13 @@ class camera:
                             blkTermFull=False, blkTermRising=True,
                             recTermMemory=False, recTermBlockEnd=True)
             program = [cmd]
-        elif mode == RecModes.segmented:
+        elif self.__recMode == RecModes.segmented:
             # Record into segments 
             cmd = regmaps.seqcommand(blockSize=self.recMaxFrames // self.recSegments,
                             blkTermFull=False, blkTermRising=True,
                             recTermMemory=self.__disableRingBuffer, recTermBlockEnd=False)
             program = [cmd]
-        elif mode == RecModes.burst:
+        elif self.__recMode == RecModes.burst:
             # When trigger is inactive, save the pre-record into a ring buffer.
             precmd = regmaps.seqcommand(blockSize=self.recPreBurst, blkTermRising=True)
             # While trigger is active, save frames into the remaining memory.
