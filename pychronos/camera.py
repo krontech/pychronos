@@ -1362,7 +1362,7 @@ class camera:
         self.__recPreBurst = value
         self.__propChange("recPreBurst")
     
-    @camProperty()
+    @camProperty(save=True)
     def disableRingBuffer(self):
     	"""When true, the camera will stop recording once the RAM buffer is full instead of looping over.
     	
