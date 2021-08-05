@@ -540,22 +540,42 @@ class lux2100(api):
     
     def setGain(self, gain):
         gainConfig = { ## sampling caps, feedback caps, serial caps, icol caps
-            1:          ( 0x003f,   0x0001,       0x7,  0x1 ), ## new settings for x1 (gain is ~1.25)
-#            1:          ( 0x07ff,   0x0003,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25)
-#            1:          ( 0x0001,   0x0000,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25)
+#            1:          ( 0x003f,   0x0001,       0x7,  0x1 ), ## new settings for x1 (gain is ~1.25) ## index 3158 from testing
+#            1:          ( 0x07ff,   0x0003,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25) ## index 3162 from testing
+#            1:          ( 0x0001,   0x0000,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25) ## index 3156 from testing
+            1:    (  0x01ff,  0x001f,  0x7,  0x3 ),  ## Theoretical gain:1.083333 ## index 3205 from testing
+#            1:    (  0x0fff,  0x003f,  0x7,  0x3 ),  ## Theoretical gain:1.142857 ## index 3210 from testing
+#            1:    (  0x007f,  0x000f,  0x7,  0x3 ),  ## Theoretical gain:1.100000 ## index 3202 from testing
+#            1:    (  0x07ff,  0x003f,  0x7,  0x3 ),  ## Theoretical gain:1.071429 ## index 3208 from testing
+#            1:    (  0x001f,  0x0007,  0x7,  0x3 ),  ## Theoretical gain:1.125000 ## index 3199 from testing
 
-            2:          ( 0x0fff,   0x0001,       0x7,  0x1 ), ## new settings for x2 (gain is ~2.0)
-#            2:          ( 0x0fff,   0x0007,       0x7,  0x3 ), ## alternate acceptable x2 settings
 
-            4:          ( 0x0fff,   0x0001,       0x7,  0x3 ), ## new settings for x4 (gain is ~4.0)
-#            4:          ( 0x07ff,   0x0003,       0x7,  0x7 ), ## alternate acceptable x4 settings
+#            2:          ( 0x0fff,   0x0001,       0x7,  0x1 ), ## new settings for x2 (gain is ~2.0) ## index 226 from testing
+#            2:          ( 0x0fff,   0x0007,       0x7,  0x3 ), ## alternate acceptable x2 settings ## index 259 from testing
+            2:    (  0x00ff,  0x001f,  0x7,  0xf ),  ## Theoretical gain:2.000000 ## index 313 from testing
+#            2:    (  0x01ff,  0x003f,  0x7,  0xf ),  ## Theoretical gain:1.857143 ## index 315 from testing
+#            2:    (  0x000f,  0x0007,  0x7,  0xf ),  ## Theoretical gain:2.000000 ## index 309 from testing
+#            2:    (  0x001f,  0x000f,  0x7,  0xf ),  ## Theoretical gain:1.800000 ## index 310 from testing
 
-#            8:          ( 0x07ff,   0x0000,       0x7,  0x3 ), ## new settings for x8 (gain is ~7.5)
-            8:          ( 0x003f,   0x0000,       0x7,  0x7 ), ## alternate acceptable x8 settings
 
-            16:         ( 0x01ff,   0x0000,       0x7,  0x7 ), ## actual gain ~9.75
-#            16:         ( 0x03ff,   0x0000,       0x7,  0x7 ), ## actual gain ~10.5 (alternate acceptable settings)
-#            16:         ( 0x001f,   0x0000,       0x7,  0xf ), ## actual gain ~9.0 (alternate acceptable settings)
+#            4:          ( 0x0fff,   0x0001,       0x7,  0x3 ), ## previous settings for x4 (gain is ~4.0) ## index 441 from testing
+#            4:          ( 0x07ff,   0x0003,       0x7,  0x7 ), ## alternate previous acceptable x4 settings ## index 468 from testing
+            4:    (  0x00ff,  0x001f,  0x1,  0xf ),  ## Theoretical gain:4.000000 ## index 481 from testing
+#            4:    (  0x07ff,  0x003f,  0x1,  0xf ),  ## Theoretical gain:4.285714 ## index 485 from testing
+#            4:    (  0x003f,  0x000f,  0x1,  0xf ),  ## Theoretical gain:4.000000 ## index 479 from testing
+
+#            8:          ( 0x07ff,   0x0000,       0x7,  0x3 ), ## new settings for x8 (gain is ~7.5) ## index 818 from testing
+#            8:          ( 0x003f,   0x0000,       0x7,  0x7 ), ## alternate acceptable x8 settings ## index 836 from testing
+            8:    (  0x007f,  0x001f,  0x0,  0xf ),  ## Theoretical gain:7.333333 ## index 843 from testing
+#            8:    (  0x001f,  0x000f,  0x0,  0xf ),  ## Theoretical gain:7.200000 ## index 841 from testing
+#            8:    (  0x000f,  0x0007,  0x0,  0xf ),  ## Theoretical gain:8.000000 ## index 840 from testing
+#            8:    (  0x0003,  0x0003,  0x0,  0xf ),  ## Theoretical gain:8.000000 ## index 839 from testing
+
+
+#            16:         ( 0x01ff,   0x0000,       0x7,  0x7 ), ## actual gain ~9.75 ## index 1019 from testing
+#            16:         ( 0x03ff,   0x0000,       0x7,  0x7 ), ## actual gain ~10.5 (alternate acceptable settings) ## index 1020 from testing
+#            16:         ( 0x001f,   0x0000,       0x7,  0xf ), ## actual gain ~9.0 (alternate acceptable settings) ## index ?? from testing
+            16:   (  0x0fff,  0x003f,  0x0,  0xf ),  ## Theoretical gain:9.142857 ## index 1030 from testing
 
         }
 
