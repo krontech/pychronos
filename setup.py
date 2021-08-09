@@ -47,3 +47,4 @@ setup (name='PyChronos',
            'pychronos/sensors'
        ],
        ext_modules = [libpychronos])
+
