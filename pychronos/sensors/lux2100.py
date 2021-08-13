@@ -204,7 +204,7 @@ class lux2100(api):
         # Initialize the DAC voltage levels.
         self.writeDAC(self.DAC_VRSTH,   3.3)
         self.writeDAC(self.DAC_VTX2L,   0.0)
-        self.writeDAC(self.DAC_VRSTPIX, 2.5)
+        self.writeDAC(self.DAC_VRSTPIX, 2.0) ## changed from 2.5 previously
         self.writeDAC(self.DAC_VABL,    0.0)
         self.writeDAC(self.DAC_VTXH,    3.3)
         self.writeDAC(self.DAC_VTX2H,   3.3)
