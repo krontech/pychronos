@@ -204,7 +204,7 @@ class lux2100(api):
         # Initialize the DAC voltage levels.
         self.writeDAC(self.DAC_VRSTH,   3.3)
         self.writeDAC(self.DAC_VTX2L,   0.0)
-        self.writeDAC(self.DAC_VRSTPIX, 2.0) ## changed from 2.5 previously
+        self.writeDAC(self.DAC_VRSTPIX, 2.2)
         self.writeDAC(self.DAC_VABL,    0.0)
         self.writeDAC(self.DAC_VTXH,    3.3)
         self.writeDAC(self.DAC_VTX2H,   3.3)
@@ -543,10 +543,11 @@ class lux2100(api):
 #            1:          ( 0x003f,   0x0001,       0x7,  0x1 ), ## new settings for x1 (gain is ~1.25) ## index 3158 from testing
 #            1:          ( 0x07ff,   0x0003,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25) ## index 3162 from testing
 #            1:          ( 0x0001,   0x0000,       0x7,  0x1 ), ## alternate acceptable x1 settings (gain is ~1.25) ## index 3156 from testing
-            1:    (  0x01ff,  0x001f,  0x7,  0x3 ),  ## Theoretical gain:1.083333 ## index 3205 from testing
+
+#            1:    (  0x01ff,  0x001f,  0x7,  0x3 ),  ## Theoretical gain:1.083333 ## index 3205 from testing
 #            1:    (  0x0fff,  0x003f,  0x7,  0x3 ),  ## Theoretical gain:1.142857 ## index 3210 from testing
 #            1:    (  0x007f,  0x000f,  0x7,  0x3 ),  ## Theoretical gain:1.100000 ## index 3202 from testing
-#            1:    (  0x07ff,  0x003f,  0x7,  0x3 ),  ## Theoretical gain:1.071429 ## index 3208 from testing
+            1:    (  0x07ff,  0x003f,  0x7,  0x3 ),  ## Theoretical gain:1.071429 ## index 3208 from testing
 #            1:    (  0x001f,  0x0007,  0x7,  0x3 ),  ## Theoretical gain:1.125000 ## index 3199 from testing
 
 
